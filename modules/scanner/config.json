@@ -1,0 +1,18 @@
+{
+  "targetDirectory": "/Users/karter/files/-test files",
+  "apiEndpoint": "http://localhost:3000/api/nodes",
+  "filters": {
+    "excludePatterns": [
+      ".*\\.DS_Store$",
+      ".*\\.git/.*",
+      ".*node_modules/.*"
+    ],
+    "minSize": 0,
+    "maxSize": null
+  },
+  "options": {
+    "followSymlinks": false,
+    "hashAlgorithm": "sha256",
+    "progressInterval": 10
+  }
+}

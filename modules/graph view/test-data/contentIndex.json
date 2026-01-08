@@ -1,0 +1,82 @@
+{
+  "introduction": {
+    "slug": "introduction",
+    "filePath": "introduction.md",
+    "title": "Introduction to Knowledge Graphs",
+    "links": ["basics", "visualization", "d3-overview"],
+    "tags": ["fundamentals", "overview"],
+    "content": "This page introduces the concept of knowledge graphs and how they can be used to represent interconnected information."
+  },
+  "basics": {
+    "slug": "basics",
+    "filePath": "basics.md",
+    "title": "Graph Theory Basics",
+    "links": ["introduction", "algorithms", "data-structures"],
+    "tags": ["fundamentals", "theory"],
+    "content": "Understanding the fundamental concepts of graph theory including nodes, edges, and graph properties."
+  },
+  "visualization": {
+    "slug": "visualization",
+    "filePath": "visualization.md",
+    "title": "Data Visualization Techniques",
+    "links": ["introduction", "d3-overview", "pixi-rendering"],
+    "tags": ["visualization", "design"],
+    "content": "Exploring various techniques for visualizing complex data structures and relationships."
+  },
+  "d3-overview": {
+    "slug": "d3-overview",
+    "filePath": "d3-overview.md",
+    "title": "D3.js Force Simulation",
+    "links": ["introduction", "visualization", "force-layouts"],
+    "tags": ["d3", "simulation"],
+    "content": "Deep dive into D3.js force simulation for creating dynamic, physics-based graph layouts."
+  },
+  "algorithms": {
+    "slug": "algorithms",
+    "filePath": "algorithms.md",
+    "title": "Graph Algorithms",
+    "links": ["basics", "bfs-search", "data-structures"],
+    "tags": ["algorithms", "theory"],
+    "content": "Common algorithms used in graph traversal and analysis including BFS, DFS, and shortest path."
+  },
+  "data-structures": {
+    "slug": "data-structures",
+    "filePath": "data-structures.md",
+    "title": "Graph Data Structures",
+    "links": ["basics", "algorithms"],
+    "tags": ["fundamentals", "implementation"],
+    "content": "Different ways to represent graphs in code: adjacency lists, adjacency matrices, and edge lists."
+  },
+  "force-layouts": {
+    "slug": "force-layouts",
+    "filePath": "force-layouts.md",
+    "title": "Force-Directed Layouts",
+    "links": ["d3-overview", "visualization"],
+    "tags": ["d3", "visualization"],
+    "content": "How force-directed algorithms create aesthetically pleasing graph layouts through physics simulation."
+  },
+  "pixi-rendering": {
+    "slug": "pixi-rendering",
+    "filePath": "pixi-rendering.md",
+    "title": "Pixi.js Canvas Rendering",
+    "links": ["visualization", "webgl-performance"],
+    "tags": ["pixi", "performance"],
+    "content": "Using Pixi.js for high-performance 2D rendering with WebGL and Canvas fallback."
+  },
+  "bfs-search": {
+    "slug": "bfs-search",
+    "filePath": "bfs-search.md",
+    "title": "Breadth-First Search",
+    "links": ["algorithms"],
+    "tags": ["algorithms", "traversal"],
+    "content": "Implementing and understanding breadth-first search for graph traversal and shortest path finding."
+  },
+  "webgl-performance": {
+    "slug": "webgl-performance",
+    "filePath": "webgl-performance.md",
+    "title": "WebGL Performance Optimization",
+    "links": ["pixi-rendering"],
+    "tags": ["performance", "optimization"],
+    "content": "Techniques for optimizing WebGL rendering performance in browser-based graphics applications."
+  }
+}
