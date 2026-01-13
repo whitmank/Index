@@ -1,0 +1,70 @@
+.collection-detail-wrapper {
+  grid-column: 3;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+.collection-header {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  background: white;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: var(--spacing-xs) 0;
+  margin-bottom: var(--spacing-sm);
+  transition: color 0.2s;
+}
+
+.back-button:hover {
+  color: var(--text-color);
+}
+
+.collection-title {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.collection-tags {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.collection-tag {
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.collection-detail-loading,
+.collection-detail-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Override content-area styling for nested FileListTable */
+.collection-detail-wrapper .content-area {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+}

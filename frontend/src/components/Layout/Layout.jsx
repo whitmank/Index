@@ -3,6 +3,8 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import './Layout.css'
 import DetailPanel from '../DetailPanel/DetailPanel'
 import AddFilesModal from '../AddFilesModal/AddFilesModal'
+import ContextMenu from '../ContextMenu/ContextMenu'
+import ColorPickerModal from '../ColorPickerModal/ColorPickerModal'
 
 function Layout() {
   const location = useLocation()
@@ -23,12 +25,77 @@ function Layout() {
   const [sortDirection, setSortDirection] = useState('asc')
   const [isAddFilesModalOpen, setIsAddFilesModalOpen] = useState(false)
   const [pastedPath, setPastedPath] = useState('')
+  const [addFilesCollection, setAddFilesCollection] = useState(null) // Collection to auto-tag to
+  const [pinnedCollections, setPinnedCollections] = useState([])
+  const [sidebarContextMenu, setSidebarContextMenu] = useState(null) // { x, y, collection }
+  const [colorPickerModal, setColorPickerModal] = useState(null) // { collection }
 
   // Load all data on component mount
   useEffect(() => {
     loadNodes()
     loadLinks()
+    loadPinnedCollections()
   }, [])
+
+  // Listen for changes to pinned collections
+  useEffect(() => {
+    const handlePinnedChanged = () => {
+      loadPinnedCollections()
+    }
+
+    window.addEventListener('pinnedCollectionsChanged', handlePinnedChanged)
+    return () => window.removeEventListener('pinnedCollectionsChanged', handlePinnedChanged)
+  }, [])
+
+  const loadPinnedCollections = () => {
+    const pinned = JSON.parse(localStorage.getItem('pinnedCollections') || '[]')
+    setPinnedCollections(pinned)
+  }
+
+  const handleSidebarItemRightClick = (e, collection) => {
+    e.preventDefault()
+    setSidebarContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      collection
+    })
+  }
+
+  const handleUnpinCollection = (collection) => {
+    const pinned = JSON.parse(localStorage.getItem('pinnedCollections') || '[]')
+    const filtered = pinned.filter(p => p.id !== collection.id)
+    localStorage.setItem('pinnedCollections', JSON.stringify(filtered))
+    window.dispatchEvent(new CustomEvent('pinnedCollectionsChanged'))
+  }
+
+  const handleChangeColor = async (collection, newColor) => {
+    try {
+      // Fetch full collection data first (in case we only have partial data from localStorage)
+      const response = await fetch(`/api/collections/${collection.id}`)
+      const fullCollection = await response.json()
+
+      // Update collection color via API
+      await fetch(`/api/collections/${collection.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: fullCollection.name,
+          tags: fullCollection.tags || [],
+          color: newColor
+        })
+      })
+
+      // Update pinned collections
+      const pinned = JSON.parse(localStorage.getItem('pinnedCollections') || '[]')
+      const updated = pinned.map(p =>
+        p.id === collection.id ? { ...p, color: newColor } : p
+      )
+      localStorage.setItem('pinnedCollections', JSON.stringify(updated))
+      window.dispatchEvent(new CustomEvent('pinnedCollectionsChanged'))
+    } catch (error) {
+      console.error('Failed to update collection color:', error)
+    }
+  }
 
   // Load all tags for all nodes on mount
   useEffect(() => {
@@ -87,7 +154,7 @@ function Layout() {
 
   // Paste-to-import: Auto-open add files modal when pasting a file path
   useEffect(() => {
-    const handlePaste = (e) => {
+    const handlePaste = async (e) => {
       // Don't trigger if user is pasting into an input field
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         return
@@ -107,13 +174,31 @@ function Layout() {
       if (isFilePath) {
         e.preventDefault()
         setPastedPath(pastedText)
+
+        // Check if we're in a collection view
+        const collectionMatch = location.pathname.match(/^\/collections\/(.+)$/)
+        if (collectionMatch) {
+          const collectionId = collectionMatch[1]
+          try {
+            // Fetch collection details to get tags
+            const response = await fetch(`/api/collections/${collectionId}`)
+            const collection = await response.json()
+            setAddFilesCollection(collection)
+          } catch (error) {
+            console.error('Failed to load collection:', error)
+            setAddFilesCollection(null)
+          }
+        } else {
+          setAddFilesCollection(null)
+        }
+
         setIsAddFilesModalOpen(true)
       }
     }
 
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
-  }, [])
+  }, [location.pathname])
 
   // Auto-hide scrollbars when not scrolling
   useEffect(() => {
@@ -439,6 +524,44 @@ function Layout() {
         <main className="main">
           {/* Toolbar */}
           <div className="toolbar">
+            {/* Navigation */}
+            <nav className="toolbar-nav">
+              <Link
+                to="/directory"
+                className={`toolbar-nav-item ${location.pathname === '/directory' ? 'active' : ''}`}
+              >
+                <span className="toolbar-nav-icon">
+                  <img src="/dodecahedron.svg" alt="" className="toolbar-nav-icon-svg" />
+                </span>
+                <span className="toolbar-nav-label">ALL FILES</span>
+              </Link>
+
+              <Link
+                to="/tags"
+                className={`toolbar-nav-item ${location.pathname === '/tags' ? 'active' : ''}`}
+              >
+                <span className="toolbar-nav-icon">🏷️</span>
+                <span className="toolbar-nav-label">TAGS</span>
+              </Link>
+
+              <Link
+                to="/collections"
+                className={`toolbar-nav-item ${location.pathname === '/collections' ? 'active' : ''}`}
+              >
+                <span className="toolbar-nav-icon">📁</span>
+                <span className="toolbar-nav-label">COLLECTIONS</span>
+              </Link>
+
+              <Link
+                to="/dev"
+                className={`toolbar-nav-item ${location.pathname === '/dev' ? 'active' : ''}`}
+              >
+                <span className="toolbar-nav-icon">🛠️</span>
+                <span className="toolbar-nav-label">DEV</span>
+              </Link>
+            </nav>
+
+            {/* Search */}
             <div className="toolbar-search-wrapper">
               <span className="toolbar-search-icon">🔍</span>
               <input
@@ -449,6 +572,8 @@ function Layout() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            {/* Add Files Button */}
             <button
               className="toolbar-add-button"
               onClick={() => setIsAddFilesModalOpen(true)}
@@ -458,35 +583,28 @@ function Layout() {
             </button>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Pinned Collections */}
           <aside className="sidebar">
-            <div className="sidebar-section">
-              <Link
-                to="/directory"
-                className={`sidebar-item ${location.pathname === '/directory' ? 'active' : ''}`}
-              >
-                <span className="sidebar-icon">
-                  <img src="/dodecahedron.svg" alt="" className="sidebar-icon-svg" />
-                </span>
-                <span className="sidebar-label">ALL FILES</span>
-              </Link>
-
-              <Link
-                to="/tags"
-                className={`sidebar-item ${location.pathname === '/tags' ? 'active' : ''}`}
-              >
-                <span className="sidebar-icon">🏷️</span>
-                <span className="sidebar-label">TAGS</span>
-              </Link>
-
-              <Link
-                to="/dev"
-                className={`sidebar-item ${location.pathname === '/dev' ? 'active' : ''}`}
-              >
-                <span className="sidebar-icon">🛠️</span>
-                <span className="sidebar-label">DEV</span>
-              </Link>
-            </div>
+            {pinnedCollections.length > 0 && (
+              <div className="sidebar-section">
+                {pinnedCollections.map((collection) => (
+                  <Link
+                    key={collection.id}
+                    to={`/collections/${collection.id}`}
+                    className={`sidebar-pinned-item ${location.pathname === `/collections/${collection.id}` ? 'active' : ''}`}
+                    onContextMenu={(e) => handleSidebarItemRightClick(e, collection)}
+                  >
+                    <div
+                      className="sidebar-pinned-icon"
+                      style={{ backgroundColor: collection.color || '#4D9FFF' }}
+                    >
+                      📁
+                    </div>
+                    <span className="sidebar-pinned-label">{collection.name}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </aside>
 
           {/* Route content renders here */}
@@ -495,6 +613,8 @@ function Layout() {
             tags,
             links,
             selectedNodeIds,
+            setSelectedNodeIds,
+            setDetailsNode,
             searchQuery,
             sortField,
             sortDirection,
@@ -535,10 +655,47 @@ function Layout() {
         onClose={() => {
           setIsAddFilesModalOpen(false)
           setPastedPath('')
+          setAddFilesCollection(null)
         }}
         onSuccess={loadNodes}
         initialPath={pastedPath}
+        collection={addFilesCollection}
       />
+
+      {sidebarContextMenu && (
+        <ContextMenu
+          x={sidebarContextMenu.x}
+          y={sidebarContextMenu.y}
+          items={[
+            {
+              icon: '📌',
+              label: 'Unpin from Sidebar',
+              onClick: () => handleUnpinCollection(sidebarContextMenu.collection)
+            },
+            {
+              separator: true
+            },
+            {
+              icon: '🎨',
+              label: 'Change Color...',
+              onClick: () => {
+                setColorPickerModal({ collection: sidebarContextMenu.collection })
+              }
+            }
+          ]}
+          onClose={() => setSidebarContextMenu(null)}
+        />
+      )}
+
+      {colorPickerModal && (
+        <ColorPickerModal
+          isOpen={true}
+          currentColor={colorPickerModal.collection.color || '#4D9FFF'}
+          title={`Change Color: ${colorPickerModal.collection.name}`}
+          onColorSelect={(newColor) => handleChangeColor(colorPickerModal.collection, newColor)}
+          onClose={() => setColorPickerModal(null)}
+        />
+      )}
     </>
   )
 }

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import './AddFilesModal.css'
 
-function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
+function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '', collection = null }) {
   const [path, setPath] = useState('')
   const [isIndexing, setIsIndexing] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [isTagging, setIsTagging] = useState(false)
 
   // Set path when initialPath changes (e.g., from paste event)
   useEffect(() => {
@@ -50,6 +51,36 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
       setResult(data)
       setPath('')
 
+      // If we're adding to a collection, apply tags to newly indexed files
+      if (collection && data.nodeIds && data.nodeIds.length > 0) {
+        setIsTagging(true)
+        try {
+          // Apply each tag to each node
+          const tagPromises = []
+          for (const nodeId of data.nodeIds) {
+            for (const tagName of collection.tags) {
+              tagPromises.push(
+                fetch('/api/tags', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    tag_name: tagName,
+                    node_id: nodeId
+                  })
+                })
+              )
+            }
+          }
+          await Promise.all(tagPromises)
+          console.log(`✅ Applied ${collection.tags.length} tag(s) to ${data.nodeIds.length} file(s)`)
+        } catch (tagError) {
+          console.error('Failed to apply tags:', tagError)
+          // Don't fail the whole operation if tagging fails
+        } finally {
+          setIsTagging(false)
+        }
+      }
+
       // Call success callback to refresh nodes list
       if (onSuccess) {
         onSuccess()
@@ -74,7 +105,7 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>📁 Add Files to Index</h2>
+          <h2>📁 {collection ? `Add Files to "${collection.name}"` : 'Add Files to Index'}</h2>
           <button className="modal-close" onClick={handleClose}>×</button>
         </div>
 
@@ -95,6 +126,13 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
               Enter the full path to a file or folder you want to index.
               <br />
               Example: <code>/Users/username/Documents</code>
+              {collection && (
+                <>
+                  <br />
+                  <br />
+                  <strong>Files will be tagged with:</strong> {collection.tags.join(', ')}
+                </>
+              )}
             </p>
           </div>
 
@@ -108,6 +146,13 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
             <div className="message message-loading">
               <div className="spinner"></div>
               <span>Indexing files...</span>
+            </div>
+          )}
+
+          {isTagging && (
+            <div className="message message-loading">
+              <div className="spinner"></div>
+              <span>Adding tags to files...</span>
             </div>
           )}
 
@@ -153,9 +198,9 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={isIndexing || !path.trim()}
+                disabled={isIndexing || isTagging || !path.trim()}
               >
-                {isIndexing ? 'Indexing...' : 'Index Files'}
+                {isIndexing ? 'Indexing...' : isTagging ? 'Adding Tags...' : collection ? `Add to ${collection.name}` : 'Index Files'}
               </button>
             )}
           </div>

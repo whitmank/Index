@@ -408,6 +408,140 @@ async function deleteTag(id) {
 
 /**
  * ============================================
+ * COLLECTIONS CRUD OPERATIONS
+ * ============================================
+ */
+
+/**
+ * Get all collections
+ */
+async function getAllCollections() {
+  try {
+    const result = await db.query('SELECT * FROM collections ORDER BY timestamp_created DESC');
+    return result[0] || [];
+  } catch (error) {
+    console.error('Error fetching collections:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get a single collection by ID
+ */
+async function getCollectionById(id) {
+  try {
+    const result = await db.query(`SELECT * FROM ${id}`);
+    return result[0]?.[0] || null;
+  } catch (error) {
+    console.error('Error fetching collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new collection
+ */
+async function createCollection(data) {
+  try {
+    const result = await db.create('collections', {
+      name: data.name,
+      tags: data.tags || [],
+      color: data.color || null,
+      timestamp_created: data.timestamp_created || new Date().toISOString()
+    });
+    return Array.isArray(result) ? result[0] : result;
+  } catch (error) {
+    console.error('Error creating collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing collection
+ */
+async function updateCollection(id, data) {
+  try {
+    console.log('Updating collection:', id, 'with data:', data);
+
+    const updateQuery = `
+      UPDATE ${id} SET
+        name = $name,
+        tags = $tags,
+        color = $color
+    `;
+    const result = await db.query(updateQuery, {
+      name: data.name,
+      tags: data.tags || [],
+      color: data.color || null
+    });
+    console.log('Update result:', result);
+
+    return result[0]?.[0] || null;
+  } catch (error) {
+    console.error('Error updating collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a collection
+ */
+async function deleteCollection(id) {
+  try {
+    console.log('Deleting collection:', id);
+    const deleteQuery = `DELETE ${id}`;
+    await db.query(deleteQuery);
+    console.log('Delete result: success');
+    return { success: true, id };
+  } catch (error) {
+    console.error('Error deleting collection:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get nodes that have ALL the tags in the given array (AND logic)
+ * Used to show files within a collection
+ */
+async function getNodesByCollectionTags(tags) {
+  try {
+    if (!tags || tags.length === 0) {
+      return [];
+    }
+
+    // Get all nodes
+    const nodesResult = await db.query('SELECT * FROM nodes');
+    const nodes = nodesResult[0] || [];
+
+    // Get all tags
+    const tagsResult = await db.query('SELECT * FROM tags');
+    const allTags = tagsResult[0] || [];
+
+    // Group tags by node_id
+    const tagsByNode = {};
+    allTags.forEach(tag => {
+      if (!tagsByNode[tag.node_id]) {
+        tagsByNode[tag.node_id] = [];
+      }
+      tagsByNode[tag.node_id].push(tag.tag_name);
+    });
+
+    // Filter nodes that have ALL the required tags
+    const filteredNodes = nodes.filter(node => {
+      const nodeTags = tagsByNode[node.id] || [];
+      // Check if node has all required tags
+      return tags.every(requiredTag => nodeTags.includes(requiredTag));
+    });
+
+    return filteredNodes;
+  } catch (error) {
+    console.error('Error fetching nodes by collection tags:', error);
+    throw error;
+  }
+}
+
+/**
+ * ============================================
  * QUERY METHODS (Filtered Queries)
  * ============================================
  */
@@ -486,6 +620,13 @@ module.exports = {
   getTagsForNode,
   createTag,
   deleteTag,
+  // Collections
+  getAllCollections,
+  getCollectionById,
+  createCollection,
+  updateCollection,
+  deleteCollection,
+  getNodesByCollectionTags,
   // Queries
   getNodesByDateRange,
   getNodesByType,

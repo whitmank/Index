@@ -346,6 +346,79 @@ app.delete('/api/tags/:id', async (req, res) => {
 });
 
 // ============================================
+// COLLECTIONS API ENDPOINTS
+// ============================================
+
+app.get('/api/collections', async (req, res) => {
+  try {
+    const collections = await dbService.getAllCollections();
+    res.json(collections);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/collections/:id', async (req, res) => {
+  try {
+    const collection = await dbService.getCollectionById(req.params.id);
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+    res.json(collection);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/collections/:id/nodes', async (req, res) => {
+  try {
+    const collection = await dbService.getCollectionById(req.params.id);
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+    const nodes = await dbService.getNodesByCollectionTags(collection.tags);
+    res.json(nodes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/collections', async (req, res) => {
+  try {
+    // Validate that tags array is not empty
+    if (!req.body.tags || req.body.tags.length === 0) {
+      return res.status(400).json({ error: 'Collections must have at least one tag' });
+    }
+    const collection = await dbService.createCollection(req.body);
+    res.status(201).json(collection);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/collections/:id', async (req, res) => {
+  try {
+    // Validate that tags array is not empty
+    if (!req.body.tags || req.body.tags.length === 0) {
+      return res.status(400).json({ error: 'Collections must have at least one tag' });
+    }
+    const collection = await dbService.updateCollection(req.params.id, req.body);
+    res.json(collection);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/collections/:id', async (req, res) => {
+  try {
+    const result = await dbService.deleteCollection(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // FS-INDEXER ENDPOINT
 // ============================================
 
@@ -442,10 +515,11 @@ app.get('/api/files/:id', async (req, res) => {
   }
 });
 
-// Serve frontend for all other routes (client-side routing)
-app.use((req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
+// Note: Frontend is served separately by Vite during development
+// This catch-all route is commented out to prevent interfering with API routes
+// app.use((req, res) => {
+//   res.sendFile(path.join(frontendPath, 'index.html'));
+// });
 
 // Graceful shutdown handlers
 process.on('SIGTERM', async () => {
@@ -499,6 +573,13 @@ async function start() {
       console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id/tags`);
       console.log(`  - POST   http://localhost:${PORT}/api/tags`);
       console.log(`  - DELETE http://localhost:${PORT}/api/tags/:id`);
+      console.log(`\n  Collections:`);
+      console.log(`  - GET    http://localhost:${PORT}/api/collections`);
+      console.log(`  - GET    http://localhost:${PORT}/api/collections/:id`);
+      console.log(`  - GET    http://localhost:${PORT}/api/collections/:id/nodes`);
+      console.log(`  - POST   http://localhost:${PORT}/api/collections`);
+      console.log(`  - PUT    http://localhost:${PORT}/api/collections/:id`);
+      console.log(`  - DELETE http://localhost:${PORT}/api/collections/:id`);
       console.log(`\n  FS-Indexer:`);
       console.log(`  - POST   http://localhost:${PORT}/api/index`);
       console.log(`\n  Queries:`);

@@ -109,10 +109,10 @@ async function processFile(filePath, fileStats) {
     if (result.success || result.duplicate) {
       if (result.duplicate) {
         console.log('  ✅ Node already exists (duplicate)');
-        return { duplicate: true };
+        return { duplicate: true, node: result.node || result.existing };
       } else {
         console.log('  ✅ Node created successfully');
-        return { success: true };
+        return { success: true, node: result.node };
       }
     } else {
       console.log(`  ❌ Failed to create node`);
@@ -151,6 +151,9 @@ async function scanDirectory(dirPath, stats) {
 
         if (result.success) {
           stats.indexed++;
+          if (result.node && result.node.id) {
+            stats.nodeIds.push(result.node.id);
+          }
         } else if (result.duplicate) {
           stats.duplicates++;
         } else if (result.error) {
@@ -190,7 +193,8 @@ async function indexPath(targetPath) {
     indexed: 0,
     skipped: 0,
     errors: 0,
-    duplicates: 0
+    duplicates: 0,
+    nodeIds: []  // Track IDs of newly indexed nodes
   };
 
   try {
@@ -212,9 +216,16 @@ async function indexPath(targetPath) {
       if (!SYSTEM_FILES.includes(fileName)) {
         // Process single file
         const result = await processFile(targetPath, pathStats);
-        if (result.success) stats.indexed++;
-        else if (result.duplicate) stats.duplicates++;
-        else if (result.error) stats.errors++;
+        if (result.success) {
+          stats.indexed++;
+          if (result.node && result.node.id) {
+            stats.nodeIds.push(result.node.id);
+          }
+        } else if (result.duplicate) {
+          stats.duplicates++;
+        } else if (result.error) {
+          stats.errors++;
+        }
       }
     } else if (pathStats.isDirectory()) {
       // Process directory recursively
