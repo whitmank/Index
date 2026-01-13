@@ -1,0 +1,13 @@
+{
+  "name": "@index/fs-indexer",
+  "version": "1.0.0",
+  "description": "Filesystem indexing service for personal information system",
+  "main": "index.js",
+  "type": "commonjs",
+  "keywords": ["indexer", "filesystem", "metadata"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mime-types": "^2.1.35"
+  }
+}

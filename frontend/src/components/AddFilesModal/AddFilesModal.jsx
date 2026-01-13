@@ -1,0 +1,168 @@
+import { useState, useEffect } from 'react'
+import './AddFilesModal.css'
+
+function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '' }) {
+  const [path, setPath] = useState('')
+  const [isIndexing, setIsIndexing] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  // Set path when initialPath changes (e.g., from paste event)
+  useEffect(() => {
+    if (initialPath) {
+      setPath(initialPath)
+    }
+  }, [initialPath])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!path.trim()) {
+      setError('Please enter a file or folder path')
+      return
+    }
+
+    // Clean the path: trim whitespace and remove surrounding quotes
+    const cleanPath = path.trim().replace(/^["']|["']$/g, '')
+
+    if (!cleanPath) {
+      setError('Please enter a valid file or folder path')
+      return
+    }
+
+    setIsIndexing(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      const response = await fetch('/api/index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: cleanPath })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to index files')
+      }
+
+      setResult(data)
+      setPath('')
+
+      // Call success callback to refresh nodes list
+      if (onSuccess) {
+        onSuccess()
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsIndexing(false)
+    }
+  }
+
+  const handleClose = () => {
+    setPath('')
+    setResult(null)
+    setError(null)
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>📁 Add Files to Index</h2>
+          <button className="modal-close" onClick={handleClose}>×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="modal-body">
+          <div className="form-group">
+            <label htmlFor="path-input">File or Folder Path:</label>
+            <input
+              id="path-input"
+              type="text"
+              className="path-input"
+              placeholder="/Users/karter/Documents/MyFolder"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              disabled={isIndexing}
+              autoFocus
+            />
+            <p className="input-hint">
+              Enter the full path to a file or folder you want to index.
+              <br />
+              Example: <code>/Users/username/Documents</code>
+            </p>
+          </div>
+
+          {error && (
+            <div className="message message-error">
+              ❌ {error}
+            </div>
+          )}
+
+          {isIndexing && (
+            <div className="message message-loading">
+              <div className="spinner"></div>
+              <span>Indexing files...</span>
+            </div>
+          )}
+
+          {result && (
+            <div className="message message-success">
+              <h3>✅ Indexing Complete</h3>
+              <div className="result-stats">
+                <div className="stat">
+                  <span className="stat-label">New files indexed:</span>
+                  <span className="stat-value">{result.indexed}</span>
+                </div>
+                {result.duplicates > 0 && (
+                  <div className="stat">
+                    <span className="stat-label">Duplicates found:</span>
+                    <span className="stat-value">{result.duplicates}</span>
+                  </div>
+                )}
+                {result.skipped > 0 && (
+                  <div className="stat">
+                    <span className="stat-label">Skipped:</span>
+                    <span className="stat-value">{result.skipped}</span>
+                  </div>
+                )}
+                {result.errors > 0 && (
+                  <div className="stat">
+                    <span className="stat-label">Errors:</span>
+                    <span className="stat-value stat-error">{result.errors}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleClose}
+            >
+              {result ? 'Close' : 'Cancel'}
+            </button>
+            {!result && (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isIndexing || !path.trim()}
+              >
+                {isIndexing ? 'Indexing...' : 'Index Files'}
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default AddFilesModal

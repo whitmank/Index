@@ -5,7 +5,7 @@ import { formatBytes, formatDate } from '../../utils/formatters'
 function FilesView() {
   const {
     filteredAndSortedNodes,
-    selectedNodeId,
+    selectedNodeIds,
     tags,
     sortField,
     sortDirection,
@@ -54,8 +54,8 @@ function FilesView() {
               {filteredAndSortedNodes.map((node, index) => (
                 <tr
                   key={node.id}
-                  className={selectedNodeId === node.id ? 'selected' : ''}
-                  onClick={() => handleRowClick(node)}
+                  className={selectedNodeIds.includes(node.id) ? 'selected' : ''}
+                  onClick={(e) => handleRowClick(node, index, e)}
                 >
                   <td className="col-name">
                     <div className="name-cell">
@@ -82,7 +82,10 @@ function FilesView() {
 
       {/* Footer */}
       <div className="footer">
-        <span className="footer-text">{filteredAndSortedNodes.length} items</span>
+        <span className="footer-text">
+          {filteredAndSortedNodes.length} items
+          {selectedNodeIds.length > 0 && ` · ${selectedNodeIds.length} selected`}
+        </span>
       </div>
     </div>
   )

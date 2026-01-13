@@ -37,7 +37,8 @@
   border-radius: var(--border-radius);
   padding: var(--spacing-sm);
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr auto;
+  gap: var(--spacing-md);
   align-items: center;
 }
 
@@ -46,6 +47,29 @@
   max-width: 600px;
   width: 100%;
   justify-self: center;
+}
+
+.toolbar-add-button {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.toolbar-add-button:hover {
+  background: #0052a3;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
+}
+
+.toolbar-add-button:active {
+  transform: translateY(0);
 }
 
 .toolbar-search-icon {

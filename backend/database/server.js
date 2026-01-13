@@ -346,6 +346,32 @@ app.delete('/api/tags/:id', async (req, res) => {
 });
 
 // ============================================
+// FS-INDEXER ENDPOINT
+// ============================================
+
+app.post('/api/index', async (req, res) => {
+  try {
+    const { path: targetPath } = req.body;
+
+    if (!targetPath) {
+      return res.status(400).json({ error: 'path is required' });
+    }
+
+    // Import the fs-indexer service
+    const fsIndexer = require('../fs-indexer');
+
+    // Run the indexing operation
+    console.log(`\n📥 Indexing request received for: ${targetPath}`);
+    const result = await fsIndexer.indexPath(targetPath);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Indexing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // QUERY ENDPOINTS (Filtered Queries)
 // ============================================
 
@@ -473,6 +499,8 @@ async function start() {
       console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id/tags`);
       console.log(`  - POST   http://localhost:${PORT}/api/tags`);
       console.log(`  - DELETE http://localhost:${PORT}/api/tags/:id`);
+      console.log(`\n  FS-Indexer:`);
+      console.log(`  - POST   http://localhost:${PORT}/api/index`);
       console.log(`\n  Queries:`);
       console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-date?start=...&end=...`);
       console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-type?type=...`);

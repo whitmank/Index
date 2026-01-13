@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import './Layout.css'
 import DetailPanel from '../DetailPanel/DetailPanel'
+import AddFilesModal from '../AddFilesModal/AddFilesModal'
 
 function Layout() {
   const location = useLocation()
@@ -11,7 +12,8 @@ function Layout() {
   const [nodes, setNodes] = useState([])
   const [tags, setTags] = useState({}) // Map of nodeId -> tags array
   const [links, setLinks] = useState([])
-  const [selectedNodeId, setSelectedNodeId] = useState(null) // For row selection
+  const [selectedNodeIds, setSelectedNodeIds] = useState([]) // For multi-row selection
+  const [lastSelectedIndex, setLastSelectedIndex] = useState(null) // For shift-click range
   const [detailsNode, setDetailsNode] = useState(null) // For details panel
   const [tagInput, setTagInput] = useState('') // Tag input field
   const [linkForm, setLinkForm] = useState({ targetNode: '', type: 'semantic', strength: 0.5 })
@@ -19,6 +21,8 @@ function Layout() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState('name')
   const [sortDirection, setSortDirection] = useState('asc')
+  const [isAddFilesModalOpen, setIsAddFilesModalOpen] = useState(false)
+  const [pastedPath, setPastedPath] = useState('')
 
   // Load all data on component mount
   useEffect(() => {
@@ -41,31 +45,95 @@ function Layout() {
     }
   }, [detailsNode])
 
+  // Delete key handler for selected nodes
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      // Don't trigger if user is typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // Delete / Backspace: Delete selected files
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.length > 0) {
+        e.preventDefault()
+
+        // Confirm deletion
+        const count = selectedNodeIds.length
+        const message = count === 1
+          ? 'Are you sure you want to delete this file? This cannot be undone.'
+          : `Are you sure you want to delete ${count} files? This cannot be undone.`
+
+        if (!confirm(message)) return
+
+        // Delete all selected nodes
+        try {
+          await Promise.all(selectedNodeIds.map(nodeId =>
+            fetch(`/api/nodes/${nodeId}`, { method: 'DELETE' })
+          ))
+          await loadNodes()
+          setSelectedNodeIds([])
+          setLastSelectedIndex(null)
+          handleCloseDetails()
+        } catch (error) {
+          console.error('Failed to delete nodes:', error)
+          alert('Failed to delete some files')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedNodeIds])
+
+  // Paste-to-import: Auto-open add files modal when pasting a file path
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Don't trigger if user is pasting into an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // Get pasted text and strip any leading/trailing quotes or whitespace
+      const rawText = e.clipboardData.getData('text').trim()
+      const pastedText = rawText.replace(/^[^\w/~\\]+|[^\w/~\\]+$/g, '')
+
+      // Check if it looks like a file path
+      const isFilePath =
+        pastedText.startsWith('/') ||                    // Unix/Mac absolute path
+        pastedText.startsWith('~/') ||                   // Unix/Mac home path
+        /^[A-Za-z]:\\/.test(pastedText) ||              // Windows path (C:\)
+        /^[A-Za-z]:\//.test(pastedText)                 // Windows path (C:/)
+
+      if (isFilePath) {
+        e.preventDefault()
+        setPastedPath(pastedText)
+        setIsAddFilesModalOpen(true)
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [])
+
   // Auto-hide scrollbars when not scrolling
   useEffect(() => {
-    // Setup listeners for all scrollable containers with delay to ensure DOM is ready
     const timer = setTimeout(() => {
       const setupScrollListener = (selector) => {
         const element = document.querySelector(selector)
         if (element) {
-          console.log('Setting up scroll listener for:', selector, element)
           let timeout
           const handler = () => {
-            console.log('Scroll detected on:', selector)
             element.classList.add('is-scrolling')
             clearTimeout(timeout)
             timeout = setTimeout(() => {
-              console.log('Removing is-scrolling from:', selector)
               element.classList.remove('is-scrolling')
-            }, 1000) // Hide after 1 second of no scrolling
+            }, 1000)
           }
           element.addEventListener('scroll', handler, { passive: true })
           return () => {
             element.removeEventListener('scroll', handler)
             clearTimeout(timeout)
           }
-        } else {
-          console.warn('Could not find element:', selector)
         }
         return () => {}
       }
@@ -74,7 +142,6 @@ function Layout() {
       const cleanup2 = setupScrollListener('.file-list-container')
       const cleanup3 = setupScrollListener('.panel-content')
 
-      // Store cleanup functions
       window._scrollCleanup = () => {
         cleanup1()
         cleanup2()
@@ -89,7 +156,7 @@ function Layout() {
         delete window._scrollCleanup
       }
     }
-  }, [detailsNode, location.pathname]) // Re-run when route or detail panel changes
+  }, [detailsNode, location.pathname])
 
   // Fetch all nodes from the backend
   const loadNodes = async () => {
@@ -131,11 +198,6 @@ function Layout() {
       loadNodes()
       loadLinks()
     }
-  }
-
-  const handleRowClick = (node) => {
-    setSelectedNodeId(node.id)
-    setDetailsNode(node)
   }
 
   const handleCloseDetails = () => {
@@ -313,6 +375,63 @@ function Layout() {
       return 0
     })
 
+  // Cmd+A / Ctrl+A: Select all files
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger if user is typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      // Cmd+A / Ctrl+A: Select all files
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault()
+        const allNodeIds = filteredAndSortedNodes.map(node => node.id)
+        setSelectedNodeIds(allNodeIds)
+        setDetailsNode(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [filteredAndSortedNodes])
+
+  // Row click handler with multi-select support
+  const handleRowClick = (node, index, event) => {
+    const isCmdOrCtrl = event.metaKey || event.ctrlKey
+    const isShift = event.shiftKey
+
+    if (isCmdOrCtrl) {
+      // Cmd/Ctrl + Click: Toggle selection
+      setSelectedNodeIds(prev => {
+        if (prev.includes(node.id)) {
+          // Deselect
+          return prev.filter(id => id !== node.id)
+        } else {
+          // Add to selection
+          return [...prev, node.id]
+        }
+      })
+      setLastSelectedIndex(index)
+      // Close details panel when multiple are selected
+      if (selectedNodeIds.length > 0) {
+        setDetailsNode(null)
+      }
+    } else if (isShift && lastSelectedIndex !== null) {
+      // Shift + Click: Select range
+      const start = Math.min(lastSelectedIndex, index)
+      const end = Math.max(lastSelectedIndex, index)
+      const rangeIds = filteredAndSortedNodes.slice(start, end + 1).map(n => n.id)
+      setSelectedNodeIds(rangeIds)
+      setDetailsNode(null) // Close details panel for range selection
+    } else {
+      // Normal click: Select only this node
+      setSelectedNodeIds([node.id])
+      setLastSelectedIndex(index)
+      setDetailsNode(node)
+    }
+  }
+
   return (
     <>
       <div className="frame"></div>
@@ -330,6 +449,13 @@ function Layout() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <button
+              className="toolbar-add-button"
+              onClick={() => setIsAddFilesModalOpen(true)}
+              title="Add files to index"
+            >
+              + Add Files
+            </button>
           </div>
 
           {/* Sidebar */}
@@ -368,7 +494,7 @@ function Layout() {
             nodes,
             tags,
             links,
-            selectedNodeId,
+            selectedNodeIds,
             searchQuery,
             sortField,
             sortDirection,
@@ -402,6 +528,17 @@ function Layout() {
           />
         </main>
       </div>
+
+      {/* Add Files Modal */}
+      <AddFilesModal
+        isOpen={isAddFilesModalOpen}
+        onClose={() => {
+          setIsAddFilesModalOpen(false)
+          setPastedPath('')
+        }}
+        onSuccess={loadNodes}
+        initialPath={pastedPath}
+      />
     </>
   )
 }
