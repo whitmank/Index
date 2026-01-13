@@ -1,0 +1,33 @@
+{
+  "name": "index-project",
+  "version": "1.0.0",
+  "description": "Personal information indexing and visualization system",
+  "private": true,
+  "workspaces": [
+    "backend/*",
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others --prefix-colors \"bgBlue.bold,bgMagenta.bold\" --prefix \"[{name}]\" --names \"database,frontend\" \"npm:dev:db\" \"npm:dev:frontend\"",
+    "dev:db": "npm run start --workspace=@index/database",
+    "dev:frontend": "npm run dev --workspace=@index/frontend",
+    "dev:scanner": "npm run scan --workspace=@index/scanner",
+    "install:all": "npm install",
+    "start:db": "npm run start --workspace=@index/database",
+    "start:scanner": "npm run scan --workspace=@index/scanner",
+    "build:all": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "keywords": [
+    "indexing",
+    "database",
+    "scanner",
+    "visualization"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

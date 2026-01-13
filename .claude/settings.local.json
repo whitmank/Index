@@ -5,7 +5,16 @@
       "Bash(npm run build:*)",
       "Bash(curl:*)",
       "Bash(npm run dev:backend:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(timeout 5 npm run dev:frontend)",
+      "Bash(lsof:*)"
     ]
   }
 }

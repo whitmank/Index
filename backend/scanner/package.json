@@ -1,0 +1,17 @@
+{
+  "name": "@index/scanner",
+  "version": "1.0.0",
+  "description": "Recursive directory scanner for personal information system",
+  "main": "scanner.js",
+  "type": "commonjs",
+  "scripts": {
+    "scan": "node scanner.js",
+    "test": "node scanner.js --dry-run"
+  },
+  "keywords": ["scanner", "indexer", "metadata"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mime-types": "^2.1.35"
+  }
+}
