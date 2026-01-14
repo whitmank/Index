@@ -11,7 +11,7 @@ I can use my intelligence to make decisions not about how to build a specific fe
 
 One must choose first what to execute, then how to execute it.
 
-I was getting bogged down in the code execution phase, because I haven’t been super effective in learning how to do so. But truth is, I don’t really want to. I want to specialize in design, human-wise, interaction layer decision making.
+I was getting bogged down in the code execution phase, because I haven’t been super effective in learning how to do so. But truth is, I don’t really want to. I want to specialize in design, human-wise interaction layer decision making.
 
 Now I can, and I can turn that work into something useful.
 Plans without execution means nothing, but execution is finally within my grasp. My command of programming language is amateur at best. For English however, I believe my command is quite strong. The computer can now interpret English.
