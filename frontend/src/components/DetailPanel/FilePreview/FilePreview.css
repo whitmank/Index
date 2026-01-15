@@ -54,21 +54,9 @@
 }
 
 /* Image preview */
-.preview-image {
-  width: 100%;
-  min-height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--hover-color);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
 .preview-image img {
-  max-width: 100%;
-  max-height: 400px;
-  object-fit: contain;
+  width: 100%;
+  height: auto;
   display: block;
 }
 

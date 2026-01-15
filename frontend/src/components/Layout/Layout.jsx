@@ -519,7 +519,6 @@ function Layout() {
 
   return (
     <>
-      <div className="frame"></div>
       <div className="app">
         <main className="main">
           {/* Toolbar */}
@@ -629,22 +628,11 @@ function Layout() {
           <DetailPanel
             node={detailsNode}
             tags={tags}
-            links={links}
-            nodes={nodes}
             tagInput={tagInput}
             setTagInput={setTagInput}
-            noteInput={noteInput}
-            setNoteInput={setNoteInput}
-            linkForm={linkForm}
-            setLinkForm={setLinkForm}
             onClose={handleCloseDetails}
             onAddTag={handleAddTag}
             onDeleteTag={handleDeleteTag}
-            onSaveNote={handleSaveNote}
-            onCreateLink={handleCreateLink}
-            onDeleteNode={handleDeleteNode}
-            getNodeById={getNodeById}
-            getNodeLinks={getNodeLinks}
           />
         </main>
       </div>

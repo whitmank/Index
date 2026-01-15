@@ -18,24 +18,17 @@ function ImagePreview({ node }) {
   }
 
   if (error) {
-    return (
-      <div className="preview-error">
-        <p>Failed to load image</p>
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="preview-image">
-      {loading && <div className="preview-loading">Loading image...</div>}
-      <img
-        src={`/api/files/${node.id}`}
-        alt={node.name}
-        onLoad={handleLoad}
-        onError={handleError}
-        style={{ display: loading ? 'none' : 'block' }}
-      />
-    </div>
+    <img
+      src={`/api/files/${node.id}`}
+      alt={node.name}
+      onLoad={handleLoad}
+      onError={handleError}
+      style={{ opacity: loading ? 0 : 1, transition: 'opacity 0.15s' }}
+    />
   )
 }
 
