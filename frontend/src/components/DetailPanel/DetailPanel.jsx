@@ -30,6 +30,10 @@ function DetailPanel({
 
       <div className="detail-info">
         <h2 className="detail-name">{node.name}</h2>
+      </div>
+
+      <div className="detail-sources">
+        <h3 className="detail-section-label">Source:</h3>
         <p className="detail-path">{node.source_path}</p>
       </div>
 

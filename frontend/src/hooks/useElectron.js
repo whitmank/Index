@@ -15,6 +15,7 @@ export function useElectron() {
     // File system operations
     selectDirectory: isElectron ? window.electronAPI.selectDirectory : null,
     selectFile: isElectron ? window.electronAPI.selectFile : null,
+    selectPaths: isElectron ? window.electronAPI.selectPaths : null,
     getFileMetadata: isElectron ? window.electronAPI.getFileMetadata : null,
 
     // File watching

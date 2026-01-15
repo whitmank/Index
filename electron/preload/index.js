@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File system operations
   selectDirectory: () => ipcRenderer.invoke(CHANNELS.SELECT_DIRECTORY),
   selectFile: () => ipcRenderer.invoke(CHANNELS.SELECT_FILE),
+  selectPaths: () => ipcRenderer.invoke(CHANNELS.SELECT_PATHS),
   getFileMetadata: (path) => ipcRenderer.invoke(CHANNELS.GET_FILE_METADATA, path),
 
   // File watching

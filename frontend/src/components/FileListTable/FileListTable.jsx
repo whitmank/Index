@@ -57,19 +57,7 @@ function FileListTable({
                   onContextMenu={(e) => handleRowRightClick && handleRowRightClick(node, index, e)}
                 >
                   <td className="col-name">
-                    <div className="name-cell">
-                      <div
-                        className="file-icon-square"
-                        style={{backgroundColor: node.metadata?.color || getFileIconColor(node, index)}}
-                      >
-                        {node.type === 'collection' ? (
-                          <span className="collection-icon">📁</span>
-                        ) : node.type?.startsWith('image/') ? (
-                          <img src={`/api/files/${node.id}`} alt="" className="file-icon-image" />
-                        ) : null}
-                      </div>
-                      <span className="file-name">{node.name}</span>
-                    </div>
+                    <span className="file-name">{node.name}</span>
                   </td>
                   <td className="col-modified">{formatDate(node.timestamp_modified)}</td>
                   <td className="col-size">

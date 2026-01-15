@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import './Layout.css'
 import DetailPanel from '../DetailPanel/DetailPanel'
-import AddFilesModal from '../AddFilesModal/AddFilesModal'
 import ContextMenu from '../ContextMenu/ContextMenu'
 import ColorPickerModal from '../ColorPickerModal/ColorPickerModal'
+import ImportConfirmModal from '../ImportConfirmModal/ImportConfirmModal'
+import { useElectron } from '../../hooks/useElectron'
 
 function Layout() {
   const location = useLocation()
+  const { selectPaths } = useElectron()
 
   // State management
   const [connected, setConnected] = useState(true)
@@ -23,9 +25,8 @@ function Layout() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState('name')
   const [sortDirection, setSortDirection] = useState('asc')
-  const [isAddFilesModalOpen, setIsAddFilesModalOpen] = useState(false)
-  const [pastedPath, setPastedPath] = useState('')
-  const [addFilesCollection, setAddFilesCollection] = useState(null) // Collection to auto-tag to
+  const [isIndexing, setIsIndexing] = useState(false)
+  const [pendingImportPaths, setPendingImportPaths] = useState([])
   const [pinnedCollections, setPinnedCollections] = useState([])
   const [sidebarContextMenu, setSidebarContextMenu] = useState(null) // { x, y, collection }
   const [colorPickerModal, setColorPickerModal] = useState(null) // { collection }
@@ -152,7 +153,7 @@ function Layout() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedNodeIds])
 
-  // Paste-to-import: Auto-open add files modal when pasting a file path
+  // Paste-to-import: Directly index pasted file paths
   useEffect(() => {
     const handlePaste = async (e) => {
       // Don't trigger if user is pasting into an input field
@@ -173,32 +174,14 @@ function Layout() {
 
       if (isFilePath) {
         e.preventDefault()
-        setPastedPath(pastedText)
-
-        // Check if we're in a collection view
-        const collectionMatch = location.pathname.match(/^\/collections\/(.+)$/)
-        if (collectionMatch) {
-          const collectionId = collectionMatch[1]
-          try {
-            // Fetch collection details to get tags
-            const response = await fetch(`/api/collections/${collectionId}`)
-            const collection = await response.json()
-            setAddFilesCollection(collection)
-          } catch (error) {
-            console.error('Failed to load collection:', error)
-            setAddFilesCollection(null)
-          }
-        } else {
-          setAddFilesCollection(null)
-        }
-
-        setIsAddFilesModalOpen(true)
+        // Show confirmation modal with pasted path
+        setPendingImportPaths([pastedText])
       }
     }
 
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
-  }, [location.pathname])
+  }, [])
 
   // Auto-hide scrollbars when not scrolling
   useEffect(() => {
@@ -274,6 +257,131 @@ function Layout() {
     } catch (error) {
       console.error('Failed to load links:', error)
     }
+  }
+
+  // Index a single path (file or directory)
+  const indexPath = async (path) => {
+    const cleanPath = path.trim().replace(/^["']|["']$/g, '')
+    if (!cleanPath) return null
+
+    const response = await fetch('/api/index', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: cleanPath })
+    })
+
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Failed to index files')
+    }
+
+    return response.json()
+  }
+
+  // Handle Add Files button - open native file picker then show confirm modal
+  const handleAddFiles = async () => {
+    if (!selectPaths) return
+
+    try {
+      const paths = await selectPaths()
+      if (!paths || paths.length === 0) return
+
+      // Show confirmation modal with selected paths
+      setPendingImportPaths(paths)
+    } catch (err) {
+      console.error('Error selecting files:', err)
+    }
+  }
+
+  // Handle import confirmation from modal
+  const handleImportConfirm = async ({ paths, tags, collectionId, newCollectionName }) => {
+    setPendingImportPaths([])
+    setIsIndexing(true)
+
+    try {
+      let targetCollectionId = collectionId
+
+      // Create new collection if requested
+      if (newCollectionName) {
+        try {
+          const response = await fetch('/api/collections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: newCollectionName,
+              tags: tags // Use the additional tags as the collection's tags
+            })
+          })
+          const newCollection = await response.json()
+          targetCollectionId = newCollection.id
+        } catch (err) {
+          console.error('Failed to create collection:', err)
+        }
+      }
+
+      const allNodeIds = []
+
+      // Index all selected paths
+      for (const path of paths) {
+        try {
+          const result = await indexPath(path)
+          if (result?.nodeIds) {
+            allNodeIds.push(...result.nodeIds)
+          }
+        } catch (err) {
+          console.error(`Failed to index ${path}:`, err)
+        }
+      }
+
+      // Apply tags to all indexed nodes
+      if (tags.length > 0 && allNodeIds.length > 0) {
+        for (const nodeId of allNodeIds) {
+          for (const tagName of tags) {
+            try {
+              await fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag_name: tagName, node_id: nodeId })
+              })
+            } catch (err) {
+              console.error(`Failed to add tag ${tagName}:`, err)
+            }
+          }
+        }
+      }
+
+      // If collection specified, add tags from that collection too
+      if (targetCollectionId && allNodeIds.length > 0 && !newCollectionName) {
+        try {
+          const response = await fetch(`/api/collections/${targetCollectionId}`)
+          const collection = await response.json()
+          if (collection.tags) {
+            for (const nodeId of allNodeIds) {
+              for (const tagName of collection.tags) {
+                await fetch('/api/tags', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ tag_name: tagName, node_id: nodeId })
+                })
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to apply collection tags:', err)
+        }
+      }
+
+      await loadNodes()
+    } catch (err) {
+      console.error('Error importing files:', err)
+    } finally {
+      setIsIndexing(false)
+    }
+  }
+
+  // Handle import cancel
+  const handleImportCancel = () => {
+    setPendingImportPaths([])
   }
 
   // Handler functions
@@ -575,10 +683,11 @@ function Layout() {
             {/* Add Files Button */}
             <button
               className="toolbar-add-button"
-              onClick={() => setIsAddFilesModalOpen(true)}
+              onClick={handleAddFiles}
+              disabled={isIndexing}
               title="Add files to index"
             >
-              + Add Files
+              {isIndexing ? 'Adding...' : '+ Add Files'}
             </button>
           </div>
 
@@ -637,19 +746,6 @@ function Layout() {
         </main>
       </div>
 
-      {/* Add Files Modal */}
-      <AddFilesModal
-        isOpen={isAddFilesModalOpen}
-        onClose={() => {
-          setIsAddFilesModalOpen(false)
-          setPastedPath('')
-          setAddFilesCollection(null)
-        }}
-        onSuccess={loadNodes}
-        initialPath={pastedPath}
-        collection={addFilesCollection}
-      />
-
       {sidebarContextMenu && (
         <ContextMenu
           x={sidebarContextMenu.x}
@@ -684,6 +780,13 @@ function Layout() {
           onClose={() => setColorPickerModal(null)}
         />
       )}
+
+      <ImportConfirmModal
+        isOpen={pendingImportPaths.length > 0}
+        paths={pendingImportPaths}
+        onConfirm={handleImportConfirm}
+        onCancel={handleImportCancel}
+      />
     </>
   )
 }

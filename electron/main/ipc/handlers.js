@@ -36,6 +36,20 @@ function registerHandlers(mainWindow) {
     }
   });
 
+  // Combined file/directory picker with multi-select
+  ipcMain.handle(CHANNELS.SELECT_PATHS, async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile', 'openDirectory', 'multiSelections'],
+        message: 'Select files or folders to add'
+      });
+      return result.canceled ? [] : result.filePaths;
+    } catch (error) {
+      console.error('Error selecting paths:', error);
+      return [];
+    }
+  });
+
   // System metadata access
   ipcMain.handle(CHANNELS.GET_FILE_METADATA, async (event, filePath) => {
     try {
