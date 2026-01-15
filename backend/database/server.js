@@ -4,58 +4,85 @@ const path = require('path');
 const fs = require('fs');
 const dbService = require('./db-service');
 
-// Configuration
-const PORT = 3000;
-const DB_HOST = '127.0.0.1';
-const DB_PORT = 8000;
-const DB_USER = 'root';
-const DB_PASS = 'root';
-// Point to root /data/ directory (3 levels up from backend/services/database/)
-const DB_PATH = path.join(__dirname, '..', '..', '..', 'data', 'database.db');
-
-// Initialize Express app
-const app = express();
-app.use(express.json());
-
-// Enable CORS for development (frontend runs on separate port)
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// Store the SurrealDB process reference
-let dbProcess = null;
+// Default configuration (used when run standalone)
+const DEFAULT_CONFIG = {
+  PORT: 3000,
+  DB_HOST: '127.0.0.1',
+  DB_PORT: 8000,
+  DB_USER: 'root',
+  DB_PASS: 'root',
+  DB_PATH: path.join(__dirname, '..', '..', '..', 'data', 'database.db'),
+  SURREAL_BINARY: 'surreal' // Use system PATH by default
+};
 
 /**
- * Starts the SurrealDB instance as a child process
- * - Creates data directory if it doesn't exist
- * - Spawns surreal process with file-based storage
- * - Sets up logging for DB output
+ * Factory function to create and configure the server
+ * @param {Object} config - Configuration object
+ * @param {number} config.PORT - Express server port
+ * @param {string} config.DB_HOST - SurrealDB host
+ * @param {number} config.DB_PORT - SurrealDB port
+ * @param {string} config.DB_USER - Database user
+ * @param {string} config.DB_PASS - Database password
+ * @param {string} config.DB_PATH - Database file path
+ * @param {string} config.SURREAL_BINARY - Path to surreal binary
+ * @returns {Object} Server control object with start, stop, app properties
  */
-function startDatabase() {
-  return new Promise((resolve, reject) => {
-    console.log('🚀 Starting SurrealDB...');
+function createServer(config = {}) {
+  // Merge provided config with defaults
+  const {
+    PORT,
+    DB_HOST,
+    DB_PORT,
+    DB_USER,
+    DB_PASS,
+    DB_PATH,
+    SURREAL_BINARY
+  } = { ...DEFAULT_CONFIG, ...config };
 
-    // Ensure data directory exists
-    const dataDir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-      console.log('📁 Created data directory:', dataDir);
+  // Initialize Express app
+  const app = express();
+  app.use(express.json());
+
+  // Enable CORS for development (frontend runs on separate port)
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
     }
+    next();
+  });
 
-    // Spawn SurrealDB process
-    dbProcess = spawn('surreal', [
-      'start',
-      '--bind', `${DB_HOST}:${DB_PORT}`,
-      '--user', DB_USER,
-      '--pass', DB_PASS,
-      `file://${DB_PATH}`
-    ]);
+  // Store the SurrealDB process reference
+  let dbProcess = null;
+  let server = null;
+
+  /**
+   * Starts the SurrealDB instance as a child process
+   * - Creates data directory if it doesn't exist
+   * - Spawns surreal process with file-based storage
+   * - Sets up logging for DB output
+   */
+  function startDatabase() {
+    return new Promise((resolve, reject) => {
+      console.log('🚀 Starting SurrealDB...');
+
+      // Ensure data directory exists
+      const dataDir = path.dirname(DB_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+        console.log('📁 Created data directory:', dataDir);
+      }
+
+      // Spawn SurrealDB process
+      dbProcess = spawn(SURREAL_BINARY, [
+        'start',
+        '--bind', `${DB_HOST}:${DB_PORT}`,
+        '--user', DB_USER,
+        '--pass', DB_PASS,
+        `file://${DB_PATH}`
+      ]);
 
     // Handle DB process output
     dbProcess.stdout.on('data', (data) => {
@@ -521,78 +548,118 @@ app.get('/api/files/:id', async (req, res) => {
 //   res.sendFile(path.join(frontendPath, 'index.html'));
 // });
 
-// Graceful shutdown handlers
-process.on('SIGTERM', async () => {
-  console.log('\n📋 SIGTERM received, shutting down gracefully...');
-  await dbService.disconnect();
-  await stopDatabase();
-  process.exit(0);
-});
+  // Start the application
+  async function start() {
+    try {
+      // Start SurrealDB first
+      await startDatabase();
 
-process.on('SIGINT', async () => {
-  console.log('\n📋 SIGINT received (Ctrl+C), shutting down gracefully...');
-  await dbService.disconnect();
-  await stopDatabase();
-  process.exit(0);
-});
+      // Connect to the database
+      await dbService.connect();
 
-// Start the application
-async function start() {
-  try {
-    // Start SurrealDB first
-    await startDatabase();
+      // Then start Express server
+      server = app.listen(PORT, () => {
+        console.log(`\n🌐 Express server running on http://localhost:${PORT}`);
+        console.log(`📊 SurrealDB running on http://${DB_HOST}:${DB_PORT}`);
+        console.log(`\nAPI Endpoints:`);
+        console.log(`  - GET    http://localhost:${PORT}/health`);
+        console.log(`  - GET    http://localhost:${PORT}/api/status`);
+        console.log(`\n  Records (legacy):`);
+        console.log(`  - GET    http://localhost:${PORT}/api/records`);
+        console.log(`  - POST   http://localhost:${PORT}/api/records`);
+        console.log(`  - PUT    http://localhost:${PORT}/api/records/:id`);
+        console.log(`  - DELETE http://localhost:${PORT}/api/records/:id`);
+        console.log(`\n  Nodes:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/nodes`);
+        console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id`);
+        console.log(`  - POST   http://localhost:${PORT}/api/nodes`);
+        console.log(`  - PUT    http://localhost:${PORT}/api/nodes/:id`);
+        console.log(`  - DELETE http://localhost:${PORT}/api/nodes/:id`);
+        console.log(`\n  Links:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/links`);
+        console.log(`  - POST   http://localhost:${PORT}/api/links`);
+        console.log(`  - PUT    http://localhost:${PORT}/api/links/:id`);
+        console.log(`  - DELETE http://localhost:${PORT}/api/links/:id`);
+        console.log(`\n  Tags:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/tags`);
+        console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id/tags`);
+        console.log(`  - POST   http://localhost:${PORT}/api/tags`);
+        console.log(`  - DELETE http://localhost:${PORT}/api/tags/:id`);
+        console.log(`\n  Collections:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/collections`);
+        console.log(`  - GET    http://localhost:${PORT}/api/collections/:id`);
+        console.log(`  - GET    http://localhost:${PORT}/api/collections/:id/nodes`);
+        console.log(`  - POST   http://localhost:${PORT}/api/collections`);
+        console.log(`  - PUT    http://localhost:${PORT}/api/collections/:id`);
+        console.log(`  - DELETE http://localhost:${PORT}/api/collections/:id`);
+        console.log(`\n  FS-Indexer:`);
+        console.log(`  - POST   http://localhost:${PORT}/api/index`);
+        console.log(`\n  Queries:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-date?start=...&end=...`);
+        console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-type?type=...`);
+        console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-location?path=...`);
+        console.log(`\n💾 Data persisting to: ${DB_PATH}\n`);
+      });
 
-    // Connect to the database
-    await dbService.connect();
-
-    // Then start Express server
-    app.listen(PORT, () => {
-      console.log(`\n🌐 Express server running on http://localhost:${PORT}`);
-      console.log(`📊 SurrealDB running on http://${DB_HOST}:${DB_PORT}`);
-      console.log(`\nAPI Endpoints:`);
-      console.log(`  - GET    http://localhost:${PORT}/health`);
-      console.log(`  - GET    http://localhost:${PORT}/api/status`);
-      console.log(`\n  Records (legacy):`);
-      console.log(`  - GET    http://localhost:${PORT}/api/records`);
-      console.log(`  - POST   http://localhost:${PORT}/api/records`);
-      console.log(`  - PUT    http://localhost:${PORT}/api/records/:id`);
-      console.log(`  - DELETE http://localhost:${PORT}/api/records/:id`);
-      console.log(`\n  Nodes:`);
-      console.log(`  - GET    http://localhost:${PORT}/api/nodes`);
-      console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id`);
-      console.log(`  - POST   http://localhost:${PORT}/api/nodes`);
-      console.log(`  - PUT    http://localhost:${PORT}/api/nodes/:id`);
-      console.log(`  - DELETE http://localhost:${PORT}/api/nodes/:id`);
-      console.log(`\n  Links:`);
-      console.log(`  - GET    http://localhost:${PORT}/api/links`);
-      console.log(`  - POST   http://localhost:${PORT}/api/links`);
-      console.log(`  - PUT    http://localhost:${PORT}/api/links/:id`);
-      console.log(`  - DELETE http://localhost:${PORT}/api/links/:id`);
-      console.log(`\n  Tags:`);
-      console.log(`  - GET    http://localhost:${PORT}/api/tags`);
-      console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id/tags`);
-      console.log(`  - POST   http://localhost:${PORT}/api/tags`);
-      console.log(`  - DELETE http://localhost:${PORT}/api/tags/:id`);
-      console.log(`\n  Collections:`);
-      console.log(`  - GET    http://localhost:${PORT}/api/collections`);
-      console.log(`  - GET    http://localhost:${PORT}/api/collections/:id`);
-      console.log(`  - GET    http://localhost:${PORT}/api/collections/:id/nodes`);
-      console.log(`  - POST   http://localhost:${PORT}/api/collections`);
-      console.log(`  - PUT    http://localhost:${PORT}/api/collections/:id`);
-      console.log(`  - DELETE http://localhost:${PORT}/api/collections/:id`);
-      console.log(`\n  FS-Indexer:`);
-      console.log(`  - POST   http://localhost:${PORT}/api/index`);
-      console.log(`\n  Queries:`);
-      console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-date?start=...&end=...`);
-      console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-type?type=...`);
-      console.log(`  - GET    http://localhost:${PORT}/api/query/nodes/by-location?path=...`);
-      console.log(`\n💾 Data persisting to: ${DB_PATH}\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start application:', error);
-    process.exit(1);
+      return server;
+    } catch (error) {
+      console.error('❌ Failed to start application:', error);
+      throw error;
+    }
   }
+
+  // Stop the application
+  async function stop() {
+    console.log('\n📋 Shutting down gracefully...');
+
+    // Close Express server
+    if (server) {
+      await new Promise((resolve) => {
+        server.close(() => {
+          console.log('✅ Express server stopped');
+          resolve();
+        });
+      });
+    }
+
+    // Disconnect from database
+    await dbService.disconnect();
+
+    // Stop SurrealDB
+    await stopDatabase();
+  }
+
+  // Return control object
+  return {
+    start,
+    stop,
+    app,
+    getPort: () => PORT,
+    getDbPort: () => DB_PORT
+  };
 }
 
-// Run the application
-start();
+// Export factory function
+module.exports = createServer;
+
+// Backward compatibility: Run directly if this is the main module
+if (require.main === module) {
+  // Graceful shutdown handlers
+  const serverInstance = createServer();
+
+  process.on('SIGTERM', async () => {
+    await serverInstance.stop();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    await serverInstance.stop();
+    process.exit(0);
+  });
+
+  // Start the application
+  serverInstance.start().catch((error) => {
+    console.error('❌ Failed to start application:', error);
+    process.exit(1);
+  });
+}

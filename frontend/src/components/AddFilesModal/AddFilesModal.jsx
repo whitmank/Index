@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useElectron } from '../../hooks/useElectron'
 import './AddFilesModal.css'
 
 function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '', collection = null }) {
@@ -8,12 +9,32 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '', collectio
   const [error, setError] = useState(null)
   const [isTagging, setIsTagging] = useState(false)
 
+  // Get Electron API methods
+  const { isElectron, selectDirectory } = useElectron()
+
   // Set path when initialPath changes (e.g., from paste event)
   useEffect(() => {
     if (initialPath) {
       setPath(initialPath)
     }
   }, [initialPath])
+
+  // Handle browse button click (Electron only)
+  const handleBrowse = async () => {
+    if (!selectDirectory) {
+      return
+    }
+
+    try {
+      const selectedPath = await selectDirectory()
+      if (selectedPath) {
+        setPath(selectedPath)
+      }
+    } catch (err) {
+      console.error('Error selecting directory:', err)
+      setError('Failed to open directory picker')
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -112,18 +133,36 @@ function AddFilesModal({ isOpen, onClose, onSuccess, initialPath = '', collectio
         <form onSubmit={handleSubmit} className="modal-body">
           <div className="form-group">
             <label htmlFor="path-input">File or Folder Path:</label>
-            <input
-              id="path-input"
-              type="text"
-              className="path-input"
-              placeholder="/Users/karter/Documents/MyFolder"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              disabled={isIndexing}
-              autoFocus
-            />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                id="path-input"
+                type="text"
+                className="path-input"
+                placeholder="/Users/karter/Documents/MyFolder"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                disabled={isIndexing}
+                autoFocus
+                style={{ flex: 1 }}
+              />
+              {isElectron && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleBrowse}
+                  disabled={isIndexing}
+                  style={{ minWidth: '90px' }}
+                >
+                  📁 Browse...
+                </button>
+              )}
+            </div>
             <p className="input-hint">
-              Enter the full path to a file or folder you want to index.
+              {isElectron ? (
+                <>Click "Browse..." to select a folder, or enter the path manually.</>
+              ) : (
+                <>Enter the full path to a file or folder you want to index.</>
+              )}
               <br />
               Example: <code>/Users/username/Documents</code>
               {collection && (
