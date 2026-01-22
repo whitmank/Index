@@ -4,6 +4,7 @@ import FilesView from './pages/FilesView/FilesView'
 import TagsView from './pages/TagsView/TagsView'
 import CollectionsView from './pages/CollectionsView/CollectionsView'
 import CollectionDetailView from './pages/CollectionDetailView/CollectionDetailView'
+import GraphView from './pages/GraphView/GraphView'
 import DevView from './pages/DevView/DevView'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Route path="tags" element={<TagsView />} />
         <Route path="collections" element={<CollectionsView />} />
         <Route path="collections/:collectionId" element={<CollectionDetailView />} />
+        <Route path="graph" element={<GraphView />} />
         <Route path="dev" element={<DevView />} />
       </Route>
     </Routes>

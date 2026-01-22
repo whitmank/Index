@@ -660,6 +660,14 @@ function Layout() {
               </Link>
 
               <Link
+                to="/graph"
+                className={`toolbar-nav-item ${location.pathname === '/graph' ? 'active' : ''}`}
+              >
+                <span className="toolbar-nav-icon">🕸️</span>
+                <span className="toolbar-nav-label">GRAPH</span>
+              </Link>
+
+              <Link
                 to="/dev"
                 className={`toolbar-nav-item ${location.pathname === '/dev' ? 'active' : ''}`}
               >

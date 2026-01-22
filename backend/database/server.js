@@ -12,6 +12,8 @@ const DEFAULT_CONFIG = {
   DB_USER: 'root',
   DB_PASS: 'root',
   DB_PATH: path.join(__dirname, '..', '..', '..', 'data', 'database.db'),
+  DB_NAMESPACE: 'dev',
+  DB_DATABASE: 'test',
   SURREAL_BINARY: 'surreal' // Use system PATH by default
 };
 
@@ -36,6 +38,8 @@ function createServer(config = {}) {
     DB_USER,
     DB_PASS,
     DB_PATH,
+    DB_NAMESPACE,
+    DB_DATABASE,
     SURREAL_BINARY
   } = { ...DEFAULT_CONFIG, ...config };
 
@@ -175,43 +179,25 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// CRUD API Endpoints
-app.get('/api/records', async (req, res) => {
+// Database selection endpoints
+app.get('/api/database', (req, res) => {
   try {
-    const records = await dbService.getAllRecords();
-    res.json(records);
+    const current = dbService.getCurrentDatabase();
+    res.json(current);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/records', async (req, res) => {
+app.post('/api/database', async (req, res) => {
   try {
-    const record = await dbService.createRecord(req.body);
-    res.status(201).json(record);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put('/api/records/:id', async (req, res) => {
-  try {
-    console.log('PUT request for ID:', req.params.id);
-    const record = await dbService.updateRecord(req.params.id, req.body);
-    res.json(record);
-  } catch (error) {
-    console.error('PUT error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete('/api/records/:id', async (req, res) => {
-  try {
-    console.log('DELETE request for ID:', req.params.id);
-    const result = await dbService.deleteRecord(req.params.id);
+    const { namespace, database } = req.body;
+    if (!namespace || !database) {
+      return res.status(400).json({ error: 'namespace and database are required' });
+    }
+    const result = await dbService.switchDatabase(namespace, database);
     res.json(result);
   } catch (error) {
-    console.error('DELETE error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -555,20 +541,19 @@ app.get('/api/files/:id', async (req, res) => {
       await startDatabase();
 
       // Connect to the database
-      await dbService.connect();
+      await dbService.connect(DB_NAMESPACE, DB_DATABASE);
 
       // Then start Express server
       server = app.listen(PORT, () => {
         console.log(`\n🌐 Express server running on http://localhost:${PORT}`);
         console.log(`📊 SurrealDB running on http://${DB_HOST}:${DB_PORT}`);
+        console.log(`📁 Database: ${DB_NAMESPACE}/${DB_DATABASE}`);
         console.log(`\nAPI Endpoints:`);
         console.log(`  - GET    http://localhost:${PORT}/health`);
         console.log(`  - GET    http://localhost:${PORT}/api/status`);
-        console.log(`\n  Records (legacy):`);
-        console.log(`  - GET    http://localhost:${PORT}/api/records`);
-        console.log(`  - POST   http://localhost:${PORT}/api/records`);
-        console.log(`  - PUT    http://localhost:${PORT}/api/records/:id`);
-        console.log(`  - DELETE http://localhost:${PORT}/api/records/:id`);
+        console.log(`\n  Database:`);
+        console.log(`  - GET    http://localhost:${PORT}/api/database`);
+        console.log(`  - POST   http://localhost:${PORT}/api/database`);
         console.log(`\n  Nodes:`);
         console.log(`  - GET    http://localhost:${PORT}/api/nodes`);
         console.log(`  - GET    http://localhost:${PORT}/api/nodes/:id`);

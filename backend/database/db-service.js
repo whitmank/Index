@@ -4,11 +4,15 @@ const { Surreal } = require('surrealdb');
 const DB_CONFIG = {
   host: '127.0.0.1',
   port: 8000,
-  namespace: 'test',
+  namespace: 'dev',
   database: 'test',
   user: 'root',
   pass: 'root'
 };
+
+// Track current namespace/database
+let currentNamespace = DB_CONFIG.namespace;
+let currentDatabase = DB_CONFIG.database;
 
 // Create a single database instance
 const db = new Surreal();
@@ -16,8 +20,10 @@ const db = new Surreal();
 /**
  * Initialize connection to SurrealDB
  * This should be called after the DB process has started
+ * @param {string} namespace - Optional namespace override
+ * @param {string} database - Optional database override
  */
-async function connect() {
+async function connect(namespace = DB_CONFIG.namespace, database = DB_CONFIG.database) {
   try {
     await db.connect(`http://${DB_CONFIG.host}:${DB_CONFIG.port}/rpc`);
     await db.signin({
@@ -25,15 +31,45 @@ async function connect() {
       password: DB_CONFIG.pass
     });
     await db.use({
-      namespace: DB_CONFIG.namespace,
-      database: DB_CONFIG.database
+      namespace: namespace,
+      database: database
     });
-    console.log('✅ Connected to SurrealDB');
+    currentNamespace = namespace;
+    currentDatabase = database;
+    console.log(`✅ Connected to SurrealDB (${namespace}/${database})`);
     return true;
   } catch (error) {
     console.error('❌ Failed to connect to SurrealDB:', error);
     throw error;
   }
+}
+
+/**
+ * Switch to a different namespace/database
+ * @param {string} namespace - Target namespace
+ * @param {string} database - Target database
+ */
+async function switchDatabase(namespace, database) {
+  try {
+    await db.use({
+      namespace: namespace,
+      database: database
+    });
+    currentNamespace = namespace;
+    currentDatabase = database;
+    console.log(`✅ Switched to database: ${namespace}/${database}`);
+    return { namespace: currentNamespace, database: currentDatabase };
+  } catch (error) {
+    console.error('❌ Failed to switch database:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get current namespace/database
+ */
+function getCurrentDatabase() {
+  return { namespace: currentNamespace, database: currentDatabase };
 }
 
 /**
@@ -45,78 +81,6 @@ async function disconnect() {
     console.log('✅ Disconnected from SurrealDB');
   } catch (error) {
     console.error('❌ Error disconnecting from SurrealDB:', error);
-  }
-}
-
-/**
- * Get all records from the 'records' table
- */
-async function getAllRecords() {
-  try {
-    const result = await db.query('SELECT * FROM records ORDER BY name');
-    return result[0] || [];
-  } catch (error) {
-    console.error('Error fetching records:', error);
-    throw error;
-  }
-}
-
-/**
- * Create a new record
- */
-async function createRecord(data) {
-  try {
-    const result = await db.create('records', {
-      name: data.name,
-      value: data.value,
-      created_at: new Date().toISOString()
-    });
-    // Ensure consistent format - result might be an array or object
-    return Array.isArray(result) ? result[0] : result;
-  } catch (error) {
-    console.error('Error creating record:', error);
-    throw error;
-  }
-}
-
-/**
- * Update an existing record
- */
-async function updateRecord(id, data) {
-  try {
-    console.log('Updating record:', id, 'with data:', data);
-
-    // Try using query instead
-    const updateQuery = `UPDATE ${id} SET name = $name, value = $value, updated_at = $updated_at`;
-    const result = await db.query(updateQuery, {
-      name: data.name,
-      value: data.value,
-      updated_at: new Date().toISOString()
-    });
-    console.log('Update result:', result);
-
-    // Return the updated record
-    return result[0]?.[0] || null;
-  } catch (error) {
-    console.error('Error updating record:', error);
-    throw error;
-  }
-}
-
-/**
- * Delete a record
- */
-async function deleteRecord(id) {
-  try {
-    console.log('Deleting record:', id);
-    // Use query for delete as well
-    const deleteQuery = `DELETE ${id}`;
-    const result = await db.query(deleteQuery);
-    console.log('Delete result:', result);
-    return { success: true, id };
-  } catch (error) {
-    console.error('Error deleting record:', error);
-    throw error;
   }
 }
 
@@ -598,10 +562,8 @@ async function getNodesByLocation(pathPrefix) {
 module.exports = {
   connect,
   disconnect,
-  getAllRecords,
-  createRecord,
-  updateRecord,
-  deleteRecord,
+  switchDatabase,
+  getCurrentDatabase,
   // Nodes
   getAllNodes,
   getNodeById,

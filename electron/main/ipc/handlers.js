@@ -168,6 +168,15 @@ function registerHandlers(mainWindow) {
     return app.getPath('userData');
   });
 
+  // Window title handler
+  ipcMain.handle(CHANNELS.SET_WINDOW_TITLE, async (event, title) => {
+    if (mainWindow) {
+      mainWindow.setTitle(title);
+      return { success: true };
+    }
+    return { success: false, error: 'No window available' };
+  });
+
   console.log('✅ IPC handlers registered');
 }
 

@@ -4,12 +4,62 @@
 }
 
 .dev-container h2 {
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0 0 var(--spacing-md) 0;
   font-size: 1.5rem;
   font-weight: 600;
 }
 
-.dev-container p {
-  color: var(--text-secondary);
+.dev-container h3 {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.dev-section {
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+}
+
+.dev-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.dev-control label {
   font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.dev-control select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.875rem;
+  border: 1px solid var(--border-color);
+  background: white;
+  cursor: pointer;
+}
+
+.dev-control select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dev-status {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.dev-info {
+  margin: var(--spacing-sm) 0 0 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.dev-error {
+  margin: var(--spacing-sm) 0 0 0;
+  font-size: 0.75rem;
+  color: #c00;
 }

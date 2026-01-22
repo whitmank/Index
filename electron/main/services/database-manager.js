@@ -28,18 +28,33 @@ class DatabaseManager {
 
   /**
    * Start all backend services
+   * @param {Object} dbConfig - Optional database configuration
+   * @param {string} dbConfig.namespace - Database namespace (default: 'dev')
+   * @param {string} dbConfig.database - Database name (default: 'test')
    * @returns {Promise<Object>} Configuration object with ports and paths
    */
-  async startServices() {
+  async startServices(dbConfig = { namespace: 'dev', database: 'test' }) {
     try {
       console.log('🔧 Initializing backend services...');
+      console.log(`🗄️  Target database: ${dbConfig.namespace}/${dbConfig.database}`);
 
       // Check if services are already running (development scenario)
       const alreadyRunning = await this.checkServicesRunning();
       if (alreadyRunning) {
         console.log('✅ Backend services already running - using existing instance');
 
-        // Return default configuration for existing services
+        // Switch to requested database via API
+        console.log(`🔄 Switching to database: ${dbConfig.namespace}/${dbConfig.database}`);
+        await fetch('http://localhost:3000/api/database', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            namespace: dbConfig.namespace,
+            database: dbConfig.database
+          })
+        });
+
+        // Return configuration for existing services
         this.config = {
           PORT: 3000,
           DB_HOST: '127.0.0.1',
@@ -47,6 +62,8 @@ class DatabaseManager {
           DB_USER: 'root',
           DB_PASS: 'root',
           DB_PATH: pathResolver.getDatabasePath(),
+          DB_NAMESPACE: dbConfig.namespace,
+          DB_DATABASE: dbConfig.database,
           SURREAL_BINARY: pathResolver.getSurrealBinaryPath()
         };
 
@@ -74,6 +91,8 @@ class DatabaseManager {
         DB_USER: 'root',
         DB_PASS: 'root',
         DB_PATH: paths.database,
+        DB_NAMESPACE: dbConfig.namespace,
+        DB_DATABASE: dbConfig.database,
         SURREAL_BINARY: paths.surrealBinary
       };
 

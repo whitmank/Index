@@ -1,0 +1,16 @@
+{
+  "name": "@index/force-sim",
+  "version": "1.0.0",
+  "description": "D3 force simulation physics engine for graph visualization",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "keywords": ["d3", "force", "simulation", "graph", "physics"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "d3-force": "^3.0.0"
+  }
+}

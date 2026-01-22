@@ -1,0 +1,63 @@
+/* Graph View Container */
+.graph-view {
+  position: relative;
+  overflow: hidden;
+}
+
+/* SVG Canvas */
+.graph-canvas {
+  display: block;
+  background: var(--bg-panel);
+}
+
+/* Links */
+.graph-link {
+  stroke: var(--border-color);
+  stroke-width: 2;
+  stroke-opacity: 0.6;
+}
+
+/* Nodes */
+.graph-node {
+  cursor: grab;
+}
+
+.graph-node:hover circle {
+  filter: brightness(1.1);
+}
+
+.graph-node.dragging {
+  cursor: grabbing;
+}
+
+.graph-node.dragging circle {
+  filter: brightness(1.2);
+  stroke: var(--accent-color);
+  stroke-width: 3;
+}
+
+.graph-node circle {
+  transition: filter 0.15s;
+}
+
+/* Node Labels */
+.node-label {
+  font-size: 11px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Empty State */
+.graph-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.graph-empty p {
+  margin: var(--spacing-sm) 0;
+}

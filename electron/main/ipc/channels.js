@@ -18,5 +18,8 @@ module.exports = {
 
   // App operations
   GET_APP_PATH: 'app:get-path',
-  GET_USER_DATA_PATH: 'app:get-user-data-path'
+  GET_USER_DATA_PATH: 'app:get-user-data-path',
+
+  // Window operations
+  SET_WINDOW_TITLE: 'window:set-title'
 };

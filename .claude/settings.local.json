@@ -14,7 +14,16 @@
       "Bash(timeout 5 npm run dev:*)",
       "Bash(npm cache clean:*)",
       "Bash(timeout 5 npm run dev:frontend)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(git -C /Users/karter/files/dev/Index log --oneline -20)",
+      "Bash(git -C /Users/karter/files/dev/Index diff --stat ccd60d8..a109580)",
+      "Bash(git -C /Users/karter/files/dev/Index log --all --oneline)",
+      "Bash(git -C /Users/karter/files/dev/Index log -1 --format=\"%ai %s\")",
+      "mcp__plugin_serena_serena__read_file",
+      "mcp__plugin_serena_serena__list_dir",
+      "mcp__plugin_serena_serena__activate_project",
+      "mcp__plugin_serena_serena__search_for_pattern",
+      "Bash(test:*)"
     ]
   }
 }

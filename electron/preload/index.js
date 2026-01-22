@@ -42,7 +42,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App paths
   getAppPath: () => ipcRenderer.invoke(CHANNELS.GET_APP_PATH),
-  getUserDataPath: () => ipcRenderer.invoke(CHANNELS.GET_USER_DATA_PATH)
+  getUserDataPath: () => ipcRenderer.invoke(CHANNELS.GET_USER_DATA_PATH),
+
+  // Window operations
+  setWindowTitle: (title) => ipcRenderer.invoke(CHANNELS.SET_WINDOW_TITLE, title)
 });
 
 // Log that preload script has loaded

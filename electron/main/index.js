@@ -4,6 +4,36 @@ const { registerHandlers, cleanup: cleanupIpc } = require('./ipc/handlers');
 const databaseManager = require('./services/database-manager');
 const pathResolver = require('./services/path-resolver');
 
+// Parse --db argument (format: --db dev/test or --db user/0)
+// Checks both process.argv and ELECTRON_ARGS env variable
+function parseDbArg() {
+  // First check process.argv
+  let args = process.argv.slice(2);
+
+  // Also check ELECTRON_ARGS env variable (set by electron-dev.js script)
+  if (process.env.ELECTRON_ARGS) {
+    try {
+      const envArgs = JSON.parse(process.env.ELECTRON_ARGS);
+      args = [...args, ...envArgs];
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  const dbIndex = args.findIndex(arg => arg === '--db');
+  if (dbIndex !== -1 && args[dbIndex + 1]) {
+    const dbArg = args[dbIndex + 1];
+    const [namespace, database] = dbArg.split('/');
+    if (namespace && database) {
+      return { namespace, database };
+    }
+  }
+  return { namespace: 'dev', database: 'test' }; // Default
+}
+
+const dbConfig = parseDbArg();
+console.log(`🗄️  Database config: ${dbConfig.namespace}/${dbConfig.database}`);
+
 // Set app name for macOS menu bar (must be before app ready)
 if (process.platform === 'darwin') {
   app.setName('Index');
@@ -35,10 +65,11 @@ let serverConfig = null;
  * Create the main browser window
  */
 async function createMainWindow() {
+  const windowTitle = `Index — ${dbConfig.namespace}/${dbConfig.database}`;
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: 'Index',
+    title: windowTitle,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -48,6 +79,11 @@ async function createMainWindow() {
     // Standard macOS title bar with traffic lights
     titleBarStyle: 'default',
     backgroundColor: '#1a1a1a'
+  });
+
+  // Prevent HTML title from overriding window title (must be before load)
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
   });
 
   // Load the app
@@ -93,7 +129,7 @@ async function initializeApp() {
     console.log(`💻 Platform: ${pathResolver.platform}\n`);
 
     // Start backend services first
-    serverConfig = await databaseManager.startServices();
+    serverConfig = await databaseManager.startServices(dbConfig);
 
     // Wait a moment for services to be fully ready
     await new Promise(resolve => setTimeout(resolve, 1000));
