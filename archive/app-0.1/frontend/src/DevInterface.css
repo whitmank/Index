@@ -1,0 +1,288 @@
+/* DevInterface - Keita Style */
+
+.app {
+  height: 100vh;
+  background: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--text-color);
+  flex-shrink: 0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.indicator {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.indicator.connected {
+  color: var(--text-color);
+}
+
+.btn-connect {
+  background: transparent;
+  color: var(--text-color);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--text-color);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  cursor: pointer;
+  font-family: var(--font-family);
+  transition: background 0.15s ease;
+}
+
+.btn-connect:hover {
+  background: var(--hover-color);
+}
+
+/* Main Content */
+.main {
+  flex: 1;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  overflow: hidden;
+}
+
+/* View Toggle */
+.view-toggle {
+  display: flex;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  border: 1px solid var(--text-color);
+  flex-shrink: 0;
+}
+
+.view-toggle button {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-family);
+}
+
+.view-toggle button:hover {
+  background: var(--hover-color);
+  color: var(--text-color);
+}
+
+.view-toggle button.active {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
+
+/* Form Section */
+.form-section {
+  background: transparent;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--text-color);
+  flex-shrink: 0;
+}
+
+.compact-form {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.compact-form input,
+.compact-form select {
+  flex: 1;
+  min-width: 150px;
+  padding: var(--spacing-xs);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+}
+
+.compact-form input:focus,
+.compact-form select:focus {
+  outline: none;
+  border-color: var(--text-color);
+}
+
+.compact-form select {
+  cursor: pointer;
+}
+
+.compact-form button {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--text-color);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font-family);
+  background: transparent;
+  color: var(--text-color);
+  transition: background 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
+
+.btn-primary:hover {
+  background: var(--text-secondary);
+}
+
+.btn-cancel {
+  background: transparent;
+  color: var(--text-color);
+}
+
+.btn-cancel:hover {
+  background: var(--hover-color);
+}
+
+/* Records Section */
+.records-section {
+  background: transparent;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--text-color);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 400;
+}
+
+.count {
+  background: transparent;
+  padding: 2px var(--spacing-xs);
+  border: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: var(--spacing-lg);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+table th {
+  background: var(--bg-color);
+  padding: var(--spacing-xs);
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+}
+
+table td {
+  padding: var(--spacing-xs);
+  border-bottom: 1px solid var(--border-color);
+}
+
+table tbody tr:hover {
+  background: var(--hover-color);
+}
+
+.id-cell {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.no-url {
+  color: var(--text-secondary);
+}
+
+table a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+table a:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
+}
+
+.btn-edit, .btn-delete {
+  padding: 2px var(--spacing-xs);
+  border: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  font-weight: 400;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-color);
+  font-family: var(--font-family);
+  transition: all 0.15s ease;
+}
+
+.btn-edit:hover {
+  border-color: var(--text-color);
+  background: var(--hover-color);
+}
+
+.btn-delete:hover {
+  border-color: var(--text-color);
+  background: var(--text-color);
+  color: var(--bg-color);
+}

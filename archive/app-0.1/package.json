@@ -1,0 +1,16 @@
+{
+  "name": "graphtool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive graph visualization tool with React frontend and Express backend",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "echo 'Run dev:backend and dev:frontend in separate terminals'",
+    "build:frontend": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "build:start": "npm run build:frontend && npm start",
+    "lint": "cd frontend && npm run lint"
+  }
+}
