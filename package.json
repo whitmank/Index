@@ -1,0 +1,112 @@
+{
+  "name": "index-project",
+  "productName": "Index",
+  "version": "0.3.0",
+  "description": "Personal information indexing and visualization system",
+  "private": true,
+  "type": "module",
+  "main": "electron/main/index.ts",
+  "workspaces": [
+    "backend/*",
+    "backend/source-handlers",
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others --prefix-colors \"bgBlue.bold,bgMagenta.bold\" --prefix \"[{name}]\" --names \"database,frontend\" \"npm:dev:db\" \"npm:dev:frontend\"",
+    "dev:db": "npm run dev --workspace=@index/database",
+    "dev:frontend": "npm run dev --workspace=@index/frontend",
+    "electron:dev": "node scripts/electron-dev.js",
+    "electron:start": "wait-on http://localhost:3000/health && wait-on http://localhost:5173 && node scripts/start-electron.js",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "npm run build --workspace=@index/frontend -- --mode electron",
+    "build:electron": "electron-builder",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "indexing",
+    "database",
+    "visualization"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/node": "^20.10.6",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@types/react-router-dom": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.1.1",
+    "chokidar": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0",
+    "electron-devtools-installer": "^4.0.0",
+    "electron-reloader": "^1.2.3",
+    "get-port": "^7.1.0",
+    "jsdom": "^23.0.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "vitest": "^1.1.1",
+    "wait-on": "^9.0.3"
+  },
+  "dependencies": {
+    "zustand": "^4.4.7"
+  },
+  "build": {
+    "appId": "com.index.app",
+    "productName": "Index",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "electron/resources"
+    },
+    "files": [
+      "electron/main/**/*",
+      "electron/preload/**/*",
+      "frontend/dist/**/*",
+      "backend/**/*",
+      "!backend/**/node_modules",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/resources/mac",
+        "to": "binaries/mac",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "electron/resources/win",
+        "to": "binaries/win",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "electron/resources/linux",
+        "to": "binaries/linux",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    }
+  }
+}
