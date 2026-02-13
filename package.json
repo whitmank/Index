@@ -1,0 +1,45 @@
+{
+  "name": "index-rebuild",
+  "productName": "Index",
+  "version": "0.1.0",
+  "description": "Personal information indexing and visualization system - Phase 0",
+  "main": "electron/main/index.js",
+  "type": "module",
+  "scripts": {
+    "electron:dev": "node scripts/electron-dev.js",
+    "electron:build": "electron-builder"
+  },
+  "keywords": ["indexing", "database"],
+  "author": "Claude Code",
+  "license": "ISC",
+  "dependencies": {
+    "surrealdb": "^1.3.2",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0",
+    "electron-devtools-installer": "^4.0.0",
+    "vite": "^6.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  },
+  "build": {
+    "appId": "com.index.app",
+    "productName": "Index",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "electron/resources"
+    },
+    "files": [
+      "electron/main/**/*",
+      "electron/preload/**/*",
+      "dist/**/*"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.productivity"
+    }
+  }
+}

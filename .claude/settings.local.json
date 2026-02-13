@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm view:*)",
+      "Bash(/tmp/test_object.sh:*)",
+      "Bash(__NEW_LINE_9bed9254d42b76ec__ bash /tmp/test_object.sh)",
+      "Bash(done)",
+      "Skill(keybindings-help)"
+    ]
+  }
+}

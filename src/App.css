@@ -1,0 +1,417 @@
+* {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 2rem;
+  background: #ffffff;
+  color: #000000;
+  padding: 2rem;
+  position: relative;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.primary-btn,
+.secondary-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.primary-btn {
+  background: #000000;
+  color: #ffffff;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #333333;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.form input {
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  border-radius: 0;
+}
+
+.form input:focus {
+  outline: none;
+  border: 2px solid #000000;
+  padding: calc(0.75rem - 1px);
+}
+
+.source-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.source-input-group input {
+  flex: 1;
+}
+
+.browse-btn,
+.browse-btn-small {
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  cursor: pointer;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+.browse-btn:hover:not(:disabled),
+.browse-btn-small:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.browse-btn:disabled,
+.browse-btn-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form textarea {
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  border-radius: 0;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.form textarea:focus {
+  outline: none;
+  border: 2px solid #000000;
+  padding: calc(0.75rem - 1px);
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button-group button {
+  flex: 1;
+}
+
+.error {
+  color: #cc0000;
+  padding: 0.75rem;
+  border: 1px solid #cc0000;
+  margin-bottom: 1rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+.objects-list {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #000000;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.objects-list h2 {
+  font-size: 1rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.objects-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.objects-list li {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.95rem;
+}
+
+.objects-list li:last-child {
+  border-bottom: none;
+}
+
+.object-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.object-item span {
+  flex: 1;
+}
+
+.object-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.edit-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  color: #000000;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-btn:hover {
+  color: #0066cc;
+}
+
+.delete-btn:hover {
+  color: #cc0000;
+}
+
+.object-details {
+  flex: 1;
+}
+
+.object-name {
+  background: none;
+  border: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+  color: #000000;
+  cursor: pointer;
+  padding: 0.25rem;
+  margin-left: -0.25rem;
+  text-align: left;
+  font-family: inherit;
+}
+
+.object-name:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.object-name:active:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.object-name.missing {
+  color: #cc0000;
+  cursor: default;
+}
+
+.object-name.missing:hover {
+  background: none;
+}
+
+.object-name:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+
+.object-edit-form-container {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  align-items: flex-start;
+}
+
+.object-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.object-edit-form input {
+  padding: 0.5rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 0.85rem;
+  border-radius: 0;
+}
+
+.object-edit-form input:first-child {
+  font-weight: 600;
+}
+
+.object-edit-form textarea {
+  padding: 0.5rem;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 0.85rem;
+  border-radius: 0;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.object-edit-form .source-input-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: stretch;
+}
+
+.object-edit-form .source-input-group input {
+  flex: 1;
+}
+
+.browse-btn-small {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.object-edit-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.save-btn,
+.cancel-btn {
+  background: none;
+  border: 1px solid #000000;
+  color: #000000;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  min-width: 2rem;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #000000;
+  color: #ffffff;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: #ff0000;
+  color: #ffffff;
+  border-color: #ff0000;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: #000000;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1rem;
+}
+
+.delete-btn:hover {
+  color: #cc0000;
+}
+
+.delete-all-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border: 1px solid #cc0000;
+  background: #ffffff;
+  color: #cc0000;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.delete-all-btn:hover:not(:disabled) {
+  background: #ffcccc;
+}
+
+.delete-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.objects-list p {
+  color: #666666;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Drop indicator - small centered visual feedback */
+.drop-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 200px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px dashed #000000;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.drop-indicator-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #000000;
+  user-select: none;
+  text-align: center;
+  padding: 1rem;
+}
