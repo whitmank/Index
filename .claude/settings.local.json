@@ -7,7 +7,9 @@
       "Bash(__NEW_LINE_9bed9254d42b76ec__ bash /tmp/test_object.sh)",
       "Bash(done)",
       "Skill(keybindings-help)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:scriptide.tech)"
     ]
   }
 }

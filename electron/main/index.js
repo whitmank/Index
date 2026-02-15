@@ -1,57 +1,31 @@
-import { app, BrowserWindow, globalShortcut, screen } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { app, globalShortcut } from 'electron';
+import WindowManagerFactory from './window-manager/index.js';
 import { startDatabase, stopDatabase, getDatabase } from './db/index.js';
 import { registerDbHandlers, setMainWindow, broadcastObjectsChanged } from './ipc/db-handlers.js';
 import { startObjectsWatcher, stopObjectsWatcher } from './watchers/objects.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow;
+let windowManager;
 let dbStarted = false;
 
 function createWindow() {
-  // Get the primary display dimensions
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  // Get platform-specific window manager
+  windowManager = new WindowManagerFactory();
 
-  // Overlay dimensions and positioning
-  const overlayWidth = 800;
-  const overlayHeight = 600;
-  const x = Math.round((screenWidth - overlayWidth) / 2);
-  const y = Math.round(screenHeight * 0.15); // Position 15% from top
-
-  mainWindow = new BrowserWindow({
-    width: overlayWidth,
-    height: overlayHeight,
-    x,
-    y,
-    frame: false, // Remove window frame/titlebar
-    skipTaskbar: true, // Don't show in taskbar
-    transparent: true, // Enable transparency
-    hasShadow: true, // Add native shadow for depth
-    vibrancy: 'popover', // macOS native blur effect
-    visualEffectState: 'active', // Keep blur effect active
-    resizable: true, // Allow window resizing
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      enableRemoteModule: false,
-      enableFocusRing: false,
-    },
+  // Create window with platform-specific settings
+  mainWindow = windowManager.createWindow({
+    devServerUrl: process.env.VITE_DEV_SERVER_URL,
+    prodPath: path.join(__dirname, '../../dist/index.html'),
   });
 
-  // Load from Vite dev server in development
-  const isDev = process.env.VITE_DEV_SERVER_URL;
-  if (isDev) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    // Load from built files in production
-    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
-  }
-
-  // Hide window by default
-  mainWindow.hide();
+  // Setup platform-specific behaviors (e.g., space-change detection on macOS)
+  windowManager.setupPlatformBehavior(() => {
+    console.log('[Window] Space/desktop changed, window was hidden');
+  });
 
   // Toggle window visibility on Cmd+` (or Ctrl+`)
   const toggleHotkey = process.platform === 'darwin' ? 'cmd+`' : 'ctrl+`';
@@ -106,6 +80,10 @@ app.on('before-quit', async (event) => {
       stopObjectsWatcher();
       await stopDatabase();
       dbStarted = false;
+      // Cleanup platform-specific window resources
+      if (windowManager) {
+        windowManager.cleanup();
+      }
       app.quit();
     } catch (error) {
       console.error('Error stopping database:', error);

@@ -7,7 +7,9 @@
   "type": "module",
   "scripts": {
     "electron:dev": "node scripts/electron-dev.js",
-    "electron:build": "electron-builder"
+    "electron:build": "electron-builder",
+    "build:native": "node-gyp rebuild",
+    "build:native:clean": "node-gyp clean"
   },
   "keywords": ["indexing", "database"],
   "author": "Claude Code",
@@ -23,7 +25,9 @@
     "vite": "^6.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.3.0"
+    "@vitejs/plugin-react": "^4.3.0",
+    "node-gyp": "^10.0.0",
+    "node-addon-api": "^7.1.0"
   },
   "build": {
     "appId": "com.index.app",
@@ -35,7 +39,9 @@
     "files": [
       "electron/main/**/*",
       "electron/preload/**/*",
-      "dist/**/*"
+      "dist/**/*",
+      "lib/**/*",
+      "build/Release/**/*"
     ],
     "mac": {
       "target": ["dmg", "zip"],

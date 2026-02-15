@@ -2,6 +2,16 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Disable default orange focus ring, use neutral styles instead */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
+}
+
 body {
   background: transparent;
   color: #ffffff;
@@ -34,6 +44,10 @@ h1 {
   color: #ffffff;
   letter-spacing: -0.5px;
   padding: 1.5rem 1.5rem 0 1.5rem;
+  /* Allow dragging the window from the title bar */
+  -webkit-app-region: drag;
+  user-select: none;
+  cursor: grab;
 }
 
 .primary-btn,
@@ -46,6 +60,8 @@ h1 {
   cursor: pointer;
   border-radius: 6px;
   transition: all 0.2s ease;
+  /* Ensure buttons are clickable, not draggable */
+  -webkit-app-region: no-drag;
 }
 
 .primary-btn {
@@ -59,9 +75,19 @@ h1 {
   border-color: rgba(100, 200, 255, 0.5);
 }
 
+.primary-btn:focus-visible {
+  border-color: rgba(100, 200, 255, 0.6);
+  background: rgba(100, 200, 255, 0.2);
+}
+
 .secondary-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.secondary-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 button:disabled {
@@ -75,6 +101,8 @@ button:disabled {
   gap: 0.75rem;
   width: 100%;
   padding: 0 1.5rem;
+  /* Exclude form from draggable region */
+  -webkit-app-region: no-drag;
 }
 
 .form input {
@@ -95,6 +123,10 @@ button:disabled {
   outline: none;
   border-color: rgba(100, 200, 255, 0.5);
   background: rgba(0, 0, 0, 0.4);
+}
+
+.form input:focus-visible {
+  border-color: rgba(100, 200, 255, 0.6);
 }
 
 .source-input-group {
@@ -126,6 +158,12 @@ button:disabled {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.browse-btn:focus-visible,
+.browse-btn-small:focus-visible {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .browse-btn:disabled,
 .browse-btn-small:disabled {
   opacity: 0.5;
@@ -154,6 +192,10 @@ button:disabled {
   background: rgba(0, 0, 0, 0.4);
 }
 
+.form textarea:focus-visible {
+  border-color: rgba(100, 200, 255, 0.6);
+}
+
 .button-group {
   display: flex;
   gap: 0.5rem;
@@ -171,6 +213,8 @@ button:disabled {
   margin-bottom: 1rem;
   width: 100%;
   border-radius: 6px;
+  /* Exclude error message from draggable region */
+  -webkit-app-region: no-drag;
 }
 
 .objects-list {
@@ -179,6 +223,8 @@ button:disabled {
   padding: 1rem 1.5rem 1.5rem 1.5rem;
   max-height: 40vh;
   overflow-y: auto;
+  /* Exclude objects list from draggable region */
+  -webkit-app-region: no-drag;
 }
 
 .list-header {
@@ -254,9 +300,17 @@ button:disabled {
   background: rgba(100, 200, 255, 0.15);
 }
 
+.edit-btn:focus-visible {
+  outline-color: rgba(100, 200, 255, 0.5);
+}
+
 .delete-btn:hover {
   color: rgba(255, 120, 120, 0.9);
   background: rgba(255, 120, 120, 0.15);
+}
+
+.delete-btn:focus-visible {
+  outline-color: rgba(255, 120, 120, 0.5);
 }
 
 .object-details {
@@ -335,6 +389,10 @@ button:disabled {
   background: rgba(0, 0, 0, 0.4);
 }
 
+.object-edit-form input:focus-visible {
+  border-color: rgba(100, 200, 255, 0.6);
+}
+
 .object-edit-form input:first-child {
   font-weight: 600;
 }
@@ -358,6 +416,10 @@ button:disabled {
 .object-edit-form textarea:focus {
   border-color: rgba(100, 200, 255, 0.5);
   background: rgba(0, 0, 0, 0.4);
+}
+
+.object-edit-form textarea:focus-visible {
+  border-color: rgba(100, 200, 255, 0.6);
 }
 
 .object-edit-form .source-input-group {
@@ -399,10 +461,18 @@ button:disabled {
   border-color: rgba(100, 200, 255, 0.4);
 }
 
+.save-btn:focus-visible {
+  border-color: rgba(100, 200, 255, 0.5);
+}
+
 .cancel-btn:hover:not(:disabled) {
   background: rgba(255, 120, 120, 0.2);
   color: rgba(255, 120, 120, 1);
   border-color: rgba(255, 120, 120, 0.4);
+}
+
+.cancel-btn:focus-visible {
+  border-color: rgba(255, 120, 120, 0.5);
 }
 
 .delete-all-btn {
@@ -418,6 +488,10 @@ button:disabled {
 
 .delete-all-btn:hover:not(:disabled) {
   background: rgba(255, 120, 120, 0.2);
+  border-color: rgba(255, 120, 120, 0.6);
+}
+
+.delete-all-btn:focus-visible {
   border-color: rgba(255, 120, 120, 0.6);
 }
 
