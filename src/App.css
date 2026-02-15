@@ -3,51 +3,65 @@
 }
 
 body {
-  background: #ffffff;
-  color: #000000;
+  background: transparent;
+  color: #ffffff;
+  margin: 0;
+  padding: 0;
 }
 
 .container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   height: 100vh;
-  gap: 2rem;
-  background: #ffffff;
-  color: #000000;
-  padding: 2rem;
+  gap: 1rem;
+  background: rgba(30, 30, 35, 0.85);
+  color: #ffffff;
+  padding: 0;
   position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
+
 h1 {
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  margin: 0;
+  margin: 0 0 1rem 0;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  padding: 1.5rem 1.5rem 0 1.5rem;
 }
 
 .primary-btn,
 .secondary-btn {
   padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
+  font-size: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 .primary-btn {
-  background: #000000;
+  background: rgba(100, 200, 255, 0.15);
+  border-color: rgba(100, 200, 255, 0.3);
   color: #ffffff;
 }
 
 .primary-btn:hover:not(:disabled) {
-  background: #333333;
+  background: rgba(100, 200, 255, 0.25);
+  border-color: rgba(100, 200, 255, 0.5);
 }
 
 .secondary-btn:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 button:disabled {
@@ -60,22 +74,27 @@ button:disabled {
   flex-direction: column;
   gap: 0.75rem;
   width: 100%;
-  max-width: 400px;
+  padding: 0 1.5rem;
 }
 
 .form input {
   padding: 0.75rem;
   font-size: 0.9rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
-  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.form input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .form input:focus {
   outline: none;
-  border: 2px solid #000000;
-  padding: calc(0.75rem - 1px);
+  border-color: rgba(100, 200, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .source-input-group {
@@ -92,17 +111,19 @@ button:disabled {
 .browse-btn-small {
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 6px;
   white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
 .browse-btn:hover:not(:disabled),
 .browse-btn-small:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .browse-btn:disabled,
@@ -114,18 +135,23 @@ button:disabled {
 .form textarea {
   padding: 0.75rem;
   font-size: 0.9rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
-  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  border-radius: 6px;
   font-family: inherit;
   resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.form textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .form textarea:focus {
   outline: none;
-  border: 2px solid #000000;
-  padding: calc(0.75rem - 1px);
+  border-color: rgba(100, 200, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .button-group {
@@ -138,34 +164,38 @@ button:disabled {
 }
 
 .error {
-  color: #cc0000;
+  color: rgba(255, 120, 120, 1);
   padding: 0.75rem;
-  border: 1px solid #cc0000;
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  background: rgba(255, 120, 120, 0.1);
   margin-bottom: 1rem;
   width: 100%;
-  max-width: 300px;
+  border-radius: 6px;
 }
 
 .objects-list {
   width: 100%;
-  max-width: 400px;
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #000000;
+  margin-top: 0;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 .list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   gap: 1rem;
 }
 
 .objects-list h2 {
-  font-size: 1rem;
+  font-size: 0.9rem;
   margin: 0;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .objects-list ul {
@@ -175,9 +205,9 @@ button:disabled {
 }
 
 .objects-list li {
-  padding: 0.75rem;
-  border-bottom: 1px solid #e0e0e0;
-  font-size: 0.95rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.9rem;
 }
 
 .objects-list li:last-child {
@@ -188,6 +218,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
 }
 
 .object-item span {
@@ -197,65 +228,72 @@ button:disabled {
 .object-actions {
   display: flex;
   gap: 0.5rem;
-  margin-left: 1rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .edit-btn,
 .delete-btn {
   background: none;
   border: none;
-  color: #000000;
-  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1rem;
   cursor: pointer;
-  padding: 0;
+  padding: 0.5rem;
   width: 1.5rem;
   height: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .edit-btn:hover {
-  color: #0066cc;
+  color: rgba(100, 200, 255, 0.9);
+  background: rgba(100, 200, 255, 0.15);
 }
 
 .delete-btn:hover {
-  color: #cc0000;
+  color: rgba(255, 120, 120, 0.9);
+  background: rgba(255, 120, 120, 0.15);
 }
 
 .object-details {
   flex: 1;
+  min-width: 0;
 }
 
 .object-name {
   background: none;
   border: none;
-  font-weight: 600;
-  font-size: 0.95rem;
-  margin-bottom: 0.25rem;
-  color: #000000;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 0;
+  color: #ffffff;
   cursor: pointer;
   padding: 0.25rem;
-  margin-left: -0.25rem;
   text-align: left;
   font-family: inherit;
+  transition: color 0.2s ease;
+  word-break: break-word;
 }
 
 .object-name:hover:not(:disabled) {
-  background: #f0f0f0;
+  color: rgba(100, 200, 255, 0.9);
 }
 
 .object-name:active:not(:disabled) {
-  background: #e0e0e0;
+  color: rgba(100, 200, 255, 1);
 }
 
 .object-name.missing {
-  color: #cc0000;
+  color: rgba(255, 120, 120, 0.8);
   cursor: default;
 }
 
 .object-name.missing:hover {
-  background: none;
+  color: rgba(255, 120, 120, 0.8);
 }
 
 .object-name:disabled {
@@ -280,11 +318,21 @@ button:disabled {
 
 .object-edit-form input {
   padding: 0.5rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
   font-size: 0.85rem;
-  border-radius: 0;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.object-edit-form input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.object-edit-form input:focus {
+  border-color: rgba(100, 200, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .object-edit-form input:first-child {
@@ -293,13 +341,23 @@ button:disabled {
 
 .object-edit-form textarea {
   padding: 0.5rem;
-  border: 1px solid #000000;
-  background: #ffffff;
-  color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
   font-size: 0.85rem;
-  border-radius: 0;
+  border-radius: 4px;
   font-family: inherit;
   resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.object-edit-form textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.object-edit-form textarea:focus {
+  border-color: rgba(100, 200, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .object-edit-form .source-input-group {
@@ -325,56 +383,42 @@ button:disabled {
 .save-btn,
 .cancel-btn {
   background: none;
-  border: 1px solid #000000;
-  color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 1rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   min-width: 2rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .save-btn:hover:not(:disabled) {
-  background: #000000;
-  color: #ffffff;
+  background: rgba(100, 200, 255, 0.2);
+  color: rgba(100, 200, 255, 1);
+  border-color: rgba(100, 200, 255, 0.4);
 }
 
 .cancel-btn:hover:not(:disabled) {
-  background: #ff0000;
-  color: #ffffff;
-  border-color: #ff0000;
-}
-
-.delete-btn {
-  background: none;
-  border: none;
-  color: #000000;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 1rem;
-}
-
-.delete-btn:hover {
-  color: #cc0000;
+  background: rgba(255, 120, 120, 0.2);
+  color: rgba(255, 120, 120, 1);
+  border-color: rgba(255, 120, 120, 0.4);
 }
 
 .delete-all-btn {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
-  border: 1px solid #cc0000;
-  background: #ffffff;
-  color: #cc0000;
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  background: rgba(255, 120, 120, 0.1);
+  color: rgba(255, 120, 120, 0.9);
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 .delete-all-btn:hover:not(:disabled) {
-  background: #ffcccc;
+  background: rgba(255, 120, 120, 0.2);
+  border-color: rgba(255, 120, 120, 0.6);
 }
 
 .delete-all-btn:disabled {
@@ -383,9 +427,9 @@ button:disabled {
 }
 
 .objects-list p {
-  color: #666666;
+  color: rgba(255, 255, 255, 0.6);
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 /* Drop indicator - small centered visual feedback */
@@ -396,21 +440,21 @@ button:disabled {
   transform: translate(-50%, -50%);
   width: 300px;
   height: 200px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 2px dashed #000000;
+  background: rgba(45, 45, 50, 0.95);
+  border: 2px dashed rgba(100, 200, 255, 0.4);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .drop-indicator-text {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #000000;
+  color: rgba(100, 200, 255, 0.8);
   user-select: none;
   text-align: center;
   padding: 1rem;

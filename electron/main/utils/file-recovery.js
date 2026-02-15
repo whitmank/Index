@@ -132,7 +132,9 @@ export async function verifyAndRepairSources(objects) {
     if (!obj.source_metadata?.content_hash) {
       // No hash, can't do recovery, just check if exists
       if (!obj.source_metadata) obj.source_metadata = {};
-      obj.source_metadata.exists = fs.existsSync(obj.source);
+      // Check if it's a URL (http, https, ftp, etc.) - URLs are always considered valid
+      const isUrl = /^[a-z][a-z0-9+.-]*:\/\//.test(obj.source);
+      obj.source_metadata.exists = isUrl ? true : fs.existsSync(obj.source);
       repaired.push(obj);
       continue;
     }
