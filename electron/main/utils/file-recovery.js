@@ -23,7 +23,7 @@ function hashFile(filePath) {
 /**
  * Search for a file by content hash in a directory
  * Recursively searches subdirectories up to 2 levels deep
- * @param {string} contentHash - SHA-256 hash to search for
+ * @param {string} contentHash - SHA-256 hash to search for (format: "sha256:abc123..." or "abc123...")
  * @param {string} searchPath - Directory to search in
  * @returns {Promise<string|null>} File path if found, null otherwise
  */
@@ -32,9 +32,12 @@ export async function findFileByContentHash(contentHash, searchPath) {
     return null;
   }
 
+  // Normalize hash: extract hex from "sha256:abc123..." format if present
+  const targetHash = contentHash.startsWith('sha256:') ? contentHash.slice(7) : contentHash;
+
   try {
     // Start with the immediate directory
-    const candidates = await searchDirectory(searchPath, contentHash, 0);
+    const candidates = await searchDirectory(searchPath, targetHash, 0);
     if (candidates.length > 0) {
       // Return the first match (most recently modified)
       return candidates[0];
@@ -43,7 +46,7 @@ export async function findFileByContentHash(contentHash, searchPath) {
     // If not found, try parent directory
     const parentPath = path.dirname(searchPath);
     if (parentPath !== searchPath) {
-      const parentCandidates = await searchDirectory(parentPath, contentHash, 0);
+      const parentCandidates = await searchDirectory(parentPath, targetHash, 0);
       if (parentCandidates.length > 0) {
         return parentCandidates[0];
       }

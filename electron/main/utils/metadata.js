@@ -91,7 +91,7 @@ function deriveFileMetadata(filePath) {
       const content = fs.readFileSync(filePath);
       const hash = crypto.createHash('sha256');
       hash.update(content);
-      metadata.content_hash = hash.digest('hex');
+      metadata.content_hash = 'sha256:' + hash.digest('hex');
     } catch (error) {
       console.warn('[Metadata] Could not hash file:', error.message);
       metadata.content_hash = null;
