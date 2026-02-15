@@ -37,11 +37,10 @@ export default class GenericWindowManager {
       height: overlayHeight,
       x,
       y,
-      alwaysOnTop: true,
+      type: 'panel',
+      alwaysOnTop: false,
       frame: false,
-      skipTaskbar: true,
       transparent: true,
-      hasShadow: true,
       resizable: true,
       webPreferences: {
         preload: path.join(__dirname, '../../preload/index.js'),

@@ -36,17 +36,10 @@ export default class MacOSWindowManager {
       height: overlayHeight,
       x,
       y,
-      // macOS panel type: floats above full-screen apps, doesn't steal focus
       type: 'panel',
-      alwaysOnTop: true,
-      focusable: false,
+      alwaysOnTop: false,
       frame: false,
-      skipTaskbar: true,
       transparent: true,
-      hasShadow: true,
-      // macOS vibrancy for glassmorphic effect
-      vibrancy: 'popover',
-      visualEffectState: 'active',
       resizable: true,
       webPreferences: {
         preload: path.join(__dirname, '../../preload/index.js'),

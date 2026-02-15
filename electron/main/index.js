@@ -34,7 +34,6 @@ function createWindow() {
       mainWindow.hide();
     } else {
       mainWindow.show();
-      mainWindow.focus();
     }
   });
 
