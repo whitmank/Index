@@ -56,6 +56,9 @@ export default class MacOSWindowManager {
       this.mainWindow.loadFile(config.prodPath);
     }
 
+    // Set window level to normal to respect z-order while staying as panel type
+    this.mainWindow.setAlwaysOnTop(false, 'normal');
+
     // Hide window by default
     this.mainWindow.hide();
 
