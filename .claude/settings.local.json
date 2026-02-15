@@ -9,7 +9,12 @@
       "Skill(keybindings-help)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:scriptide.tech)"
+      "WebFetch(domain:scriptide.tech)",
+      "Bash(head:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:2019.wattenberger.com)",
+      "WebFetch(domain:observablehq.com)"
     ]
   }
 }
