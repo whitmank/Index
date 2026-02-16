@@ -92,7 +92,7 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      const validTables = ['objects', 'relationships', 'tags', 'object_tags'];
+      const validTables = ['objects', 'relationships', 'tags', 'object_tags', 'collections'];
       if (!validTables.includes(table)) {
         throw new Error(`Invalid table: ${table}`);
       }
@@ -467,6 +467,321 @@ export function registerDbHandlers() {
       return { success: true, data: result };
     } catch (error) {
       console.error('[IPC] Delete tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Create a new collection (saved query)
+   * Handler: db:createCollection
+   */
+  ipcMain.handle('db:createCollection', async (event, collectionData) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      const { name, query } = collectionData;
+
+      // Validate: reject if query is empty (all three arrays empty)
+      if (
+        (!query.all || query.all.length === 0) &&
+        (!query.any || query.any.length === 0) &&
+        (!query.none || query.none.length === 0)
+      ) {
+        throw new Error('Collection must have at least one rule (all, any, or none)');
+      }
+
+      // Soft validate: check if tag IDs exist
+      const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
+      const tagsResult = await db.query('SELECT * FROM tags');
+      const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
+      const existingTagIds = new Set(existingTags.map((t) => {
+        const tagId = (t.id && t.id.id) || t.id;
+        return typeof tagId === 'string' ? tagId.split(':')[1] : tagId;
+      }));
+
+      const warnings = [];
+      allTagIds.forEach((tagId) => {
+        if (!existingTagIds.has(tagId)) {
+          warnings.push(`Tag '${tagId}' not found`);
+        }
+      });
+
+      // Helper to extract plain ID from RecordId or string
+      const extractPlainId = (id) => {
+        if (typeof id === 'object' && id.id) {
+          return id.id;
+        }
+        if (typeof id === 'string' && id.includes(':')) {
+          return id.split(':')[1];
+        }
+        return id;
+      };
+
+      // Create collection with timestamps
+      const now = new Date().toISOString();
+      const collectionRecord = {
+        name,
+        query: {
+          all: (query.all || []).map(extractPlainId),
+          any: (query.any || []).map(extractPlainId),
+          none: (query.none || []).map(extractPlainId),
+        },
+        pinned: false,
+        created_at: now,
+        updated_at: now,
+      };
+
+      console.log('[IPC] Create collection:', name);
+
+      const result = await db.query(
+        `CREATE collections CONTENT ${JSON.stringify(collectionRecord)}`
+      );
+
+      console.log('[IPC] Created collection result:', result);
+
+      // Persist after creation
+      await persistToIndex(db);
+
+      return { success: true, data: result, warnings: warnings.length > 0 ? warnings : undefined };
+    } catch (error) {
+      console.error('[IPC] Create collection error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Update a collection (name or query)
+   * Handler: db:updateCollection
+   */
+  ipcMain.handle('db:updateCollection', async (event, collectionId, updates) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      // Extract plain ID if passed as RecordId object
+      let plainCollectionId = collectionId;
+      if (typeof collectionId === 'object' && collectionId.id) {
+        plainCollectionId = collectionId.id;
+      }
+
+      const { query, name } = updates;
+
+      // Validate: reject if query is empty (if provided)
+      if (query) {
+        if (
+          (!query.all || query.all.length === 0) &&
+          (!query.any || query.any.length === 0) &&
+          (!query.none || query.none.length === 0)
+        ) {
+          throw new Error('Collection must have at least one rule (all, any, or none)');
+        }
+      }
+
+      // Soft validate: check if tag IDs exist
+      let warnings = [];
+      if (query) {
+        const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
+        const tagsResult = await db.query('SELECT * FROM tags');
+        const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
+        const existingTagIds = new Set(existingTags.map((t) => {
+          const tagId = (t.id && t.id.id) || t.id;
+          return typeof tagId === 'string' ? tagId.split(':')[1] : tagId;
+        }));
+
+        allTagIds.forEach((tagId) => {
+          if (!existingTagIds.has(tagId)) {
+            warnings.push(`Tag '${tagId}' not found`);
+          }
+        });
+      }
+
+      // Helper to extract plain ID from RecordId or string
+      const extractPlainId = (id) => {
+        if (typeof id === 'object' && id.id) {
+          return id.id;
+        }
+        if (typeof id === 'string' && id.includes(':')) {
+          return id.split(':')[1];
+        }
+        return id;
+      };
+
+      // Build update object
+      const updateObj = {
+        updated_at: new Date().toISOString(),
+      };
+      if (name !== undefined) updateObj.name = name;
+      if (query !== undefined) {
+        updateObj.query = {
+          all: (query.all || []).map(extractPlainId),
+          any: (query.any || []).map(extractPlainId),
+          none: (query.none || []).map(extractPlainId),
+        };
+      }
+
+      console.log('[IPC] Update collection:', plainCollectionId, updateObj);
+
+      const result = await db.query(
+        `UPDATE collections:${plainCollectionId} MERGE ${JSON.stringify(updateObj)}`
+      );
+
+      // Persist after update
+      await persistToIndex(db);
+
+      return { success: true, data: result, warnings: warnings.length > 0 ? warnings : undefined };
+    } catch (error) {
+      console.error('[IPC] Update collection error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Delete a collection
+   * Handler: db:deleteCollection
+   */
+  ipcMain.handle('db:deleteCollection', async (event, collectionId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      // Extract plain ID if passed as RecordId object
+      let plainCollectionId = collectionId;
+      if (typeof collectionId === 'object' && collectionId.id) {
+        plainCollectionId = collectionId.id;
+      }
+
+      console.log('[IPC] Delete collection:', plainCollectionId);
+
+      // Delete the collection
+      const result = await db.query(`DELETE FROM collections:${plainCollectionId}`);
+
+      // Persist after deletion
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Delete collection error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Evaluate a collection query and return matching objects
+   * Handler: db:evaluateCollection
+   */
+  ipcMain.handle('db:evaluateCollection', async (event, collectionId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      // Extract plain ID if passed as RecordId object
+      let plainCollectionId = collectionId;
+      if (typeof collectionId === 'object' && collectionId.id) {
+        plainCollectionId = collectionId.id;
+      }
+
+      // Fetch collection by ID
+      let collectionResult = await db.query(`SELECT * FROM collections:${plainCollectionId}`);
+
+      // SurrealDB returns [[{record}]] - unwrap twice
+      let collection = collectionResult;
+      if (Array.isArray(collection) && collection.length > 0) {
+        collection = collection[0];
+      }
+      if (Array.isArray(collection) && collection.length > 0) {
+        collection = collection[0];
+      }
+
+      if (!collection) {
+        throw new Error(`Collection ${plainCollectionId} not found`);
+      }
+
+      let query = collection.query || {};
+
+      // Normalize query tag IDs - convert RecordId objects to plain strings
+      const normalizeTagId = (id) => {
+        if (typeof id === 'object' && id.id) {
+          return id.id;
+        }
+        if (typeof id === 'string' && id.includes(':')) {
+          return id.split(':')[1];
+        }
+        return id;
+      };
+
+      query = {
+        all: (query.all || []).map(normalizeTagId),
+        any: (query.any || []).map(normalizeTagId),
+        none: (query.none || []).map(normalizeTagId),
+      };
+
+      // Get all objects
+      const objectsResult = await db.query('SELECT * FROM objects');
+      const allObjects = (Array.isArray(objectsResult) && objectsResult.length > 0) ? objectsResult[0] : [];
+
+      // Get all object_tags assignments
+      const tagsResult = await db.query('SELECT * FROM object_tags');
+      const allTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
+
+      // Build map: objectId -> Set<tagId>
+      const objectTagMap = new Map();
+      allTags.forEach((assignment) => {
+        const objId = assignment.object_id;
+        const tagId = assignment.tag_id;
+
+        if (!objectTagMap.has(objId)) {
+          objectTagMap.set(objId, new Set());
+        }
+        objectTagMap.get(objId).add(tagId);
+      });
+
+      // Filter objects based on query
+      const matchingObjects = allObjects.filter((obj) => {
+        const objId = (obj.id && obj.id.id) || obj.id;
+        const tags = objectTagMap.get(objId) || new Set();
+
+        // ALL: object must have every tag in query.all
+        if (query.all && query.all.length > 0) {
+          if (!query.all.every((t) => tags.has(t))) {
+            return false;
+          }
+        }
+
+        // ANY: object must have at least one tag in query.any
+        if (query.any && query.any.length > 0) {
+          if (!query.any.some((t) => tags.has(t))) {
+            return false;
+          }
+        }
+
+        // NONE: object must not have any tag in query.none
+        if (query.none && query.none.length > 0) {
+          if (query.none.some((t) => tags.has(t))) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      console.log(`[IPC] Evaluate collection: found ${matchingObjects.length} matching objects`);
+      console.log('[IPC] Matching objects:', matchingObjects.map((o) => ({
+        id: (o.id && o.id.id) || o.id,
+        name: o.name,
+        tags: Array.from(objectTagMap.get(((o.id && o.id.id) || o.id).split(':')[1]) || new Set()),
+      })));
+      return { success: true, data: matchingObjects };
+    } catch (error) {
+      console.error('[IPC] Evaluate collection error:', error);
       return { success: false, error: error.message };
     }
   });

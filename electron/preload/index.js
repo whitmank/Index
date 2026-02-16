@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getObjectsForTag: (tagId) => ipcRenderer.invoke('db:getObjectsForTag', tagId),
     updateTag: (id, data) => ipcRenderer.invoke('db:updateTag', id, data),
     deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
+    createCollection: (data) => ipcRenderer.invoke('db:createCollection', data),
+    updateCollection: (id, data) => ipcRenderer.invoke('db:updateCollection', id, data),
+    deleteCollection: (id) => ipcRenderer.invoke('db:deleteCollection', id),
+    evaluateCollection: (id) => ipcRenderer.invoke('db:evaluateCollection', id),
   },
   // File system operations
   fs: {

@@ -158,7 +158,7 @@ async function connectToDatabase() {
 async function initializeTables() {
   console.log('[DB] Initializing tables...');
 
-  const tables = ['objects', 'relationships', 'tags', 'object_tags'];
+  const tables = ['objects', 'relationships', 'tags', 'object_tags', 'collections'];
 
   for (const table of tables) {
     try {

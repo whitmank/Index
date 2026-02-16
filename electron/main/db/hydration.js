@@ -30,6 +30,7 @@ export async function hydrateFromIndex(db) {
     await hydrateTable(db, 'objects');
     await hydrateTable(db, 'relationships');
     await hydrateTable(db, 'tags');
+    await hydrateTable(db, 'collections');
     await hydrateSingleFileTable(db, 'object_tags', SINGLE_FILE_TABLES.object_tags);
 
     console.log('[Hydration] Hydration complete');
