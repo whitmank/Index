@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -40,6 +40,15 @@ function ensureDataDirectory() {
 function startDatabaseProcess() {
   return new Promise((resolve, reject) => {
     ensureDataDirectory();
+
+    // Kill any existing SurrealDB process on the target port to ensure fresh start
+    try {
+      execSync(`lsof -ti :${DB_PORT} | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
+      // Give it a moment to fully close
+      setTimeout(() => {}, 200);
+    } catch (e) {
+      // If no process exists or kill fails, that's fine
+    }
 
     // Create temporary directory for ephemeral storage
     // This ensures fresh state on each startup

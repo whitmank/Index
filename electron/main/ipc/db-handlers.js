@@ -1,4 +1,7 @@
 import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { deriveSourceMetadata, cleanURI } from '../utils/metadata.js';
@@ -271,9 +274,6 @@ export function registerDbHandlers() {
       });
 
       // Only persist object_tags (don't reload objects unnecessarily)
-      const fs = require('fs');
-      const path = require('path');
-      const os = require('os');
       const objectTagsData = await db.query('SELECT * FROM object_tags');
       const objectTags = (objectTagsData[0] || []);
       const indexDir = path.join(os.homedir(), '.index');
@@ -309,9 +309,6 @@ export function registerDbHandlers() {
       );
 
       // Only persist object_tags (don't reload objects unnecessarily)
-      const fs = require('fs');
-      const path = require('path');
-      const os = require('os');
       const objectTagsData = await db.query('SELECT * FROM object_tags');
       const objectTags = (objectTagsData[0] || []);
       const indexDir = path.join(os.homedir(), '.index');

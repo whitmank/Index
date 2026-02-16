@@ -7,6 +7,9 @@ import { verifyAndRepairSources } from '../utils/file-recovery.js';
 // Hydration service - loads data from .index/ JSON files into database
 
 const INDEX_DIR = path.join(os.homedir(), '.index');
+const SINGLE_FILE_TABLES = {
+  object_tags: 'object_tags.json',
+};
 
 /**
  * Hydrate database from .index/ JSON files
@@ -27,10 +30,69 @@ export async function hydrateFromIndex(db) {
     await hydrateTable(db, 'objects');
     await hydrateTable(db, 'relationships');
     await hydrateTable(db, 'tags');
+    await hydrateSingleFileTable(db, 'object_tags', SINGLE_FILE_TABLES.object_tags);
 
     console.log('[Hydration] Hydration complete');
   } catch (error) {
     console.error('[Hydration] Failed to hydrate:', error);
+    throw error;
+  }
+}
+
+/**
+ * Hydrate a table stored as a single JSON file
+ * @private
+ */
+async function hydrateSingleFileTable(db, tableName, fileName) {
+  const filePath = path.join(INDEX_DIR, fileName);
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.log(`[Hydration] No ${fileName} file found, skipping`);
+    return;
+  }
+
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const records = JSON.parse(content);
+
+    if (!Array.isArray(records)) {
+      console.warn(`[Hydration] ${fileName} is not an array, skipping`);
+      return;
+    }
+
+    console.log(`[Hydration] Found ${records.length} ${tableName} records`);
+
+    let insertedCount = 0;
+
+    for (const record of records) {
+      try {
+        if (!record.id) {
+          console.warn('[Hydration] Record missing ID, skipping');
+          continue;
+        }
+
+        // Extract recordId from id string (format: "object_tags:abc123" or just "abc123")
+        let recordId = record.id;
+        if (typeof recordId === 'string' && recordId.includes(':')) {
+          recordId = recordId.split(':')[1];
+        }
+
+        // Remove id field to avoid conflict
+        const { id, ...recordWithoutId } = record;
+
+        // Insert with exact ID
+        await db.query(`CREATE ${tableName}:${recordId} CONTENT ${JSON.stringify(recordWithoutId)}`);
+        insertedCount++;
+      } catch (error) {
+        console.warn(`[Hydration] Error inserting ${tableName} record:`, error.message);
+        // Continue with next record
+      }
+    }
+
+    console.log(`[Hydration] Loaded ${insertedCount} ${tableName}`);
+  } catch (error) {
+    console.error(`[Hydration] Error hydrating ${tableName}:`, error);
     throw error;
   }
 }
