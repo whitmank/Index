@@ -51,6 +51,9 @@ function startDatabaseProcess() {
 
     // Spawn SurrealDB with temporary directory
     // Fresh state on each startup, cleaned up on shutdown
+    // Suppress verbose startup logs
+    const devNull = fs.openSync('/dev/null', 'w');
+
     dbProcess = spawn('surreal', [
       'start',
       '--bind',
@@ -60,27 +63,36 @@ function startDatabaseProcess() {
       '--pass',
       DB_PASS,
       `file://${dbPath}`,
-    ]);
+    ], {
+      stdio: ['ignore', devNull, devNull], // Suppress stdout/stderr
+    });
 
     let isReady = false;
 
-    // Handle stdout for readiness detection
-    dbProcess.stdout.on('data', (data) => {
-      const output = data.toString().trim();
-      console.log(`[SurrealDB] ${output}`);
+    // Poll for readiness by trying to connect
+    let attempts = 0;
+    const maxAttempts = 100;
+    const checkReady = setInterval(async () => {
+      attempts++;
+      try {
+        const testClient = new Surreal();
+        await testClient.connect(`ws://${DB_HOST}:${DB_PORT}`);
+        await testClient.close();
 
-      // Detect when server is ready
-      if (!isReady && output.includes('Started web server')) {
-        isReady = true;
-        console.log('[DB] SurrealDB is ready');
-        resolve();
+        if (!isReady) {
+          isReady = true;
+          clearInterval(checkReady);
+          console.log('[DB] SurrealDB is ready');
+          resolve();
+        }
+      } catch (e) {
+        if (attempts >= maxAttempts) {
+          clearInterval(checkReady);
+          reject(new Error('SurrealDB failed to start within 10 seconds'));
+        }
+        // Not ready yet, keep trying
       }
-    });
-
-    // Handle stderr
-    dbProcess.stderr.on('data', (data) => {
-      console.error(`[SurrealDB Error] ${data.toString().trim()}`);
-    });
+    }, 100);
 
     // Handle process errors
     dbProcess.on('error', (error) => {
@@ -137,7 +149,7 @@ async function connectToDatabase() {
 async function initializeTables() {
   console.log('[DB] Initializing tables...');
 
-  const tables = ['objects', 'relationships', 'tags'];
+  const tables = ['objects', 'relationships', 'tags', 'object_tags'];
 
   for (const table of tables) {
     try {

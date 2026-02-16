@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useObjectsStore } from '../store/objects';
+import TagAssignmentSection from './TagAssignmentSection';
 import './ObjectDetailSidebar.css';
 
 /**
@@ -50,15 +51,6 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     if (e.target === e.currentTarget) {
       handleClose();
     }
-  };
-
-  const handleNotesChange = (e) => {
-    updateObject(object.id, {
-      user_metadata: {
-        ...object.user_metadata,
-        notes: e.target.value,
-      },
-    });
   };
 
   const handleDelete = async () => {
@@ -128,15 +120,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
             </div>
           </div>
 
-          {/* Notes */}
-          <div className="sidebar-section">
-            <textarea
-              className="notes-textarea"
-              value={object.user_metadata?.notes || ''}
-              onChange={handleNotesChange}
-              placeholder="Notes..."
-            />
-          </div>
+          {/* Tags */}
+          <TagAssignmentSection objectId={object.id.id || object.id} />
 
           {/* Delete */}
           <div className="sidebar-section sidebar-section-delete">

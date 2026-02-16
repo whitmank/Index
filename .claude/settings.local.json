@@ -17,7 +17,9 @@
       "WebFetch(domain:observablehq.com)",
       "Bash(grep:*)",
       "WebFetch(domain:www.electronjs.org)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(killall:*)",
+      "Bash(killall node:*)"
     ]
   }
 }

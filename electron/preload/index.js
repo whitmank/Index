@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateObject: (id, data) => ipcRenderer.invoke('db:updateObject', id, data),
     createRelationship: (data) => ipcRenderer.invoke('db:createRelationship', data),
     createTag: (data) => ipcRenderer.invoke('db:createTag', data),
+    assignTag: (objectId, tagId) => ipcRenderer.invoke('db:assignTag', objectId, tagId),
+    unassignTag: (objectId, tagId) => ipcRenderer.invoke('db:unassignTag', objectId, tagId),
+    getTagsForObject: (objectId) => ipcRenderer.invoke('db:getTagsForObject', objectId),
+    getObjectsForTag: (tagId) => ipcRenderer.invoke('db:getObjectsForTag', tagId),
+    updateTag: (id, data) => ipcRenderer.invoke('db:updateTag', id, data),
+    deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
   },
   // File system operations
   fs: {
