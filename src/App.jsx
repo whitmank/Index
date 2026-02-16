@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useObjectsStore } from './store/objects';
 import { useCollectionsStore } from './store/collections';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import GraphView from './components/GraphView';
 import ObjectDetailSidebar from './components/ObjectDetailSidebar';
 import CollectionsSidebar from './components/CollectionsSidebar';
+import SettingsModal from './components/SettingsModal';
 import './App.css';
 
 // Helper function to derive object name from source
@@ -32,6 +34,12 @@ export default function App() {
   const filteredObjects = useCollectionsStore((state) => state.filteredObjects);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Setup keyboard shortcuts
+  useKeyboardShortcuts({
+    onSettings: () => setShowSettings(true),
+  });
 
   // Use filtered objects if a collection is active, otherwise use all objects
   const displayObjects = filteredObjects !== null ? filteredObjects : objects;
@@ -152,6 +160,7 @@ export default function App() {
           )}
         </>
       )}
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }

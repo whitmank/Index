@@ -178,6 +178,24 @@
   align-items: center;
 }
 
+.tag-type-selector {
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #333333;
+  background: #ffffff;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tag-type-selector:focus {
+  border-color: #999999;
+}
+
 .tag-create-input {
   flex: 1;
   border: 1px solid #e0dcd8;

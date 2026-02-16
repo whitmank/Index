@@ -849,5 +849,83 @@ export function registerDbHandlers() {
     }
   });
 
+  /**
+   * Get all tag types
+   * Handler: db:getTagTypes
+   */
+  ipcMain.handle('db:getTagTypes', async (event) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Get tag types');
+      const result = await db.query('SELECT * FROM tag_types');
+      const tagTypes = (result[0] || []);
+      console.log('[IPC] Found', tagTypes.length, 'tag types');
+
+      return { success: true, data: tagTypes };
+    } catch (error) {
+      console.error('[IPC] Get tag types error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Create a new tag type
+   * Handler: db:createTagType
+   */
+  ipcMain.handle('db:createTagType', async (event, tagTypeData) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Create tag type:', tagTypeData);
+      const result = await db.create('tag_types', {
+        name: tagTypeData.name,
+        created_at: new Date().toISOString(),
+      });
+
+      // Persist after creation
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Create tag type error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Delete a tag type
+   * Handler: db:deleteTagType
+   */
+  ipcMain.handle('db:deleteTagType', async (event, tagTypeId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Delete tag type:', tagTypeId);
+
+      // Extract the ID if it's an object
+      const id = tagTypeId.id || tagTypeId;
+
+      const result = await db.query(`DELETE FROM tag_types:${id}`);
+
+      // Persist after deletion
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Delete tag type error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   console.log('[IPC] Database handlers registered');
 }

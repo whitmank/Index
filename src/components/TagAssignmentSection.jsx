@@ -3,6 +3,21 @@ import { useTagsStore } from '../store/tags';
 import './TagAssignmentSection.css';
 
 /**
+ * Helper function to parse and format tag names
+ * "type:value" -> "type: value"
+ * "simple" -> "simple"
+ */
+function formatTagDisplay(tagName) {
+  const colonIndex = tagName.indexOf(':');
+  if (colonIndex !== -1) {
+    const type = tagName.substring(0, colonIndex);
+    const value = tagName.substring(colonIndex + 1);
+    return `${type}: ${value}`;
+  }
+  return tagName;
+}
+
+/**
  * TagAssignmentSection - Manage tags for an object in the sidebar
  *
  * Author: Claude Code (Anthropic)
@@ -17,11 +32,28 @@ export default function TagAssignmentSection({ objectId }) {
   // Local state for this object's tags
   const [assignedTags, setAssignedTags] = useState([]);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
+  const [newTagValue, setNewTagValue] = useState('');
   const [newTagColor, setNewTagColor] = useState('#666666');
+  const [selectedTagType, setSelectedTagType] = useState(null); // null = untyped
+  const [availableTagTypes, setAvailableTagTypes] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
-  const inputRef = useRef(null);
+  const valueInputRef = useRef(null);
+
+  // Load tag types
+  useEffect(() => {
+    const loadTagTypes = async () => {
+      try {
+        const result = await window.electronAPI.db.getTagTypes();
+        if (result.success) {
+          setAvailableTagTypes(result.data || []);
+        }
+      } catch (error) {
+        console.error('[TagAssignment] Error loading tag types:', error);
+      }
+    };
+    loadTagTypes();
+  }, []);
 
   // Load tags when object changes
   useEffect(() => {
@@ -48,10 +80,10 @@ export default function TagAssignmentSection({ objectId }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Focus input when entering create mode
+  // Focus value input when entering create mode
   useEffect(() => {
-    if (isCreatingTag && inputRef.current) {
-      inputRef.current.focus();
+    if (isCreatingTag && valueInputRef.current) {
+      valueInputRef.current.focus();
     }
   }, [isCreatingTag]);
 
@@ -87,12 +119,17 @@ export default function TagAssignmentSection({ objectId }) {
 
   const handleCreateTag = async (e) => {
     e.preventDefault();
-    if (!newTagName.trim()) return;
+    if (!newTagValue.trim()) return;
 
     try {
+      // Construct tag name: "type:value" or just "value" if untyped
+      const tagName = selectedTagType
+        ? `${selectedTagType.name}:${newTagValue.trim()}`
+        : newTagValue.trim();
+
       // Create tag (store will optimistically add it)
       const result = await createTag({
-        name: newTagName.trim(),
+        name: tagName,
         color: newTagColor,
       });
 
@@ -103,8 +140,9 @@ export default function TagAssignmentSection({ objectId }) {
         await assignTag(objectId, newTag.id?.id || newTag.id);
       }
 
-      setNewTagName('');
+      setNewTagValue('');
       setNewTagColor('#666666');
+      setSelectedTagType(null);
       setIsCreatingTag(false);
     } catch (error) {
       console.error('Error creating tag:', error);
@@ -112,8 +150,9 @@ export default function TagAssignmentSection({ objectId }) {
   };
 
   const handleCancelCreate = () => {
-    setNewTagName('');
+    setNewTagValue('');
     setNewTagColor('#666666');
+    setSelectedTagType(null);
     setIsCreatingTag(false);
   };
 
@@ -132,7 +171,7 @@ export default function TagAssignmentSection({ objectId }) {
               className="tag-badge"
               style={{ backgroundColor: tag.color || '#666666' }}
             >
-              <span className="tag-badge-name">{tag.name}</span>
+              <span className="tag-badge-name">{formatTagDisplay(tag.name)}</span>
               <button
                 className="tag-badge-remove"
                 onClick={() => handleUnassignTag(tag.id?.id || tag.id)}
@@ -159,12 +198,28 @@ export default function TagAssignmentSection({ objectId }) {
             {isCreatingTag ? (
               <form onSubmit={handleCreateTag} className="tag-create-form">
                 <div className="tag-create-inputs">
+                  <select
+                    value={selectedTagType?.name || ''}
+                    onChange={(e) => {
+                      const typeName = e.target.value;
+                      const type = availableTagTypes.find(t => t.name === typeName);
+                      setSelectedTagType(type || null);
+                    }}
+                    className="tag-type-selector"
+                  >
+                    <option value="">No type</option>
+                    {availableTagTypes.map((type) => (
+                      <option key={type.id || type.name} value={type.name}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
                   <input
-                    ref={inputRef}
+                    ref={valueInputRef}
                     type="text"
-                    placeholder="Tag name..."
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder={selectedTagType ? `${selectedTagType.name} value...` : 'Tag value...'}
+                    value={newTagValue}
+                    onChange={(e) => setNewTagValue(e.target.value)}
                     className="tag-create-input"
                   />
                   <input
