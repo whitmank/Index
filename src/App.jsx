@@ -20,6 +20,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="title-bar" />
       {loading ? (
         <div className="loading">Loading...</div>
       ) : objects.length === 0 ? (
