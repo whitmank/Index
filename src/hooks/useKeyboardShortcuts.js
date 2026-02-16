@@ -11,6 +11,11 @@ const SHORTCUTS = {
     modifiers: ['metaKey', 'ctrlKey'],
     description: 'Create new object',
   },
+  SETTINGS: {
+    key: ',',
+    modifiers: ['metaKey'],
+    description: 'Open settings',
+  },
 };
 
 /**
@@ -18,6 +23,7 @@ const SHORTCUTS = {
  * @param {Object} actions - Object containing action callbacks
  * @param {Function} actions.onEscape - Called when Escape is pressed
  * @param {Function} actions.onNewObject - Called when Cmd/Ctrl+O is pressed
+ * @param {Function} actions.onSettings - Called when Cmd+, is pressed
  * @param {Object} state - Current state for conditional actions
  * @param {boolean} state.editingId - Whether in edit mode
  * @param {boolean} state.showForm - Whether form is open
@@ -37,6 +43,15 @@ export function useKeyboardShortcuts(actions, state) {
       ) {
         e.preventDefault();
         actions.onNewObject?.();
+      }
+
+      // Cmd+, - open settings
+      if (
+        e.key === SHORTCUTS.SETTINGS.key &&
+        SHORTCUTS.SETTINGS.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onSettings?.();
       }
     }
 
