@@ -16,6 +16,7 @@ function ensureIndexStructure() {
     path.join(INDEX_DIR, 'objects'),
     path.join(INDEX_DIR, 'relationships'),
     path.join(INDEX_DIR, 'tags'),
+    path.join(INDEX_DIR, 'collections'),
     // object_tags is stored as single file, no directory needed
   ];
 
@@ -126,6 +127,7 @@ export async function persistToIndex(db) {
       persistTable(db, 'objects', path.join(INDEX_DIR, 'objects')),
       persistTable(db, 'relationships', path.join(INDEX_DIR, 'relationships')),
       persistTable(db, 'tags', path.join(INDEX_DIR, 'tags')),
+      persistTable(db, 'collections', path.join(INDEX_DIR, 'collections')),
       persistTableToSingleFile(db, 'object_tags', path.join(INDEX_DIR, 'object_tags.json')),
     ]);
 

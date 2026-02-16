@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useObjectsStore } from './store/objects';
+import { useCollectionsStore } from './store/collections';
 import GraphView from './components/GraphView';
 import ObjectDetailSidebar from './components/ObjectDetailSidebar';
+import CollectionsSidebar from './components/CollectionsSidebar';
 import './App.css';
 
 // Helper function to derive object name from source
@@ -27,10 +29,13 @@ export default function App() {
   const loading = useObjectsStore((state) => state.loading);
   const loadObjects = useObjectsStore((state) => state.loadObjects);
   const addObject = useObjectsStore((state) => state.addObject);
+  const filteredObjects = useCollectionsStore((state) => state.filteredObjects);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
 
-  const selectedObject = objects.find((obj) => obj.id === selectedNodeId);
+  // Use filtered objects if a collection is active, otherwise use all objects
+  const displayObjects = filteredObjects !== null ? filteredObjects : objects;
+  const selectedObject = displayObjects.find((obj) => obj.id === selectedNodeId);
 
   // Load objects on mount and setup file watcher
   useEffect(() => {
@@ -125,14 +130,17 @@ export default function App() {
           </div>
         </div>
       )}
+      <CollectionsSidebar />
       {loading ? (
         <div className="loading">Loading...</div>
       ) : objects.length === 0 ? (
         <div className="empty-state">No objects yet</div>
+      ) : displayObjects.length === 0 ? (
+        <div className="empty-state">No matching objects</div>
       ) : (
         <>
           <GraphView
-            objects={objects}
+            objects={displayObjects}
             onNodeClick={setSelectedNodeId}
             selectedNodeId={selectedNodeId}
           />
