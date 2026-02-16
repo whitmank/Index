@@ -80,21 +80,14 @@ export const useTagsStore = create((set, get) => ({
   },
 
   /**
-   * Assign a tag to an object
+   * Assign a tag to an object (just persist, component handles UI update)
    */
   assignTag: async (objectId, tagId) => {
     try {
-      console.log(`[TagsStore] Assigning tag ${tagId} to object ${objectId}`);
       const result = await window.electronAPI.db.assignTag(objectId, tagId);
-
       if (!result.success) {
         throw new Error(result.error);
       }
-
-      console.log(`[TagsStore] Tag assigned, reloading tags for object...`);
-      // After successful persistence, reload the tags for this object to update UI
-      await get().loadTagsForObject(objectId);
-
       return result.data;
     } catch (error) {
       console.error('[TagsStore] assignTag error:', error);
@@ -104,19 +97,14 @@ export const useTagsStore = create((set, get) => ({
   },
 
   /**
-   * Remove a tag from an object
+   * Remove a tag from an object (just persist, component handles UI update)
    */
   unassignTag: async (objectId, tagId) => {
     try {
       const result = await window.electronAPI.db.unassignTag(objectId, tagId);
-
       if (!result.success) {
         throw new Error(result.error);
       }
-
-      // After successful persistence, reload the tags for this object to update UI
-      await get().loadTagsForObject(objectId);
-
       return result.data;
     } catch (error) {
       console.error('[TagsStore] unassignTag error:', error);
