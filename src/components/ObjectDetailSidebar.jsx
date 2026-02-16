@@ -55,7 +55,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
 
   const handleDelete = async () => {
     if (window.confirm(`Delete object "${object.name}"?`)) {
-      await deleteObject(object.id);
+      const objectId = object.id.id || object.id;
+      await deleteObject(objectId);
       handleClose();
     }
   };
@@ -67,7 +68,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const handleSaveTitleEdit = async () => {
     const trimmedTitle = titleValue.trim();
     if (trimmedTitle && trimmedTitle !== object.name) {
-      await updateObject(object.id, { name: trimmedTitle });
+      const objectId = object.id.id || object.id;
+      await updateObject(objectId, { name: trimmedTitle });
     } else {
       setTitleValue(object.name);
     }
