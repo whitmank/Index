@@ -16,6 +16,7 @@ function ensureIndexStructure() {
     path.join(INDEX_DIR, 'objects'),
     path.join(INDEX_DIR, 'relationships'),
     path.join(INDEX_DIR, 'tags'),
+    // object_tags is stored as single file, no directory needed
   ];
 
   dirs.forEach((dir) => {
@@ -84,6 +85,27 @@ async function persistTable(db, tableName, targetDir) {
 }
 
 /**
+ * Persist a table to a single bundled JSON file
+ * Used for join tables (object_tags) where granular files aren't necessary
+ * @private
+ */
+async function persistTableToSingleFile(db, tableName, filePath) {
+  try {
+    const result = await db.query(`SELECT * FROM ${tableName}`);
+    const data = (Array.isArray(result) && result.length > 0) ? result[0] : [];
+
+    // Write all records to a single file
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+    console.log(`[Persistence] Persisted ${data.length} ${tableName} to single file`);
+    return data.length;
+  } catch (error) {
+    console.error(`[Persistence] Error persisting ${tableName} to file:`, error);
+    throw error;
+  }
+}
+
+/**
  * Persist all data from SurrealDB to .index/ individual files
  * @param {Surreal} db - Database connection
  * @returns {Promise<void>}
@@ -104,6 +126,7 @@ export async function persistToIndex(db) {
       persistTable(db, 'objects', path.join(INDEX_DIR, 'objects')),
       persistTable(db, 'relationships', path.join(INDEX_DIR, 'relationships')),
       persistTable(db, 'tags', path.join(INDEX_DIR, 'tags')),
+      persistTableToSingleFile(db, 'object_tags', path.join(INDEX_DIR, 'object_tags.json')),
     ]);
 
     console.log('[Persistence] All data persisted to .index/');

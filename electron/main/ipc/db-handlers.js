@@ -89,7 +89,7 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      const validTables = ['objects', 'relationships', 'tags'];
+      const validTables = ['objects', 'relationships', 'tags', 'object_tags'];
       if (!validTables.includes(table)) {
         throw new Error(`Invalid table: ${table}`);
       }
@@ -228,6 +228,228 @@ export function registerDbHandlers() {
       return { success: true, data: result };
     } catch (error) {
       console.error('[IPC] Update object error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Assign a tag to an object
+   * Handler: db:assignTag
+   */
+  ipcMain.handle('db:assignTag', async (event, objectId, tagId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Assign tag:', { objectId, tagId });
+
+      // Check if object and tag exist
+      const objResult = await db.query(`SELECT * FROM objects:${objectId}`);
+      if (!objResult || !objResult[0] || objResult[0].length === 0) {
+        throw new Error(`Object not found: ${objectId}`);
+      }
+
+      const tagResult = await db.query(`SELECT * FROM tags:${tagId}`);
+      if (!tagResult || !tagResult[0] || tagResult[0].length === 0) {
+        throw new Error(`Tag not found: ${tagId}`);
+      }
+
+      // Check if assignment already exists
+      const existingResult = await db.query(
+        `SELECT * FROM object_tags WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+      );
+      if (existingResult[0] && existingResult[0].length > 0) {
+        return { success: true, data: existingResult[0][0], message: 'Tag already assigned' };
+      }
+
+      // Create the assignment
+      const result = await db.create('object_tags', {
+        object_id: objectId,
+        tag_id: tagId,
+      });
+
+      // Persist after creation
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Assign tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Unassign a tag from an object
+   * Handler: db:unassignTag
+   */
+  ipcMain.handle('db:unassignTag', async (event, objectId, tagId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Unassign tag:', { objectId, tagId });
+
+      // Find and delete the assignment
+      const result = await db.query(
+        `DELETE FROM object_tags WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+      );
+
+      // Persist after deletion
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Unassign tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Get all tags for an object
+   * Handler: db:getTagsForObject
+   */
+  ipcMain.handle('db:getTagsForObject', async (event, objectId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Get tags for object:', objectId);
+
+      // Get all tag assignments for this object
+      const result = await db.query(
+        `SELECT tag_id FROM object_tags WHERE object_id = '${objectId}'`
+      );
+
+      const assignmentIds = (result[0] || []).map(a => a.tag_id);
+      console.log('[IPC] Found', assignmentIds.length, 'tags for object');
+
+      if (assignmentIds.length === 0) {
+        return { success: true, data: [] };
+      }
+
+      // Fetch full tag objects
+      let tagsResult;
+      if (assignmentIds.length === 1) {
+        tagsResult = await db.query(`SELECT * FROM tags:${assignmentIds[0]}`);
+        const tags = tagsResult[0] || [];
+        return { success: true, data: tags };
+      } else {
+        // For multiple tags, use IN query
+        const inClause = `[${assignmentIds.map(id => `tags:${id}`).join(', ')}]`;
+        tagsResult = await db.query(`SELECT * FROM ${inClause}`);
+        const tags = tagsResult[0] || [];
+        return { success: true, data: tags };
+      }
+    } catch (error) {
+      console.error('[IPC] Get tags for object error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Get all objects with a specific tag
+   * Handler: db:getObjectsForTag
+   */
+  ipcMain.handle('db:getObjectsForTag', async (event, tagId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Get objects for tag:', tagId);
+
+      // Get all object assignments for this tag
+      const result = await db.query(
+        `SELECT object_id FROM object_tags WHERE tag_id = '${tagId}'`
+      );
+
+      const objectIds = (result[0] || []).map(a => a.object_id);
+
+      if (objectIds.length === 0) {
+        return { success: true, data: [] };
+      }
+
+      // Fetch full object details
+      const objectsResult = await db.query(
+        `SELECT * FROM objects WHERE id IN [${objectIds.map(id => `'${id}'`).join(', ')}]`
+      );
+
+      const objects = objectsResult[0] || [];
+      return { success: true, data: objects };
+    } catch (error) {
+      console.error('[IPC] Get objects for tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Update a tag (name, color, description)
+   * Handler: db:updateTag
+   */
+  ipcMain.handle('db:updateTag', async (event, tagId, tagData) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Update tag:', tagId, tagData);
+
+      const updateObj = {};
+      if (tagData.name !== undefined) updateObj.name = tagData.name;
+      if (tagData.color !== undefined) updateObj.color = tagData.color;
+      if (tagData.description !== undefined) updateObj.description = tagData.description;
+
+      if (Object.keys(updateObj).length === 0) {
+        throw new Error('No fields to update');
+      }
+
+      const result = await db.query(
+        `UPDATE tags:${tagId} MERGE ${JSON.stringify(updateObj)}`
+      );
+
+      // Persist after update
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Update tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Delete a tag (and all its assignments)
+   * Handler: db:deleteTag
+   */
+  ipcMain.handle('db:deleteTag', async (event, tagId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Delete tag:', tagId);
+
+      // Delete all assignments for this tag
+      await db.query(`DELETE FROM object_tags WHERE tag_id = '${tagId}'`);
+
+      // Delete the tag itself
+      const result = await db.query(`DELETE FROM tags:${tagId}`);
+
+      // Persist after deletion
+      await persistToIndex(db);
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Delete tag error:', error);
       return { success: false, error: error.message };
     }
   });
