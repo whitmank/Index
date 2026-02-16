@@ -10,14 +10,6 @@
   display: block;
 }
 
-.corner-border {
-  pointer-events: none;
-}
-
-.corner-fill {
-  pointer-events: none;
-}
-
 .node {
   fill: #333333;
   stroke: #1a1a1a;
