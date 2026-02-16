@@ -258,6 +258,11 @@ export function registerDbHandlers() {
         }
       }
 
+      // Hide window after opening source
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
+
       return { success: true };
     } catch (error) {
       console.error('[IPC] Open source error:', error);

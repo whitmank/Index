@@ -10,7 +10,7 @@ import '../styles/GraphView.css';
  *
  * Author: Claude Code (Anthropic)
  */
-export default function GraphView({ objects }) {
+export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -30,6 +30,7 @@ export default function GraphView({ objects }) {
     const nodes = objects.map((obj, i) => ({
       id: obj.id,
       name: obj.name,
+      source: obj.source,
       x: width / 2 + (Math.random() - 0.5) * 100,
       y: height / 2 + (Math.random() - 0.5) * 100,
     }));
@@ -52,12 +53,81 @@ export default function GraphView({ objects }) {
     });
     svg.call(zoomBehavior);
 
+    // Disable double-click zoom
+    svg.on('dblclick.zoom', null);
+
+    // Add filled angled corners
+    const cornerSize = 20;
+
+    // Top-left corner
+    svg.append('polygon')
+      .attr('points', `0,0 ${cornerSize},0 0,${cornerSize}`)
+      .attr('fill', '#333333')
+      .attr('class', 'corner-fill');
+
+    // Top-right corner
+    svg.append('polygon')
+      .attr('points', `${width},0 ${width - cornerSize},0 ${width},${cornerSize}`)
+      .attr('fill', '#333333')
+      .attr('class', 'corner-fill');
+
+    // Bottom-right corner
+    svg.append('polygon')
+      .attr('points', `${width},${height} ${width - cornerSize},${height} ${width},${height - cornerSize}`)
+      .attr('fill', '#333333')
+      .attr('class', 'corner-fill');
+
+    // Bottom-left corner
+    svg.append('polygon')
+      .attr('points', `0,${height} 0,${height - cornerSize} ${cornerSize},${height}`)
+      .attr('fill', '#333333')
+      .attr('class', 'corner-fill');
+
+    // Add rectangular border around the frame
+    const borderWidth = 2;
+
+    // Top border
+    svg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', borderWidth)
+      .attr('fill', '#333333')
+      .attr('class', 'frame-border');
+
+    // Bottom border
+    svg.append('rect')
+      .attr('x', 0)
+      .attr('y', height - borderWidth)
+      .attr('width', width)
+      .attr('height', borderWidth)
+      .attr('fill', '#333333')
+      .attr('class', 'frame-border');
+
+    // Left border
+    svg.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', borderWidth)
+      .attr('height', height)
+      .attr('fill', '#333333')
+      .attr('class', 'frame-border');
+
+    // Right border
+    svg.append('rect')
+      .attr('x', width - borderWidth)
+      .attr('y', 0)
+      .attr('width', borderWidth)
+      .attr('height', height)
+      .attr('fill', '#333333')
+      .attr('class', 'frame-border');
+
     // Create node group
     const nodeGroup = g.selectAll('.node').data(nodes, (d) => d.id).enter().append('g').attr('class', 'node-group');
 
     nodeGroup.append('circle').attr('class', 'node').attr('r', 12);
 
-    nodeGroup.append('text').attr('class', 'node-label').attr('text-anchor', 'middle').attr('dy', '-20px').text((d) => d.name);
+    nodeGroup.append('text').attr('class', 'node-label').attr('text-anchor', 'start').attr('dx', '18px').attr('dy', '0.3em').text((d) => d.name);
 
     // Add drag behavior
     nodeGroup.call(
@@ -78,10 +148,23 @@ export default function GraphView({ objects }) {
         })
     );
 
-    // Add click handler to open source
+    // Add hover event handlers
+    nodeGroup.on('mouseenter', function () {
+      select(this).classed('hovered', true);
+    }).on('mouseleave', function () {
+      select(this).classed('hovered', false);
+    });
+
+    // Add click handler to select node (or open source with Cmd/Ctrl+Click)
     nodeGroup.on('click', (event, d) => {
       event.stopPropagation();
-      window.electronAPI?.openSource?.(d.id);
+      if (event.metaKey || event.ctrlKey) {
+        // Cmd/Ctrl+Click: open source directly
+        window.electronAPI?.openSource?.(d.source);
+      } else {
+        // Regular click: select node
+        onNodeClick?.(d.id);
+      }
     });
 
     // Update positions on each simulation tick
@@ -96,6 +179,13 @@ export default function GraphView({ objects }) {
       stopSimulation(simulation);
     };
   }, [objects]);
+
+  // Update selected node styling without restarting simulation
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const nodeGroups = select(svgRef.current).selectAll('.node-group');
+    nodeGroups.classed('selected', (d) => d.id === selectedNodeId);
+  }, [selectedNodeId]);
 
   // Handle window resize
   useEffect(() => {

@@ -45,6 +45,10 @@ function createWindow() {
 
 app.on('ready', async () => {
   try {
+    // Hide from macOS dock
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.hide();
+    }
     // Start database first
     await startDatabase();
     dbStarted = true;

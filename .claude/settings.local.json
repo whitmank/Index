@@ -16,7 +16,8 @@
       "WebFetch(domain:2019.wattenberger.com)",
       "WebFetch(domain:observablehq.com)",
       "Bash(grep:*)",
-      "WebFetch(domain:www.electronjs.org)"
+      "WebFetch(domain:www.electronjs.org)",
+      "Bash(git log:*)"
     ]
   }
 }

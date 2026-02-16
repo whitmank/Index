@@ -42,6 +42,7 @@ export default class MacOSWindowManager {
       frame: false,
       transparent: true,
       resizable: true,
+      roundedCorners: false,
       webPreferences: {
         preload: path.join(__dirname, '../../preload/index.js'),
         contextIsolation: true,
@@ -56,9 +57,6 @@ export default class MacOSWindowManager {
     } else {
       this.mainWindow.loadFile(config.prodPath);
     }
-
-    // Set window level to normal to respect z-order while staying as panel type
-    this.mainWindow.setAlwaysOnTop(false, 'normal');
 
     // Hide window by default
     this.mainWindow.hide();

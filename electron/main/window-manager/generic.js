@@ -38,7 +38,7 @@ export default class GenericWindowManager {
       x,
       y,
       type: 'panel',
-      alwaysOnTop: false,
+      alwaysOnTop: true,
       frame: false,
       transparent: true,
       resizable: true,
