@@ -29,7 +29,7 @@ export const useCollectionsStore = create((set, get) => ({
       const result = await window.electronAPI.db.getAll('collections');
       if (result.success) {
         // Normalize collection IDs - ensure id field is always a plain string
-        const normalizedCollections = (result.data || []).map((col) => {
+        let normalizedCollections = (result.data || []).map((col) => {
           let id = col.id;
           // Extract plain ID if it's a RecordId object
           if (typeof id === 'object' && id.id) {
@@ -39,6 +39,14 @@ export const useCollectionsStore = create((set, get) => ({
           }
           return { ...col, id };
         });
+
+        // Sort by order field if present
+        normalizedCollections = normalizedCollections.sort((a, b) => {
+          const orderA = a.order ?? Infinity;
+          const orderB = b.order ?? Infinity;
+          return orderA - orderB;
+        });
+
         set({ collections: normalizedCollections });
       } else {
         set({ error: result.error });
@@ -55,7 +63,15 @@ export const useCollectionsStore = create((set, get) => ({
    */
   createCollection: async (collectionData) => {
     try {
-      const result = await window.electronAPI.db.createCollection(collectionData);
+      const collections = get().collections;
+      // Assign next order value (one more than the highest current order)
+      const maxOrder = Math.max(...collections.map(c => c.order ?? -1), -1);
+      const dataWithOrder = {
+        ...collectionData,
+        order: maxOrder + 1,
+      };
+
+      const result = await window.electronAPI.db.createCollection(dataWithOrder);
 
       if (result.success) {
         // Optimistic update: add new collection to local state
@@ -78,7 +94,6 @@ export const useCollectionsStore = create((set, get) => ({
           }
           newCollection = { ...newCollection, id };
 
-          const collections = get().collections;
           set({ collections: [...collections, newCollection] });
         }
         return { success: true, data: result.data, warnings: result.warnings };
@@ -211,11 +226,39 @@ export const useCollectionsStore = create((set, get) => ({
   },
 
   /**
+   * Reorder collections - persist the new order
+   */
+  reorderCollections: async (reorderedCollections) => {
+    try {
+      // Update local state optimistically
+      set({ collections: reorderedCollections });
+
+      // Persist each collection's new order to backend
+      const updatePromises = reorderedCollections.map((col, index) =>
+        window.electronAPI.db.updateCollection(col.id, { order: index })
+      );
+
+      await Promise.all(updatePromises);
+      return true;
+    } catch (error) {
+      console.error('[Collections] Error reordering collections:', error);
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  /**
    * Get all collections including system "ALL" collection
    */
   getAllCollections: () => {
     const systemAll = get().systemAll;
     const collections = get().collections;
-    return [systemAll, ...collections];
+    // Sort by order field if present, otherwise keep original order
+    const sorted = [...collections].sort((a, b) => {
+      const orderA = a.order ?? Infinity;
+      const orderB = b.order ?? Infinity;
+      return orderA - orderB;
+    });
+    return [systemAll, ...sorted];
   },
 }));

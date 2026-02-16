@@ -58,17 +58,29 @@ export default function App() {
   const handleDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // Ignore collection reorder drags
+    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
+      return;
+    }
     setIsDragging(true);
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // Ignore collection reorder drags
+    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
+      return;
+    }
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // Ignore collection reorder drags
+    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
+      return;
+    }
     if (e.target === e.currentTarget) {
       setIsDragging(false);
     }
