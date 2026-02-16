@@ -270,8 +270,18 @@ export function registerDbHandlers() {
         tag_id: tagId,
       });
 
-      // Persist after creation
-      await persistToIndex(db);
+      // Only persist object_tags (don't reload objects unnecessarily)
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+      const objectTagsData = await db.query('SELECT * FROM object_tags');
+      const objectTags = (objectTagsData[0] || []);
+      const indexDir = path.join(os.homedir(), '.index');
+      fs.writeFileSync(
+        path.join(indexDir, 'object_tags.json'),
+        JSON.stringify(objectTags, null, 2),
+        'utf-8'
+      );
 
       return { success: true, data: result };
     } catch (error) {
@@ -298,8 +308,18 @@ export function registerDbHandlers() {
         `DELETE FROM object_tags WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
       );
 
-      // Persist after deletion
-      await persistToIndex(db);
+      // Only persist object_tags (don't reload objects unnecessarily)
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+      const objectTagsData = await db.query('SELECT * FROM object_tags');
+      const objectTags = (objectTagsData[0] || []);
+      const indexDir = path.join(os.homedir(), '.index');
+      fs.writeFileSync(
+        path.join(indexDir, 'object_tags.json'),
+        JSON.stringify(objectTags, null, 2),
+        'utf-8'
+      );
 
       return { success: true, data: result };
     } catch (error) {
