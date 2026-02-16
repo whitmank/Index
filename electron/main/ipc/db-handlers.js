@@ -569,7 +569,7 @@ export function registerDbHandlers() {
         plainCollectionId = collectionId.id;
       }
 
-      const { query, name } = updates;
+      const { query, name, order } = updates;
 
       // Validate: reject if query is empty (if provided)
       if (query) {
@@ -623,6 +623,7 @@ export function registerDbHandlers() {
           none: (query.none || []).map(extractPlainId),
         };
       }
+      if (order !== undefined) updateObj.order = order;
 
       console.log('[IPC] Update collection:', plainCollectionId, updateObj);
 

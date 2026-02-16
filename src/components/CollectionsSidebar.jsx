@@ -227,6 +227,8 @@ export default function CollectionsSidebar() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [collectionToEdit, setCollectionToEdit] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const collections = useCollectionsStore((state) => state.getAllCollections());
   const activeCollectionId = useCollectionsStore((state) => state.activeCollectionId);
@@ -234,6 +236,7 @@ export default function CollectionsSidebar() {
   const createCollection = useCollectionsStore((state) => state.createCollection);
   const updateCollection = useCollectionsStore((state) => state.updateCollection);
   const deleteCollection = useCollectionsStore((state) => state.deleteCollection);
+  const reorderCollections = useCollectionsStore((state) => state.reorderCollections);
   const loadCollections = useCollectionsStore((state) => state.loadCollections);
 
   const tags = useTagsStore((state) => state.tags);
@@ -267,6 +270,66 @@ export default function CollectionsSidebar() {
     setCollectionToEdit(null);
   };
 
+  const handleDragStart = (e, index) => {
+    // Don't allow dragging system collections
+    if (collections[index].system) {
+      e.preventDefault();
+      return;
+    }
+    e.stopPropagation();
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Mark this as a collection drag (not a file drop)
+    e.dataTransfer.setData('application/x-collection-drag', 'true');
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = (e) => {
+    e.stopPropagation();
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverIndex(null);
+
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    // Don't allow dropping on system collection
+    if (collections[dropIndex].system) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    // Reorder collections
+    const newCollections = [...collections];
+    const [draggedItem] = newCollections.splice(draggedIndex, 1);
+    newCollections.splice(dropIndex, 0, draggedItem);
+
+    // Keep system collection at the top
+    const systemCollections = newCollections.filter((c) => c.system);
+    const regularCollections = newCollections.filter((c) => !c.system);
+    const reordered = [...systemCollections, ...regularCollections];
+
+    try {
+      await reorderCollections(regularCollections);
+    } catch (error) {
+      console.error('Error reordering collections:', error);
+    }
+
+    setDraggedIndex(null);
+  };
+
   return (
     <aside className="collections-sidebar">
       <div className="collections-header">
@@ -285,14 +348,24 @@ export default function CollectionsSidebar() {
       </div>
 
       <div className="collections-list">
-        {collections.map((collection) => {
+        {collections.map((collection, index) => {
           const collectionId = collection.id;
           const isActive = activeCollectionId === collectionId;
           const isSystem = collection.system;
           const isDeleting = deleteConfirm === collectionId;
+          const isDragged = draggedIndex === index;
+          const isDragOver = dragOverIndex === index;
 
           return (
-            <div key={collectionId} className={`collection-item ${isActive ? 'active' : ''}`}>
+            <div
+              key={collectionId}
+              className={`collection-item ${isActive ? 'active' : ''} ${isDragged ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+              draggable={!isSystem}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+            >
               <button
                 type="button"
                 className="collection-label"
