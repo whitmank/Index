@@ -22,7 +22,8 @@
       "Bash(killall node:*)",
       "Bash(lsof:*)",
       "Bash(xargs:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(node -c:*)"
     ]
   }
 }
