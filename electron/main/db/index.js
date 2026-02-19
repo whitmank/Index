@@ -4,6 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import Surreal from 'surrealdb';
 import { hydrateFromIndex } from './hydration.js';
+import { repairMissingSystemTagsForAllObjects } from './repair.js';
 
 // Author: Claude Code
 // SurrealDB lifecycle manager - spawns binary, initializes, and manages the database instance
@@ -195,6 +196,9 @@ export async function startDatabase() {
 
     // Hydrate from local .index/ files
     await hydrateFromIndex(db);
+
+    // Repair missing system tags for all objects
+    await repairMissingSystemTagsForAllObjects(db);
 
     console.log('[DB] Database started successfully');
     return db;
