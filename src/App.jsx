@@ -35,6 +35,32 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('collectionsCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebarWidth');
+    return saved ? parseInt(saved, 10) : 240;
+  });
+
+  // Listen for sidebar collapse and width changes
+  useEffect(() => {
+    const handleCollapsedChange = () => {
+      const saved = localStorage.getItem('collectionsCollapsed');
+      setSidebarCollapsed(saved ? JSON.parse(saved) : false);
+    };
+    const handleWidthChange = () => {
+      const saved = localStorage.getItem('sidebarWidth');
+      setSidebarWidth(saved ? parseInt(saved, 10) : 240);
+    };
+    window.addEventListener('collectionsCollapsedChange', handleCollapsedChange);
+    window.addEventListener('sidebarWidthChange', handleWidthChange);
+    return () => {
+      window.removeEventListener('collectionsCollapsedChange', handleCollapsedChange);
+      window.removeEventListener('sidebarWidthChange', handleWidthChange);
+    };
+  }, []);
 
   // Setup keyboard shortcuts
   useKeyboardShortcuts({
@@ -134,7 +160,10 @@ export default function App() {
 
   return (
     <div
-      className="app"
+      className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+      style={{
+        paddingLeft: sidebarCollapsed ? '60px' : `${sidebarWidth}px`,
+      }}
       tabIndex={0}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}

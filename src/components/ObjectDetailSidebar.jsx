@@ -16,10 +16,20 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(object.name);
   const [isClosing, setIsClosing] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('rightSidebarWidth');
+    return saved ? parseInt(saved, 10) : 260;
+  });
+  const [isResizing, setIsResizing] = useState(false);
 
   const handleClose = () => {
     setIsClosing(true);
     setTimeout(onClose, 300); // Match animation duration
+  };
+
+  const handleResizeStart = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
   };
 
   // Focus title input when entering edit mode
@@ -29,6 +39,37 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       titleInputRef.current.select();
     }
   }, [isEditingTitle]);
+
+  // Handle resize
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e) => {
+      const newWidth = Math.max(180, Math.min(window.innerWidth - e.clientX, 500)); // Min 180px, max 500px
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      // Dispatch event to notify App component
+      window.dispatchEvent(new Event('rightSidebarWidthChange'));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  // Save width to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('rightSidebarWidth', sidebarWidth.toString());
+    // Dispatch event to notify App component
+    window.dispatchEvent(new Event('rightSidebarWidthChange'));
+  }, [sidebarWidth]);
 
   // Handle Escape key to close sidebar or cancel title edit
   useEffect(() => {
@@ -92,7 +133,11 @@ export default function ObjectDetailSidebar({ object, onClose }) {
 
   return (
     <div className={`sidebar-overlay ${isClosing ? 'closing' : ''}`} onClick={handleBackdropClick}>
-      <aside ref={sidebarRef} className={`object-detail-sidebar ${isClosing ? 'closing' : ''}`}>
+      <aside
+        ref={sidebarRef}
+        className={`object-detail-sidebar ${isClosing ? 'closing' : ''} ${isResizing ? 'resizing' : ''}`}
+        style={{ width: `${sidebarWidth}px` }}
+      >
         <div className="sidebar-header">
           {isEditingTitle ? (
             <input
@@ -132,6 +177,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
             </button>
           </div>
         </div>
+        <div className="sidebar-resize-handle" onMouseDown={handleResizeStart} />
       </aside>
     </div>
   );
