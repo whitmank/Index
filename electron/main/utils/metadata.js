@@ -345,15 +345,17 @@ export function extractMediaType(source) {
 /**
  * Extract file extension from source (without the dot)
  * @param {string} source - File path or URL
- * @returns {string|null} Extension (e.g. 'pdf', 'jpg', 'md') or null
+ * @returns {string|null} Extension (e.g. 'pdf', 'jpg', 'md') or 'url' for URLs without file extensions
  */
 export function extractFileExtension(source) {
   if (!source || typeof source !== 'string') {
     return null;
   }
 
+  const isUrl = source.startsWith('http://') || source.startsWith('https://');
   let ext = '';
-  if (source.startsWith('http://') || source.startsWith('https://')) {
+
+  if (isUrl) {
     // For URLs, extract from pathname
     const pathname = new URL(source).pathname;
     ext = path.extname(pathname).toLowerCase();
@@ -362,9 +364,14 @@ export function extractFileExtension(source) {
     ext = path.extname(source).toLowerCase();
   }
 
-  // Remove the leading dot and return, or null if no extension
+  // Remove the leading dot and return
   if (ext && ext.length > 1) {
     return ext.slice(1);
+  }
+
+  // For URLs without a file extension, return 'url'
+  if (isUrl) {
+    return 'url';
   }
 
   return null;

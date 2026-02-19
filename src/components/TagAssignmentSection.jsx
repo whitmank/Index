@@ -43,14 +43,14 @@ function getSortIndex(type) {
  * For user tags: shows "type: name" if type is present, otherwise just "name"
  */
 function formatTagDisplay(tag) {
-  // System tags: format as "Key: Value" with title case
+  // System tags: format as "Key: Value" with type label title-cased (value is not capitalized)
   if (tag.system === true && tag.type) {
     const typeLabel = toTitleCase(tag.type);
-    const valueLabel = toTitleCase(tag.name);
-    return `${typeLabel}: ${valueLabel}`;
+    const valueName = tag.name || '(empty)';
+    return `${typeLabel}: ${valueName}`;
   }
 
-  // User tags: show type:name if type present, else just name
+  // User tags: show type:name if type present, else just name (no capitalization)
   if (tag.type) {
     return `${tag.type}: ${tag.name}`;
   }
@@ -380,7 +380,7 @@ export default function TagAssignmentSection({ objectId }) {
                               role="button"
                               tabIndex={0}
                             >
-                              {tag.name ? toTitleCase(tag.name) : '(empty)'}
+                              {tag.name || '(empty)'}
                             </span>
                             <button
                               className="tag-badge-remove"

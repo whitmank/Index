@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
+import { findOrCreateSystemTag } from '../db/system-tags.js';
 import { deriveSourceMetadata, cleanURI, extractMediaType, extractFileExtension } from '../utils/metadata.js';
 
 // Author: Claude Code
@@ -803,6 +804,103 @@ export function registerDbHandlers() {
   });
 
   /**
+   * Repair missing system tags for an object
+   * Checks what system tags should exist and recreates any that are missing
+   * Handler: db:repairMissingSystemTags
+   */
+  ipcMain.handle('db:repairMissingSystemTags', async (event, objectId) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      console.log('[IPC] Repairing system tags for object:', objectId);
+
+      // Get the object
+      const objectResult = await db.query(`SELECT * FROM objects:${objectId}`);
+      const object = (Array.isArray(objectResult) && objectResult.length > 0) ? objectResult[0] : null;
+
+      if (!object) {
+        throw new Error(`Object ${objectId} not found`);
+      }
+
+      const source = object.source_local || object.source_remote;
+      if (!source) {
+        console.log('[IPC] Object has no source, skipping system tag repair');
+        return { success: true, data: { repaired: [] } };
+      }
+
+      // Get current tags for this object
+      const tagsResult = await db.query(
+        `SELECT tag_id FROM tag_assignments WHERE object_id = '${objectId}'`
+      );
+      const assignedTagIds = (tagsResult[0] || []).map(a => a.tag_id);
+
+      // Fetch the actual tags to check which types are assigned
+      let assignedTags = [];
+      if (assignedTagIds.length > 0) {
+        const inClause = `[${assignedTagIds.map(id => `tag_definitions:${id}`).join(', ')}]`;
+        const fullTagsResult = await db.query(`SELECT * FROM ${inClause}`);
+        assignedTags = fullTagsResult[0] || [];
+      }
+
+      const currentSystemTagTypes = new Set(
+        assignedTags
+          .filter((t) => t.system === true && t.type)
+          .map((t) => t.type)
+      );
+
+      const expectedTypes = ['media_type', 'file_extension'];
+      const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
+
+      if (missingTypes.length === 0) {
+        console.log('[IPC] All system tags present, no repair needed');
+        return { success: true, data: { repaired: [] } };
+      }
+
+      console.log('[IPC] Repairing missing system tags:', missingTypes);
+
+      const repaired = [];
+
+      // Regenerate missing system tags
+      for (const type of missingTypes) {
+        let value = null;
+        if (type === 'media_type') {
+          value = extractMediaType(source);
+        } else if (type === 'file_extension') {
+          value = extractFileExtension(source);
+        }
+
+        // Find or create the system tag
+        const tagId = await findOrCreateSystemTag(db, type, value);
+        if (tagId) {
+          // Assign it to the object
+          const existingResult = await db.query(
+            `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+          );
+          if (!existingResult[0] || existingResult[0].length === 0) {
+            await db.create('tag_assignments', {
+              object_id: objectId,
+              tag_id: tagId,
+            });
+            repaired.push({ type, value: value || null });
+            console.log(`[IPC] Restored missing system tag: ${type}:${value || '(empty)'}`);
+          }
+        }
+      }
+
+      // Persist changes
+      await persistToIndex(db);
+
+      return { success: true, data: { repaired } };
+    } catch (error) {
+      console.error('[IPC] Repair system tags error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
    * Open a file or URL
    * Handler: app:openSource
    */
@@ -872,40 +970,6 @@ export function registerDbHandlers() {
  * Find or create a system tag
  * @private
  */
-async function findOrCreateSystemTag(db, type, name) {
-  try {
-    // Query for existing system tag with this type and name
-    // Handle null values properly in SQL query
-    const nameClause = name === null ? 'name IS NULL' : `name = '${name}'`;
-    const result = await db.query(
-      `SELECT * FROM tag_definitions WHERE type = '${type}' AND ${nameClause} AND system = true`
-    );
-
-    if (result[0] && result[0].length > 0) {
-      // Tag exists
-      const existingTag = result[0][0];
-      const tagId = (existingTag.id && existingTag.id.id) || existingTag.id;
-      console.log(`[IPC] Found existing system tag: ${type}:${name || '(empty)'}`);
-      return tagId;
-    }
-
-    // Create new system tag
-    const newTag = await db.create('tag_definitions', {
-      name,
-      type,
-      system: true,
-      created_at: new Date().toISOString(),
-    });
-
-    const createdTag = Array.isArray(newTag) ? newTag[0] : newTag;
-    const tagId = (createdTag.id && createdTag.id.id) || createdTag.id;
-    console.log(`[IPC] Created new system tag: ${type}:${name || '(empty)'}`);
-    return tagId;
-  } catch (error) {
-    console.error('[IPC] Error finding/creating system tag:', error);
-    return null;
-  }
-}
 
 /**
  * Assign system tags (media_type, file_extension) to an object
