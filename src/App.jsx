@@ -123,7 +123,7 @@ export default function App() {
         const file = files[0];
         const filePath = window.electronAPI.fs.getPathForFile(file);
         const name = getNameFromSource(filePath);
-        await addObject({ name, source: filePath });
+        await addObject({ name, source_local: filePath, source_remote: null });
       } catch (error) {
         console.error('Error creating object from dropped file:', error);
       }
@@ -138,7 +138,7 @@ export default function App() {
         const file = e.clipboardData.files[0];
         const filePath = window.electronAPI.fs.getPathForFile(file);
         const name = getNameFromSource(filePath);
-        await addObject({ name, source: filePath });
+        await addObject({ name, source_local: filePath, source_remote: null });
       } catch (error) {
         console.error('Error creating object from pasted file:', error);
       }
@@ -151,7 +151,12 @@ export default function App() {
       e.preventDefault();
       try {
         const name = getNameFromSource(text);
-        await addObject({ name, source: text });
+        const isUrl = text.startsWith('http://') || text.startsWith('https://');
+        await addObject({
+          name,
+          source_local: isUrl ? null : text,
+          source_remote: isUrl ? text : null,
+        });
       } catch (error) {
         console.error('Error creating object from pasted text:', error);
       }

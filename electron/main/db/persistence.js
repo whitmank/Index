@@ -14,10 +14,9 @@ const INDEX_DIR = path.join(os.homedir(), '.index');
 function ensureIndexStructure() {
   const dirs = [
     path.join(INDEX_DIR, 'objects'),
-    path.join(INDEX_DIR, 'relationships'),
-    path.join(INDEX_DIR, 'tags'),
+    path.join(INDEX_DIR, 'tag_definitions'),
     path.join(INDEX_DIR, 'collections'),
-    // object_tags is stored as single file, no directory needed
+    // tag_assignments is stored as single file, no directory needed
   ];
 
   dirs.forEach((dir) => {
@@ -125,10 +124,9 @@ export async function persistToIndex(db) {
     // Persist each table
     await Promise.all([
       persistTable(db, 'objects', path.join(INDEX_DIR, 'objects')),
-      persistTable(db, 'relationships', path.join(INDEX_DIR, 'relationships')),
-      persistTable(db, 'tags', path.join(INDEX_DIR, 'tags')),
+      persistTable(db, 'tag_definitions', path.join(INDEX_DIR, 'tag_definitions')),
       persistTable(db, 'collections', path.join(INDEX_DIR, 'collections')),
-      persistTableToSingleFile(db, 'object_tags', path.join(INDEX_DIR, 'object_tags.json')),
+      persistTableToSingleFile(db, 'tag_assignments', path.join(INDEX_DIR, 'tag_assignments.json')),
     ]);
 
     console.log('[Persistence] All data persisted to .index/');

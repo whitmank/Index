@@ -8,7 +8,7 @@ import { verifyAndRepairSources } from '../utils/file-recovery.js';
 
 const INDEX_DIR = path.join(os.homedir(), '.index');
 const SINGLE_FILE_TABLES = {
-  object_tags: 'object_tags.json',
+  tag_assignments: 'tag_assignments.json',
 };
 
 /**
@@ -28,10 +28,9 @@ export async function hydrateFromIndex(db) {
 
     // Database is fresh (ephemeral), hydrate from local files
     await hydrateTable(db, 'objects');
-    await hydrateTable(db, 'relationships');
-    await hydrateTable(db, 'tags');
+    await hydrateTable(db, 'tag_definitions');
     await hydrateTable(db, 'collections');
-    await hydrateSingleFileTable(db, 'object_tags', SINGLE_FILE_TABLES.object_tags);
+    await hydrateSingleFileTable(db, 'tag_assignments', SINGLE_FILE_TABLES.tag_assignments);
 
     console.log('[Hydration] Hydration complete');
   } catch (error) {

@@ -15,7 +15,7 @@ export const useTagsStore = create((set, get) => ({
   loadTags: async () => {
     set({ loading: true, error: null });
     try {
-      const result = await window.electronAPI.db.getAll('tags');
+      const result = await window.electronAPI.db.getAll('tag_definitions');
       if (result.success) {
         set({ tags: result.data || [] });
       } else {

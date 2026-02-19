@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
-import { deriveSourceMetadata, cleanURI } from '../utils/metadata.js';
+import { deriveSourceMetadata, cleanURI, extractMediaType, extractFileExtension } from '../utils/metadata.js';
 
 // Author: Claude Code
 // IPC handlers for database operations - exposed to renderer process
@@ -92,7 +92,7 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      const validTables = ['objects', 'relationships', 'tags', 'object_tags', 'collections'];
+      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'collections'];
       if (!validTables.includes(table)) {
         throw new Error(`Invalid table: ${table}`);
       }
@@ -122,20 +122,27 @@ export function registerDbHandlers() {
 
       console.log('[IPC] Create object:', objectData);
 
-      // Clean source URI (remove quotes)
-      const cleanedSource = objectData.source ? cleanURI(objectData.source) : null;
+      // Clean source URIs (remove quotes)
+      const cleanedSourceLocal = objectData.source_local ? cleanURI(objectData.source_local) : null;
+      const cleanedSourceRemote = objectData.source_remote ? cleanURI(objectData.source_remote) : null;
 
-      // Derive source metadata if source provided
-      const sourceMetadata = await deriveSourceMetadata(cleanedSource);
+      // Derive source metadata from local or remote source
+      const sourceMetadata = await deriveSourceMetadata(cleanedSourceLocal || cleanedSourceRemote);
 
       const objectWithMetadata = {
         name: objectData.name,
-        source: cleanedSource,
+        source_local: cleanedSourceLocal,
+        source_remote: cleanedSourceRemote,
         user_metadata: objectData.user_metadata || {},
         source_metadata: sourceMetadata,
       };
 
       const result = await db.create('objects', objectWithMetadata);
+      const newObject = Array.isArray(result) ? result[0] : result;
+      const objectId = (newObject.id && newObject.id.id) || newObject.id;
+
+      // Assign system tags based on source
+      await assignSystemTags(db, objectId, cleanedSourceLocal, cleanedSourceRemote);
 
       // Persist after creation
       await persistToIndex(db);
@@ -143,30 +150,6 @@ export function registerDbHandlers() {
       return { success: true, data: result };
     } catch (error) {
       console.error('[IPC] Create object error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
-   * Create a new relationship
-   * Handler: db:createRelationship
-   */
-  ipcMain.handle('db:createRelationship', async (event, relationshipData) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      console.log('[IPC] Create relationship:', relationshipData);
-      const result = await db.create('relationships', relationshipData);
-
-      // Persist after creation
-      await persistToIndex(db);
-
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('[IPC] Create relationship error:', error);
       return { success: false, error: error.message };
     }
   });
@@ -183,7 +166,15 @@ export function registerDbHandlers() {
       }
 
       console.log('[IPC] Create tag:', tagData);
-      const result = await db.create('tags', tagData);
+      const tagRecord = {
+        name: tagData.name,
+        type: tagData.type || null,
+        color: tagData.color || null,
+        description: tagData.description || null,
+        system: tagData.system || false,
+        created_at: new Date().toISOString(),
+      };
+      const result = await db.create('tag_definitions', tagRecord);
 
       // Persist after creation
       await persistToIndex(db);
@@ -254,32 +245,32 @@ export function registerDbHandlers() {
         throw new Error(`Object not found: ${objectId}`);
       }
 
-      const tagResult = await db.query(`SELECT * FROM tags:${tagId}`);
+      const tagResult = await db.query(`SELECT * FROM tag_definitions:${tagId}`);
       if (!tagResult || !tagResult[0] || tagResult[0].length === 0) {
         throw new Error(`Tag not found: ${tagId}`);
       }
 
       // Check if assignment already exists
       const existingResult = await db.query(
-        `SELECT * FROM object_tags WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
       );
       if (existingResult[0] && existingResult[0].length > 0) {
         return { success: true, data: existingResult[0][0], message: 'Tag already assigned' };
       }
 
       // Create the assignment
-      const result = await db.create('object_tags', {
+      const result = await db.create('tag_assignments', {
         object_id: objectId,
         tag_id: tagId,
       });
 
-      // Only persist object_tags (don't reload objects unnecessarily)
-      const objectTagsData = await db.query('SELECT * FROM object_tags');
-      const objectTags = (objectTagsData[0] || []);
+      // Only persist tag_assignments (don't reload objects unnecessarily)
+      const tagAssignmentsData = await db.query('SELECT * FROM tag_assignments');
+      const tagAssignments = (tagAssignmentsData[0] || []);
       const indexDir = path.join(os.homedir(), '.index');
       fs.writeFileSync(
-        path.join(indexDir, 'object_tags.json'),
-        JSON.stringify(objectTags, null, 2),
+        path.join(indexDir, 'tag_assignments.json'),
+        JSON.stringify(tagAssignments, null, 2),
         'utf-8'
       );
 
@@ -305,16 +296,16 @@ export function registerDbHandlers() {
 
       // Find and delete the assignment
       const result = await db.query(
-        `DELETE FROM object_tags WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+        `DELETE FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
       );
 
-      // Only persist object_tags (don't reload objects unnecessarily)
-      const objectTagsData = await db.query('SELECT * FROM object_tags');
-      const objectTags = (objectTagsData[0] || []);
+      // Only persist tag_assignments (don't reload objects unnecessarily)
+      const tagAssignmentsData = await db.query('SELECT * FROM tag_assignments');
+      const tagAssignments = (tagAssignmentsData[0] || []);
       const indexDir = path.join(os.homedir(), '.index');
       fs.writeFileSync(
-        path.join(indexDir, 'object_tags.json'),
-        JSON.stringify(objectTags, null, 2),
+        path.join(indexDir, 'tag_assignments.json'),
+        JSON.stringify(tagAssignments, null, 2),
         'utf-8'
       );
 
@@ -340,7 +331,7 @@ export function registerDbHandlers() {
 
       // Get all tag assignments for this object
       const result = await db.query(
-        `SELECT tag_id FROM object_tags WHERE object_id = '${objectId}'`
+        `SELECT tag_id FROM tag_assignments WHERE object_id = '${objectId}'`
       );
 
       const assignmentIds = (result[0] || []).map(a => a.tag_id);
@@ -353,12 +344,12 @@ export function registerDbHandlers() {
       // Fetch full tag objects
       let tagsResult;
       if (assignmentIds.length === 1) {
-        tagsResult = await db.query(`SELECT * FROM tags:${assignmentIds[0]}`);
+        tagsResult = await db.query(`SELECT * FROM tag_definitions:${assignmentIds[0]}`);
         const tags = tagsResult[0] || [];
         return { success: true, data: tags };
       } else {
         // For multiple tags, use IN query
-        const inClause = `[${assignmentIds.map(id => `tags:${id}`).join(', ')}]`;
+        const inClause = `[${assignmentIds.map(id => `tag_definitions:${id}`).join(', ')}]`;
         tagsResult = await db.query(`SELECT * FROM ${inClause}`);
         const tags = tagsResult[0] || [];
         return { success: true, data: tags };
@@ -384,7 +375,7 @@ export function registerDbHandlers() {
 
       // Get all object assignments for this tag
       const result = await db.query(
-        `SELECT object_id FROM object_tags WHERE tag_id = '${tagId}'`
+        `SELECT object_id FROM tag_assignments WHERE tag_id = '${tagId}'`
       );
 
       const objectIds = (result[0] || []).map(a => a.object_id);
@@ -407,7 +398,7 @@ export function registerDbHandlers() {
   });
 
   /**
-   * Update a tag (name, color, description)
+   * Update a tag (name, color, type, description)
    * Handler: db:updateTag
    */
   ipcMain.handle('db:updateTag', async (event, tagId, tagData) => {
@@ -422,6 +413,7 @@ export function registerDbHandlers() {
       const updateObj = {};
       if (tagData.name !== undefined) updateObj.name = tagData.name;
       if (tagData.color !== undefined) updateObj.color = tagData.color;
+      if (tagData.type !== undefined) updateObj.type = tagData.type;
       if (tagData.description !== undefined) updateObj.description = tagData.description;
 
       if (Object.keys(updateObj).length === 0) {
@@ -429,7 +421,7 @@ export function registerDbHandlers() {
       }
 
       const result = await db.query(
-        `UPDATE tags:${tagId} MERGE ${JSON.stringify(updateObj)}`
+        `UPDATE tag_definitions:${tagId} MERGE ${JSON.stringify(updateObj)}`
       );
 
       // Persist after update
@@ -456,10 +448,10 @@ export function registerDbHandlers() {
       console.log('[IPC] Delete tag:', tagId);
 
       // Delete all assignments for this tag
-      await db.query(`DELETE FROM object_tags WHERE tag_id = '${tagId}'`);
+      await db.query(`DELETE FROM tag_assignments WHERE tag_id = '${tagId}'`);
 
       // Delete the tag itself
-      const result = await db.query(`DELETE FROM tags:${tagId}`);
+      const result = await db.query(`DELETE FROM tag_definitions:${tagId}`);
 
       // Persist after deletion
       await persistToIndex(db);
@@ -495,7 +487,7 @@ export function registerDbHandlers() {
 
       // Soft validate: check if tag IDs exist
       const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
-      const tagsResult = await db.query('SELECT * FROM tags');
+      const tagsResult = await db.query('SELECT * FROM tag_definitions');
       const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
       const existingTagIds = new Set(existingTags.map((t) => {
         const tagId = (t.id && t.id.id) || t.id;
@@ -586,7 +578,7 @@ export function registerDbHandlers() {
       let warnings = [];
       if (query) {
         const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
-        const tagsResult = await db.query('SELECT * FROM tags');
+        const tagsResult = await db.query('SELECT * FROM tag_definitions');
         const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
         const existingTagIds = new Set(existingTags.map((t) => {
           const tagId = (t.id && t.id.id) || t.id;
@@ -729,8 +721,8 @@ export function registerDbHandlers() {
       const objectsResult = await db.query('SELECT * FROM objects');
       const allObjects = (Array.isArray(objectsResult) && objectsResult.length > 0) ? objectsResult[0] : [];
 
-      // Get all object_tags assignments
-      const tagsResult = await db.query('SELECT * FROM object_tags');
+      // Get all tag_assignments
+      const tagsResult = await db.query('SELECT * FROM tag_assignments');
       const allTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
 
       // Build map: objectId -> Set<tagId>
@@ -850,83 +842,97 @@ export function registerDbHandlers() {
     }
   });
 
-  /**
-   * Get all tag types
-   * Handler: db:getTagTypes
-   */
-  ipcMain.handle('db:getTagTypes', async (event) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      console.log('[IPC] Get tag types');
-      const result = await db.query('SELECT * FROM tag_types');
-      const tagTypes = (result[0] || []);
-      console.log('[IPC] Found', tagTypes.length, 'tag types');
-
-      return { success: true, data: tagTypes };
-    } catch (error) {
-      console.error('[IPC] Get tag types error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
-   * Create a new tag type
-   * Handler: db:createTagType
-   */
-  ipcMain.handle('db:createTagType', async (event, tagTypeData) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      console.log('[IPC] Create tag type:', tagTypeData);
-      const result = await db.create('tag_types', {
-        name: tagTypeData.name,
-        created_at: new Date().toISOString(),
-      });
-
-      // Persist after creation
-      await persistToIndex(db);
-
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('[IPC] Create tag type error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
-   * Delete a tag type
-   * Handler: db:deleteTagType
-   */
-  ipcMain.handle('db:deleteTagType', async (event, tagTypeId) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      console.log('[IPC] Delete tag type:', tagTypeId);
-
-      // Extract the ID if it's an object
-      const id = tagTypeId.id || tagTypeId;
-
-      const result = await db.query(`DELETE FROM tag_types:${id}`);
-
-      // Persist after deletion
-      await persistToIndex(db);
-
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('[IPC] Delete tag type error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
   console.log('[IPC] Database handlers registered');
+}
+
+/**
+ * Find or create a system tag
+ * @private
+ */
+async function findOrCreateSystemTag(db, type, name) {
+  try {
+    // Query for existing system tag with this type and name
+    const result = await db.query(
+      `SELECT * FROM tag_definitions WHERE type = '${type}' AND name = '${name}' AND system = true`
+    );
+
+    if (result[0] && result[0].length > 0) {
+      // Tag exists
+      const existingTag = result[0][0];
+      const tagId = (existingTag.id && existingTag.id.id) || existingTag.id;
+      console.log(`[IPC] Found existing system tag: ${type}:${name}`);
+      return tagId;
+    }
+
+    // Create new system tag
+    const newTag = await db.create('tag_definitions', {
+      name,
+      type,
+      system: true,
+      created_at: new Date().toISOString(),
+    });
+
+    const createdTag = Array.isArray(newTag) ? newTag[0] : newTag;
+    const tagId = (createdTag.id && createdTag.id.id) || createdTag.id;
+    console.log(`[IPC] Created new system tag: ${type}:${name}`);
+    return tagId;
+  } catch (error) {
+    console.error('[IPC] Error finding/creating system tag:', error);
+    return null;
+  }
+}
+
+/**
+ * Assign system tags (media_type, file_extension) to an object
+ * @private
+ */
+async function assignSystemTags(db, objectId, source_local, source_remote) {
+  try {
+    const source = source_local || source_remote;
+    if (!source) {
+      console.log('[IPC] No source provided, skipping system tag assignment');
+      return;
+    }
+
+    const mediaType = extractMediaType(source);
+    const fileExtension = extractFileExtension(source);
+
+    // Assign media_type tag
+    if (mediaType) {
+      const tagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
+      if (tagId) {
+        // Check if assignment already exists
+        const existingResult = await db.query(
+          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+        );
+        if (!existingResult[0] || existingResult[0].length === 0) {
+          await db.create('tag_assignments', {
+            object_id: objectId,
+            tag_id: tagId,
+          });
+          console.log(`[IPC] Assigned system tag: ${objectId} <- ${mediaType}`);
+        }
+      }
+    }
+
+    // Assign file_extension tag
+    if (fileExtension) {
+      const tagId = await findOrCreateSystemTag(db, 'file_extension', fileExtension);
+      if (tagId) {
+        // Check if assignment already exists
+        const existingResult = await db.query(
+          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+        );
+        if (!existingResult[0] || existingResult[0].length === 0) {
+          await db.create('tag_assignments', {
+            object_id: objectId,
+            tag_id: tagId,
+          });
+          console.log(`[IPC] Assigned system tag: ${objectId} <- ${fileExtension}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[IPC] Error assigning system tags:', error);
+  }
 }
