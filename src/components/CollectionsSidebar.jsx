@@ -229,6 +229,58 @@ export default function CollectionsSidebar() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    const saved = localStorage.getItem('collectionsCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebarWidth');
+    return saved ? parseInt(saved, 10) : 240;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleCollapseToggle = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('collectionsCollapsed', JSON.stringify(newState));
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new Event('collectionsCollapsedChange'));
+  };
+
+  const handleResizeStart = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e) => {
+      const newWidth = Math.max(160, Math.min(e.clientX, 500)); // Min 160px, max 500px
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      // Dispatch event to notify App component
+      window.dispatchEvent(new Event('sidebarWidthChange'));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  // Save width to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarWidth', sidebarWidth.toString());
+    // Dispatch event to notify App component
+    window.dispatchEvent(new Event('sidebarWidthChange'));
+  }, [sidebarWidth]);
 
   const collections = useCollectionsStore((state) => state.getAllCollections());
   const activeCollectionId = useCollectionsStore((state) => state.activeCollectionId);
@@ -331,7 +383,10 @@ export default function CollectionsSidebar() {
   };
 
   return (
-    <aside className="collections-sidebar">
+    <aside
+      className={`collections-sidebar ${isCollapsed ? 'collapsed' : ''} ${isResizing ? 'resizing' : ''}`}
+      style={{ width: isCollapsed ? '60px' : `${sidebarWidth}px` }}
+    >
       <div className="collections-header">
         <h3>Collections</h3>
         <button
@@ -346,7 +401,16 @@ export default function CollectionsSidebar() {
           +
         </button>
       </div>
+      <button
+        type="button"
+        className="btn-collapse-side"
+        onClick={handleCollapseToggle}
+        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {isCollapsed ? '▶' : '◀'}
+      </button>
 
+      {!isCollapsed && (
       <div className="collections-list">
         {collections.map((collection, index) => {
           const collectionId = collection.id;
@@ -406,7 +470,9 @@ export default function CollectionsSidebar() {
           );
         })}
       </div>
+      )}
 
+      {!isCollapsed && (
       <CollectionEditor
         isOpen={editorOpen}
         onClose={handleCloseEditor}
@@ -414,6 +480,8 @@ export default function CollectionsSidebar() {
         collectionToEdit={collectionToEdit}
         availableTags={tags}
       />
+      )}
+      <div className="sidebar-resize-handle" onMouseDown={handleResizeStart} />
     </aside>
   );
 }

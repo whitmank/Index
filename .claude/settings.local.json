@@ -23,7 +23,9 @@
       "Bash(lsof:*)",
       "Bash(xargs:*)",
       "Bash(pkill:*)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
