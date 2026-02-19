@@ -177,3 +177,195 @@ function getMimeType(ext) {
 
   return mimeTypes[ext] || null;
 }
+
+/**
+ * Extract media type category from file source
+ * Maps MIME types and extensions to semantic media type categories
+ * @param {string} source - File path or URL
+ * @returns {string|null} Media type: 'image'|'document'|'book'|'video'|'audio'|'spreadsheet'|'presentation'|'archive'|'code'|'other'|null
+ */
+export function extractMediaType(source) {
+  if (!source || typeof source !== 'string') {
+    return null;
+  }
+
+  // Get extension
+  let ext = '';
+  if (source.startsWith('http://') || source.startsWith('https://')) {
+    // For URLs, extract from pathname
+    const pathname = new URL(source).pathname;
+    ext = path.extname(pathname).toLowerCase();
+  } else {
+    // For file paths
+    ext = path.extname(source).toLowerCase();
+  }
+
+  // Get MIME type and map to category
+  const mimeType = getMimeType(ext);
+
+  // Extension-based categorization (fallback and explicit mappings)
+  switch (ext) {
+    // Image formats
+    case '.jpg':
+    case '.jpeg':
+    case '.png':
+    case '.gif':
+    case '.webp':
+    case '.svg':
+    case '.bmp':
+    case '.ico':
+    case '.tiff':
+      return 'image';
+
+    // Document formats
+    case '.pdf':
+    case '.doc':
+    case '.docx':
+    case '.txt':
+    case '.md':
+    case '.rtf':
+    case '.odt':
+    case '.pages':
+      return 'document';
+
+    // Book formats
+    case '.epub':
+    case '.mobi':
+    case '.azw':
+    case '.azw3':
+    case '.ibooks':
+      return 'book';
+
+    // Video formats
+    case '.mp4':
+    case '.mkv':
+    case '.mov':
+    case '.avi':
+    case '.flv':
+    case '.wmv':
+    case '.webm':
+    case '.m4v':
+    case '.mpg':
+    case '.mpeg':
+    case '.3gp':
+      return 'video';
+
+    // Audio formats
+    case '.mp3':
+    case '.wav':
+    case '.aac':
+    case '.flac':
+    case '.m4a':
+    case '.ogg':
+    case '.wma':
+    case '.alac':
+    case '.opus':
+      return 'audio';
+
+    // Spreadsheet formats
+    case '.xlsx':
+    case '.xls':
+    case '.csv':
+    case '.ods':
+    case '.numbers':
+      return 'spreadsheet';
+
+    // Presentation formats
+    case '.pptx':
+    case '.ppt':
+    case '.odp':
+    case '.keynote':
+    case '.key':
+      return 'presentation';
+
+    // Archive formats
+    case '.zip':
+    case '.tar':
+    case '.gz':
+    case '.rar':
+    case '.7z':
+    case '.bz2':
+    case '.xz':
+    case '.iso':
+      return 'archive';
+
+    // Code formats
+    case '.js':
+    case '.jsx':
+    case '.ts':
+    case '.tsx':
+    case '.py':
+    case '.java':
+    case '.cpp':
+    case '.c':
+    case '.h':
+    case '.go':
+    case '.rs':
+    case '.rb':
+    case '.php':
+    case '.swift':
+    case '.kotlin':
+    case '.scala':
+    case '.sh':
+    case '.bash':
+    case '.json':
+    case '.xml':
+    case '.yaml':
+    case '.yml':
+    case '.sql':
+    case '.html':
+    case '.css':
+    case '.scss':
+    case '.less':
+      return 'code';
+
+    default:
+      // If no extension matched, try MIME type-based categorization
+      if (mimeType) {
+        if (mimeType.startsWith('image/')) {
+          return 'image';
+        } else if (mimeType.startsWith('video/')) {
+          return 'video';
+        } else if (mimeType.startsWith('audio/')) {
+          return 'audio';
+        } else if (mimeType.includes('spreadsheet') || mimeType.includes('sheet')) {
+          return 'spreadsheet';
+        } else if (mimeType.includes('presentation')) {
+          return 'presentation';
+        } else if (mimeType.includes('archive') || mimeType.includes('compress')) {
+          return 'archive';
+        } else if (mimeType.startsWith('text/') || mimeType.includes('document') || mimeType.includes('word')) {
+          return 'document';
+        }
+      }
+      return 'other';
+  }
+}
+
+/**
+ * Extract file extension from source (without the dot)
+ * @param {string} source - File path or URL
+ * @returns {string|null} Extension (e.g. 'pdf', 'jpg', 'md') or null
+ */
+export function extractFileExtension(source) {
+  if (!source || typeof source !== 'string') {
+    return null;
+  }
+
+  let ext = '';
+  if (source.startsWith('http://') || source.startsWith('https://')) {
+    // For URLs, extract from pathname
+    const pathname = new URL(source).pathname;
+    ext = path.extname(pathname).toLowerCase();
+  } else {
+    // For file paths
+    ext = path.extname(source).toLowerCase();
+  }
+
+  // Remove the leading dot and return, or null if no extension
+  if (ext && ext.length > 1) {
+    return ext.slice(1);
+  }
+
+  return null;
+}

@@ -103,7 +103,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   };
 
   const handleOpenSource = () => {
-    window.electronAPI?.openSource?.(object.source);
+    const source = object.source_local || object.source_remote;
+    window.electronAPI?.openSource?.(source);
   };
 
   const handleSaveTitleEdit = async () => {
@@ -163,7 +164,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
           {/* Source */}
           <div className="sidebar-section">
             <div className="source-path" onClick={handleOpenSource}>
-              {object.source}
+              {object.source_local || object.source_remote}
             </div>
           </div>
 

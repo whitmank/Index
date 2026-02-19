@@ -10,12 +10,53 @@
   gap: 8px;
 }
 
+.tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .tags-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   min-height: 32px;
   align-content: flex-start;
+}
+
+/* System tag group (header + values) */
+.system-tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.system-tag-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666666;
+  margin-bottom: 2px;
+}
+
+.system-tag-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.system-tag-value {
+  display: inline-flex;
+}
+
+/* User tags header (separator between system and user tags) */
+.tags-user-header {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e0dcd8;
 }
 
 .tags-empty {
@@ -43,6 +84,87 @@
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+}
+
+/* System tag value is clickable/editable */
+.system-tag-editable {
+  cursor: pointer;
+  position: relative;
+  transition: all 150ms ease;
+  padding: 0 4px;
+  border-radius: 2px;
+  margin: 0 -4px;
+}
+
+.system-tag-editable:hover {
+  background-color: rgba(0, 0, 0, 0.15);
+  text-decoration: underline;
+}
+
+.system-tag-editable:focus {
+  outline: 1px dotted rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+/* System tag inline edit form */
+.system-tag-edit-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #ffffff;
+  border: 1px solid #d8d4cf;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.system-tag-edit-input {
+  flex: 1;
+  min-width: 80px;
+  max-width: 150px;
+  padding: 4px 8px;
+  border: none;
+  outline: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #333333;
+  background-color: transparent;
+}
+
+.system-tag-edit-input::placeholder {
+  color: #cccccc;
+}
+
+.system-tag-edit-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.system-tag-edit-save,
+.system-tag-edit-cancel {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #333333;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: all 100ms ease;
+}
+
+.system-tag-edit-save:hover {
+  background-color: #c8e6c9;
+  color: #2e7d32;
+}
+
+.system-tag-edit-cancel:hover {
+  background-color: #ffcdd2;
+  color: #c62828;
 }
 
 .tag-badge-remove {
@@ -92,77 +214,6 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
-/* Dropdown menu */
-.tag-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: #ffffff;
-  border: 1px solid #e0dcd8;
-  border-radius: 3px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.tag-dropdown-list {
-  display: flex;
-  flex-direction: column;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.tag-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  font-size: 0.8rem;
-  color: #333333;
-  text-align: left;
-  font-weight: 400;
-}
-
-.tag-dropdown-item:first-child {
-  border-top: none;
-}
-
-.tag-dropdown-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.tag-dropdown-color {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.tag-dropdown-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.tag-dropdown-empty {
-  padding: 12px;
-  text-align: center;
-}
-
-.tag-dropdown-empty p {
-  margin: 0 0 8px 0;
-  font-size: 0.8rem;
-  color: #999999;
-}
 
 /* Create tag form */
 .tag-create-form {
@@ -255,43 +306,3 @@
   color: #999999;
 }
 
-.tag-create-from-dropdown {
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  font-size: 0.8rem;
-  color: #666666;
-  cursor: pointer;
-  transition: color 0.2s ease;
-  text-align: left;
-  font-weight: 400;
-  border-top: 1px solid #e0dcd8;
-  margin-top: 2px;
-}
-
-.tag-create-from-dropdown:hover {
-  color: #333333;
-  background: rgba(0, 0, 0, 0.02);
-}
-
-/* Scrollbar styling */
-.tag-dropdown-list::-webkit-scrollbar,
-.tag-dropdown::-webkit-scrollbar {
-  width: 4px;
-}
-
-.tag-dropdown-list::-webkit-scrollbar-track,
-.tag-dropdown::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tag-dropdown-list::-webkit-scrollbar-thumb,
-.tag-dropdown::-webkit-scrollbar-thumb {
-  background: #d0ccc8;
-  border-radius: 2px;
-}
-
-.tag-dropdown-list::-webkit-scrollbar-thumb:hover,
-.tag-dropdown::-webkit-scrollbar-thumb:hover {
-  background: #c0bbb8;
-}

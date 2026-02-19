@@ -389,17 +389,6 @@ export default function CollectionsSidebar() {
     >
       <div className="collections-header">
         <h3>Collections</h3>
-        <button
-          type="button"
-          className="btn-add"
-          onClick={() => {
-            setCollectionToEdit(null);
-            setEditorOpen(true);
-          }}
-          title="Create new collection"
-        >
-          +
-        </button>
       </div>
       <button
         type="button"
@@ -469,6 +458,17 @@ export default function CollectionsSidebar() {
             </div>
           );
         })}
+        <button
+          type="button"
+          className="btn-add-bottom"
+          onClick={() => {
+            setCollectionToEdit(null);
+            setEditorOpen(true);
+          }}
+          title="Create new collection"
+        >
+          +
+        </button>
       </div>
       )}
 

@@ -35,12 +35,11 @@
 }
 
 /* Header */
-/* Header */
 .collections-header {
   padding: 16px;
   border-bottom: 1px solid #e0dcd8;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   flex-shrink: 0;
 }
@@ -54,26 +53,25 @@
   letter-spacing: 0.5px;
 }
 
-.btn-add {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid #d8d4cf;
-  background-color: #fff;
-  color: #666;
+/* Add button at bottom of list */
+.btn-add-bottom {
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-top: 1px solid #e0dcd8;
+  background-color: transparent;
+  color: #999;
   font-size: 18px;
+  font-weight: 400;
   cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: left;
   transition: all 150ms ease;
+  margin-top: 0;
 }
 
-.btn-add:hover {
-  background-color: #fff3f0;
-  border-color: #e0dcd8;
-  color: #333;
+.btn-add-bottom:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: #666;
 }
 
 /* Collapse button on the side */
@@ -561,6 +559,7 @@
 .collections-sidebar.collapsed {
   width: 60px;
   animation: slideInCollapsed 300ms ease-out;
+  padding: 0;
 }
 
 @keyframes slideInCollapsed {
@@ -575,16 +574,37 @@
 }
 
 .collections-sidebar.collapsed .collections-header {
-  padding: 12px 8px;
+  padding: 12px 6px;
   justify-content: center;
+  border-bottom: none;
+  flex-shrink: 0;
 }
 
 .collections-sidebar.collapsed .collections-header h3 {
   display: none;
 }
 
-.collections-sidebar.collapsed .btn-add {
-  width: 100%;
+/* Hide collections list and add button when collapsed */
+.collections-sidebar.collapsed .collections-list {
+  display: none;
+}
+
+.collections-sidebar.collapsed .btn-add-bottom {
+  display: none;
+}
+
+/* Center the expand button vertically */
+.collections-sidebar.collapsed {
+  justify-content: center;
+  align-items: center;
+}
+
+.collections-sidebar.collapsed .btn-collapse-side {
+  position: static;
+  transform: none;
+  width: 36px;
+  height: 36px;
+  margin-top: 12px;
 }
 
 /* Resize handle */

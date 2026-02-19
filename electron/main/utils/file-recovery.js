@@ -123,27 +123,24 @@ export async function verifyAndRepairSources(objects) {
   const repaired = [];
 
   for (const obj of objects) {
-    // Ensure source_metadata.exists is updated
-    if (!obj.source) {
-      // No source, doesn't exist
+    // Only process local sources (source_local); remote sources (URLs) don't need repair
+    if (!obj.source_local) {
+      // No local source, just ensure metadata exists
       if (!obj.source_metadata) obj.source_metadata = {};
-      obj.source_metadata.exists = false;
       repaired.push(obj);
       continue;
     }
 
     if (!obj.source_metadata?.content_hash) {
-      // No hash, can't do recovery, just check if exists
+      // No hash, can't do recovery, just check if file exists
       if (!obj.source_metadata) obj.source_metadata = {};
-      // Check if it's a URL (http, https, ftp, etc.) - URLs are always considered valid
-      const isUrl = /^[a-z][a-z0-9+.-]*:\/\//.test(obj.source);
-      obj.source_metadata.exists = isUrl ? true : fs.existsSync(obj.source);
+      obj.source_metadata.exists = fs.existsSync(obj.source_local);
       repaired.push(obj);
       continue;
     }
 
     // Check if source still exists
-    if (fs.existsSync(obj.source)) {
+    if (fs.existsSync(obj.source_local)) {
       // File still exists at original path
       obj.source_metadata.exists = true;
       repaired.push(obj);
@@ -151,19 +148,19 @@ export async function verifyAndRepairSources(objects) {
     }
 
     // File not found, try to recover by content hash
-    const searchPath = path.dirname(obj.source);
+    const searchPath = path.dirname(obj.source_local);
     const recoveredPath = await findFileByContentHash(
       obj.source_metadata.content_hash,
       searchPath
     );
 
     if (recoveredPath) {
-      console.log(`[FileRecovery] Recovered file for "${obj.name}": ${obj.source} → ${recoveredPath}`);
-      obj.source = recoveredPath;
+      console.log(`[FileRecovery] Recovered file for "${obj.name}": ${obj.source_local} → ${recoveredPath}`);
+      obj.source_local = recoveredPath;
       obj.source_metadata.exists = true;
     } else {
       // Could not recover
-      console.warn(`[FileRecovery] Could not recover file for "${obj.name}": ${obj.source}`);
+      console.warn(`[FileRecovery] Could not recover file for "${obj.name}": ${obj.source_local}`);
       obj.source_metadata.exists = false;
     }
 
