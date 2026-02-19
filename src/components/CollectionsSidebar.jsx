@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCollectionsStore } from '../store/collections';
 import { useTagsStore } from '../store/tags';
+import { useHistoryStore } from '../store/history';
 import './CollectionsSidebar.css';
 
 // Author: Claude Code
@@ -308,6 +309,19 @@ export default function CollectionsSidebar() {
   };
 
   const handleDeleteCollection = async (collectionId) => {
+    const push = useHistoryStore.getState().push;
+    const toDelete = collections.find((c) => c.id === collectionId);
+
+    if (toDelete) {
+      // Push undo operation with the collection snapshot
+      push({
+        description: `Delete collection "${toDelete.name}"`,
+        undo: async () => {
+          await createCollection({ name: toDelete.name, query: toDelete.query });
+        },
+      });
+    }
+
     await deleteCollection(collectionId);
     setDeleteConfirm(null);
   };

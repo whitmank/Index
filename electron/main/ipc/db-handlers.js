@@ -780,6 +780,29 @@ export function registerDbHandlers() {
   });
 
   /**
+   * Find or create a system tag with given type and name
+   * Handler: db:findOrCreateSystemTag
+   */
+  ipcMain.handle('db:findOrCreateSystemTag', async (event, type, name) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      const tagId = await findOrCreateSystemTag(db, type, name);
+      if (!tagId) {
+        throw new Error('Failed to find or create system tag');
+      }
+
+      return { success: true, data: tagId };
+    } catch (error) {
+      console.error('[IPC] Find/create system tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
    * Open a file or URL
    * Handler: app:openSource
    */
@@ -852,15 +875,17 @@ export function registerDbHandlers() {
 async function findOrCreateSystemTag(db, type, name) {
   try {
     // Query for existing system tag with this type and name
+    // Handle null values properly in SQL query
+    const nameClause = name === null ? 'name IS NULL' : `name = '${name}'`;
     const result = await db.query(
-      `SELECT * FROM tag_definitions WHERE type = '${type}' AND name = '${name}' AND system = true`
+      `SELECT * FROM tag_definitions WHERE type = '${type}' AND ${nameClause} AND system = true`
     );
 
     if (result[0] && result[0].length > 0) {
       // Tag exists
       const existingTag = result[0][0];
       const tagId = (existingTag.id && existingTag.id.id) || existingTag.id;
-      console.log(`[IPC] Found existing system tag: ${type}:${name}`);
+      console.log(`[IPC] Found existing system tag: ${type}:${name || '(empty)'}`);
       return tagId;
     }
 
@@ -874,7 +899,7 @@ async function findOrCreateSystemTag(db, type, name) {
 
     const createdTag = Array.isArray(newTag) ? newTag[0] : newTag;
     const tagId = (createdTag.id && createdTag.id.id) || createdTag.id;
-    console.log(`[IPC] Created new system tag: ${type}:${name}`);
+    console.log(`[IPC] Created new system tag: ${type}:${name || '(empty)'}`);
     return tagId;
   } catch (error) {
     console.error('[IPC] Error finding/creating system tag:', error);
@@ -889,47 +914,37 @@ async function findOrCreateSystemTag(db, type, name) {
 async function assignSystemTags(db, objectId, source_local, source_remote) {
   try {
     const source = source_local || source_remote;
-    if (!source) {
-      console.log('[IPC] No source provided, skipping system tag assignment');
-      return;
-    }
 
-    const mediaType = extractMediaType(source);
-    const fileExtension = extractFileExtension(source);
+    const mediaType = source ? extractMediaType(source) : null;
+    const fileExtension = source ? extractFileExtension(source) : null;
 
-    // Assign media_type tag
-    if (mediaType) {
-      const tagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
-      if (tagId) {
-        // Check if assignment already exists
-        const existingResult = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
-        );
-        if (!existingResult[0] || existingResult[0].length === 0) {
-          await db.create('tag_assignments', {
-            object_id: objectId,
-            tag_id: tagId,
-          });
-          console.log(`[IPC] Assigned system tag: ${objectId} <- ${mediaType}`);
-        }
+    // Always create/assign media_type tag (with null if not available)
+    const mediaTypeTagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
+    if (mediaTypeTagId) {
+      const existingResult = await db.query(
+        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${mediaTypeTagId}'`
+      );
+      if (!existingResult[0] || existingResult[0].length === 0) {
+        await db.create('tag_assignments', {
+          object_id: objectId,
+          tag_id: mediaTypeTagId,
+        });
+        console.log(`[IPC] Assigned system tag: ${objectId} <- media_type:${mediaType || '(empty)'}`);
       }
     }
 
-    // Assign file_extension tag
-    if (fileExtension) {
-      const tagId = await findOrCreateSystemTag(db, 'file_extension', fileExtension);
-      if (tagId) {
-        // Check if assignment already exists
-        const existingResult = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
-        );
-        if (!existingResult[0] || existingResult[0].length === 0) {
-          await db.create('tag_assignments', {
-            object_id: objectId,
-            tag_id: tagId,
-          });
-          console.log(`[IPC] Assigned system tag: ${objectId} <- ${fileExtension}`);
-        }
+    // Always create/assign file_extension tag (with null if not available)
+    const fileExtensionTagId = await findOrCreateSystemTag(db, 'file_extension', fileExtension);
+    if (fileExtensionTagId) {
+      const existingResult = await db.query(
+        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${fileExtensionTagId}'`
+      );
+      if (!existingResult[0] || existingResult[0].length === 0) {
+        await db.create('tag_assignments', {
+          object_id: objectId,
+          tag_id: fileExtensionTagId,
+        });
+        console.log(`[IPC] Assigned system tag: ${objectId} <- file_extension:${fileExtension || '(empty)'}`);
       }
     }
   } catch (error) {
