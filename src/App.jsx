@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useObjectsStore } from './store/objects';
 import { useCollectionsStore } from './store/collections';
+import { useHistoryStore } from './store/history';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import GraphView from './components/GraphView';
 import ObjectDetailSidebar from './components/ObjectDetailSidebar';
@@ -63,8 +64,10 @@ export default function App() {
   }, []);
 
   // Setup keyboard shortcuts
+  const undo = useHistoryStore((state) => state.undo);
   useKeyboardShortcuts({
     onSettings: () => setShowSettings(true),
+    onUndo: undo,
   });
 
   // Use filtered objects if a collection is active, otherwise use all objects

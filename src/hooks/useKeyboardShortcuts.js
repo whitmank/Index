@@ -16,6 +16,11 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Open settings',
   },
+  UNDO: {
+    key: 'z',
+    modifiers: ['metaKey', 'ctrlKey'],
+    description: 'Undo last action',
+  },
 };
 
 /**
@@ -24,6 +29,7 @@ const SHORTCUTS = {
  * @param {Function} actions.onEscape - Called when Escape is pressed
  * @param {Function} actions.onNewObject - Called when Cmd/Ctrl+O is pressed
  * @param {Function} actions.onSettings - Called when Cmd+, is pressed
+ * @param {Function} actions.onUndo - Called when Cmd/Ctrl+Z is pressed
  * @param {Object} state - Current state for conditional actions
  * @param {boolean} state.editingId - Whether in edit mode
  * @param {boolean} state.showForm - Whether form is open
@@ -52,6 +58,15 @@ export function useKeyboardShortcuts(actions, state) {
       ) {
         e.preventDefault();
         actions.onSettings?.();
+      }
+
+      // Cmd+Z / Ctrl+Z - undo
+      if (
+        e.key === SHORTCUTS.UNDO.key &&
+        SHORTCUTS.UNDO.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onUndo?.();
       }
     }
 

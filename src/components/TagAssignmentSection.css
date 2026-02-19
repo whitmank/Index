@@ -24,6 +24,15 @@
   align-content: flex-start;
 }
 
+/* Container for system tag groups (horizontal layout) */
+.system-tag-groups-container {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
 /* System tag group (header + values) */
 .system-tag-group {
   display: flex;

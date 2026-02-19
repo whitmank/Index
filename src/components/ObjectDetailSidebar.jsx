@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useObjectsStore } from '../store/objects';
+import { useHistoryStore } from '../store/history';
 import TagAssignmentSection from './TagAssignmentSection';
 import './ObjectDetailSidebar.css';
 
@@ -97,6 +98,41 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const handleDelete = async () => {
     if (window.confirm(`Delete object "${object.name}"?`)) {
       const objectId = object.id.id || object.id;
+      const push = useHistoryStore.getState().push;
+
+      // Snapshot object data for undo
+      const snapshot = {
+        name: object.name,
+        source_local: object.source_local,
+        source_remote: object.source_remote,
+      };
+
+      // Get user tags (non-system) assigned to this object
+      const tagsResult = await window.electronAPI.db.getTagsForObject(objectId);
+      const userTagIds = (tagsResult.data || [])
+        .filter((t) => !t.system)
+        .map((t) => t.id?.id || t.id);
+
+      // Push undo operation
+      push({
+        description: `Delete "${object.name}"`,
+        undo: async () => {
+          // Recreate the object (system tags are auto-assigned)
+          const created = await addObject(snapshot);
+          const newId = created?.id?.id || created?.id;
+
+          // Reassign user tags
+          if (newId) {
+            for (const tagId of userTagIds) {
+              await window.electronAPI.db.assignTag(newId, tagId);
+            }
+          }
+
+          // Reload to update the UI
+          await useObjectsStore.getState().loadObjects();
+        },
+      });
+
       await deleteObject(objectId);
       handleClose();
     }

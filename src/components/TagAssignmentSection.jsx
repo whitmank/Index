@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useTagsStore } from '../store/tags';
+import { useHistoryStore } from '../store/history';
 import './TagAssignmentSection.css';
 
 /**
@@ -19,6 +20,17 @@ function toTitleCase(str) {
  * Ensures they appear in the same order regardless of database query order
  */
 const SYSTEM_TAG_ORDER = ['media_type', 'file_extension'];
+
+/**
+ * Map system tag type to short label
+ */
+function getTagTypeLabel(type) {
+  const labels = {
+    media_type: 'TYPE',
+    file_extension: 'EXTENSION',
+  };
+  return labels[type] || toTitleCase(type);
+}
 
 function getSortIndex(type) {
   const index = SYSTEM_TAG_ORDER.indexOf(type);
@@ -94,7 +106,57 @@ export default function TagAssignmentSection({ objectId }) {
 
   const handleUnassignTag = async (tagId) => {
     try {
-      await unassignTag(objectId, tagId);
+      const push = useHistoryStore.getState().push;
+      const tag = assignedTags.find((t) => (t.id?.id || t.id) === tagId);
+      const tagName = tag ? (tag.name || '(empty)') : 'tag';
+      const isSystemTag = tag && tag.system === true && tag.type;
+
+      if (isSystemTag) {
+        // For system tags: set value to null instead of deleting
+        push({
+          description: `Clear ${tag.type} tag`,
+          undo: async () => {
+            await window.electronAPI.db.assignTag(objectId, tagId);
+            // Reload tags for this object to update local state
+            const result = await window.electronAPI.db.getTagsForObject(objectId);
+            if (result.success) {
+              setAssignedTags(result.data || []);
+            }
+          },
+        });
+
+        // Find or create the null-valued system tag for this type
+        const nullTagResult = await window.electronAPI.db.findOrCreateSystemTag(
+          tag.type,
+          null
+        );
+
+        if (nullTagResult && nullTagResult.success && nullTagResult.data) {
+          const nullTagId = nullTagResult.data;
+          // Reassign to the null-valued tag
+          await window.electronAPI.db.assignTag(objectId, nullTagId);
+          // Unassign from the current tag
+          await unassignTag(objectId, tagId);
+        } else {
+          throw new Error('Failed to clear system tag');
+        }
+      } else {
+        // For user tags: actually remove the assignment
+        push({
+          description: `Remove tag "${tagName}"`,
+          undo: async () => {
+            await window.electronAPI.db.assignTag(objectId, tagId);
+            // Reload tags for this object to update local state
+            const result = await window.electronAPI.db.getTagsForObject(objectId);
+            if (result.success) {
+              setAssignedTags(result.data || []);
+            }
+          },
+        });
+
+        await unassignTag(objectId, tagId);
+      }
+
       // Reload tags for this object to update local state
       const result = await window.electronAPI.db.getTagsForObject(objectId);
       if (result.success) {
@@ -143,7 +205,7 @@ export default function TagAssignmentSection({ objectId }) {
 
   const handleEditSystemTag = (tag) => {
     setEditingTagId(tag.id?.id || tag.id);
-    setEditingTagValue(tag.name);
+    setEditingTagValue(tag.name || '');
     setEditingTagType(tag.type || '');
   };
 
@@ -164,7 +226,7 @@ export default function TagAssignmentSection({ objectId }) {
         (t) =>
           t.system === true &&
           t.type === tagType &&
-          t.name.toLowerCase() === newTagName.toLowerCase()
+          (t.name || '').toLowerCase() === newTagName.toLowerCase()
       );
 
       let newTagId;
@@ -252,11 +314,13 @@ export default function TagAssignmentSection({ objectId }) {
             return (
               <>
                 {/* System tags grouped by type, sorted by defined order */}
-                {Object.entries(systemTagsByType)
-                  .sort(([typeA], [typeB]) => getSortIndex(typeA) - getSortIndex(typeB))
-                  .map(([type, tags]) => (
-                  <div key={type} className="system-tag-group">
-                    <div className="system-tag-header">{toTitleCase(type)}</div>
+                {Object.keys(systemTagsByType).length > 0 && (
+                  <div className="system-tag-groups-container">
+                    {Object.entries(systemTagsByType)
+                      .sort(([typeA], [typeB]) => getSortIndex(typeA) - getSortIndex(typeB))
+                      .map(([type, tags]) => (
+                      <div key={type} className="system-tag-group">
+                    <div className="system-tag-header">{getTagTypeLabel(type)}</div>
                     <div className="system-tag-values">
                       {tags.map((tag) => {
                         const tagId = tag.id?.id || tag.id;
@@ -316,12 +380,12 @@ export default function TagAssignmentSection({ objectId }) {
                               role="button"
                               tabIndex={0}
                             >
-                              {toTitleCase(tag.name)}
+                              {tag.name ? toTitleCase(tag.name) : '(empty)'}
                             </span>
                             <button
                               className="tag-badge-remove"
                               onClick={() => handleUnassignTag(tagId)}
-                              aria-label={`Remove ${tag.name} tag`}
+                              aria-label={`Remove ${tag.name || 'empty'} tag`}
                             >
                               ×
                             </button>
@@ -330,7 +394,9 @@ export default function TagAssignmentSection({ objectId }) {
                       })}
                     </div>
                   </div>
-                ))}
+                    ))}
+                  </div>
+                )}
 
                 {/* User tags header and list */}
                 {userTags.length > 0 && (
