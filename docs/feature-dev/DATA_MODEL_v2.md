@@ -19,14 +19,17 @@ This document defines the updated data model for Index supporting multi-device s
 
 ## Core Concept: Sources as Device-Agnostic References
 
-An object's sources list represents **all known ways to access it across all devices**. Each source entry explicitly records:
+An object's sources list represents **all known ways to access it across all devices**. Sources are optional; an object can exist with no sources (metadata-only, notes, placeholders).
+
+When sources exist, each source entry explicitly records:
 - **What** — The URI (file path, URL, network path)
 - **Where** — The device/origin it came from (`myLaptop`, `myTablet`, `web`)
 
 When viewing an object on a device:
-- Sources from that origin are **locally accessible**
-- Sources from other origins are **remotely accessible** (stream/download) or **not accessible** (requires user action)
+- Objects with sources from that origin are **locally accessible**
+- Objects with sources from other origins are **remotely accessible** (stream/download) or **not accessible** (requires user action)
 - User can **create new sources** by copying from remote origins
+- Objects with no sources are **metadata-only** (notes, references, future sources)
 
 ---
 
@@ -41,7 +44,7 @@ Field Definitions:
 ├── id: string (SurrealDB RecordId, PRIMARY KEY)
 ├── name: string (required, human-readable label)
 ├── description: string | null (optional, user-provided notes)
-├── sources: Source[] (required, at least one source)
+├── sources: Source[] (optional, can be empty array)
 │   └── Source object:
 │       ├── uri: string (required, any valid URI: file://, https://, smb://, etc.)
 │       ├── origin: string (required, device identifier where source lives)
@@ -50,7 +53,7 @@ Field Definitions:
 └── updated_at: ISO8601 (last modification timestamp)
 
 Constraints:
-├── At least one source required
+├── Sources array can be empty (for metadata-only objects or placeholders)
 ├── UNIQUE (uri, origin) - same source from same origin cannot appear twice
 └── sources array is immutable except for appending new sources
 
@@ -63,7 +66,9 @@ Notes:
 ├── Objects metadata (name, description, sources list) syncs across all devices
 ├── Source content (file bytes, web page HTML) does NOT automatically sync
 ├── User explicitly decides whether to copy source content to their device
-└── Presence of origin in sources array indicates availability on that device
+├── Presence of origin in sources array indicates availability on that device
+├── Empty sources array valid for: metadata objects, notes, placeholders, future sources
+└── Objects without sources won't have scheme tags assigned (only object-level media_type if inferred)
 ```
 
 ### TAG_DEFINITIONS TABLE
@@ -282,23 +287,30 @@ Storage: {name: "high", type: "priority", system: false}
 ## Data Flow: Object Creation
 
 ```
-User adds local file or URL
-  Input: {name, uri, origin}
+User creates object (with or without sources)
+  Input: {name, description?, sources?}
+  Note: sources is optional array (can be empty)
 
   Step 1: Validate
   ├─ name is provided
-  └─ uri and origin are provided
+  └─ sources (if provided) is array of valid sources
 
   Step 2: Create object record
-  └─ INSERT objects (name, sources: [{uri, origin, added_at}], created_at, updated_at)
+  └─ INSERT objects (name, description, sources: [...] or [], created_at, updated_at)
 
-  Step 3: Extract system tags from sources array
-  ├─ For each source.uri:
-  │   ├─ Extract scheme (file://, https://, etc.)
-  │   └─ Find or CREATE tag_definitions with type: "scheme"
-  └─ For each unique source.origin:
-      ├─ Origin value
-      └─ Find or CREATE tag_definitions with type: "origin"
+  Step 3: Extract system tags from sources array (if not empty)
+  ├─ If sources.length === 0:
+  │   └─ Skip to Step 4 (no tags to extract)
+  │
+  └─ If sources.length > 0:
+      ├─ For first source: extract media_type (object-level)
+      │   └─ Find or CREATE tag_definitions with type: "media_type"
+      │
+      ├─ For each source: extract file_type
+      │   └─ Find or CREATE tag_definitions with type: "file_type"
+      │
+      └─ For each unique origin:
+          └─ Find or CREATE tag_definitions with type: "origin"
 
   Step 4: Assign system tags
   └─ For each extracted tag:
@@ -306,30 +318,32 @@ User adds local file or URL
       └─ Handle duplicates gracefully
 
   Result: Object created with system tags auto-assigned
+          Empty sources: no file_type/origin tags, media_type skipped
+          With sources: tags assigned based on content
 ```
 
 ---
 
-## Data Flow: Copying Source to Local Device
+## Data Flow: Adding Source to Object (Initially Empty or with Existing Sources)
 
 ```
-User copies remote source to their device
-  Input: object_id, source_to_copy (from sources array), local_path, current_origin
+User adds source to object (copies file or adds link)
+  Input: object_id, uri, origin (current device)
 
   Step 1: Validate
   ├─ object exists
-  ├─ source_to_copy exists in sources array
-  ├─ local_path is writable
-  └─ No existing source with (uri: local_path, origin: current_origin)
+  ├─ uri is valid and new (not already in sources array)
+  └─ origin matches current device
 
-  Step 2: Copy file/content
-  └─ Retrieve source content and write to local_path
+  Step 2: Get/copy source content (if file)
+  └─ If file:// URI, ensure file exists or copy from remote
+  └─ If https:// URI, validate URL is accessible
 
   Step 3: Add new source to object
   ├─ Create new source entry:
   │   {
-  │     uri: local_path,
-  │     origin: current_origin,
+  │     uri: uri,
+  │     origin: origin,
   │     added_at: now()
   │   }
   └─ Append to sources array
@@ -338,11 +352,15 @@ User copies remote source to their device
   └─ UPDATE objects SET sources = [..., new_source], updated_at = now()
 
   Step 5: Update system tags
-  ├─ Recalculate file_type tags (might need new type if different format)
-  ├─ Check if origin:current_origin tag already exists (usually yes)
-  └─ If new origin, CREATE tag and ASSIGN to object
+  ├─ If first source being added to empty object:
+  │   ├─ Extract media_type from URI
+  │   └─ CREATE and ASSIGN media_type tag
+  │
+  └─ For the new source:
+      ├─ Extract file_type and CREATE/ASSIGN tag
+      └─ Extract origin and CREATE/ASSIGN tag (if new origin)
 
-  Result: New source added, object now has local copy, tags updated if needed
+  Result: Source added, object now has reference, tags updated appropriately
 ```
 
 ---
@@ -586,15 +604,23 @@ object:1 → tag:12 (priority:high) [user-assigned]
 
 **Tradeoff:** Tags must be kept in sync with sources array (handled during object modification)
 
-### 4. Sources Array is Append-Only
+### 4. Sources Array is Append-Only and Can Be Empty
 
-**Decision:** Sources can be added but not removed (logically). Removal would require data cleanup.
+**Decision:** Sources can be added but not removed (logically). Sources array can be empty. Removal would require data cleanup.
 
 **Why:**
 - Preserves history of where content came from
 - Prevents accidental loss of reference information
 - Users can delete source files separately from their reference in Index
 - Simpler than "remove source" logic
+- Empty sources enable metadata-only objects (notes, references, placeholders)
+- Objects can be created before sources are available
+
+**Use cases for empty sources:**
+- Placeholder objects to be filled in later
+- Notes and annotations with no external source
+- References to future sources not yet available
+- Objects created from cross-device sync before user decides where to store them
 
 **Future:** Could add soft-delete or archival if needed
 

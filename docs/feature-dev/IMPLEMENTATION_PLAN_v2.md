@@ -127,28 +127,30 @@ function extractFileType(uri) {
 async function handleCreateObject(db, objectData) {
   // Validate
   if (!objectData.name) throw new Error('Name required');
-  if (!objectData.sources || !Array.isArray(objectData.sources)) {
-    throw new Error('Sources array required');
-  }
 
-  // Normalize URIs (clean paths, validate format)
-  const sources = objectData.sources.map(src => ({
-    uri: cleanURI(src.uri),
-    origin: src.origin || 'unknown',
-    added_at: new Date().toISOString()
-  }));
+  // Sources are optional (can be empty array or omitted)
+  let sources = [];
+  if (objectData.sources && Array.isArray(objectData.sources)) {
+    sources = objectData.sources.map(src => ({
+      uri: cleanURI(src.uri),
+      origin: src.origin || 'unknown',
+      added_at: new Date().toISOString()
+    }));
+  }
 
   // Create object record
   const object = await db.create('objects', {
     name: objectData.name,
     description: objectData.description || null,
-    sources: sources,
+    sources: sources,  // Can be empty array
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
 
-  // Extract and assign system tags
-  await assignSystemTagsFromSources(db, object.id, sources);
+  // Extract and assign system tags (only if sources exist)
+  if (sources.length > 0) {
+    await assignSystemTagsFromSources(db, object.id, sources);
+  }
 
   return object;
 }
@@ -157,14 +159,18 @@ async function handleCreateObject(db, objectData) {
 **System Tags Assignment:**
 ```javascript
 async function assignSystemTagsFromSources(db, objectId, sources) {
+  // Empty sources: no tags to assign
+  if (!sources || sources.length === 0) {
+    console.log(`[Tags] No sources for object ${objectId}, skipping tag assignment`);
+    return;
+  }
+
   const tagSet = new Set(); // Avoid duplicates
 
   // Media type: determine once from first source, applies to whole object
-  if (sources.length > 0) {
-    const mediaType = extractMediaTypeFromSource(sources[0].uri);
-    if (mediaType) {
-      tagSet.add({ name: mediaType, type: 'media_type', system: true });
-    }
+  const mediaType = extractMediaTypeFromSource(sources[0].uri);
+  if (mediaType) {
+    tagSet.add({ name: mediaType, type: 'media_type', system: true });
   }
 
   // Per-source metadata: collect all unique file types and origins
