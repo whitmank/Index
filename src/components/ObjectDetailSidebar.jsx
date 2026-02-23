@@ -225,7 +225,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
                       }}
                       title={`Open source: ${source.uri}`}
                     >
-                      {source.origin} ({fileType})
+                      {source.origin} [{fileType}]
                     </button>
                   );
                 })}
