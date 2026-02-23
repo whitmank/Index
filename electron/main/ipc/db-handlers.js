@@ -6,7 +6,7 @@ import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
-import { getOrigin } from '../config/device.js';
+import { getDeviceOrigin } from '../config/device.js';
 
 // Author: Claude Code
 // IPC handlers for database operations - exposed to renderer process
@@ -127,7 +127,7 @@ export function registerDbHandlers() {
       // Accept sources array (can be empty)
       const rawSources = objectData.sources || [];
       const now = new Date().toISOString();
-      const deviceOrigin = getOrigin();
+      const deviceOrigin = await getDeviceOrigin();
 
       // Clean each URI, determine origin, and ensure added_at timestamp
       const sources = rawSources.map(src => ({
@@ -223,7 +223,7 @@ export function registerDbHandlers() {
       if (objectData.sources !== undefined) {
         const rawSources = objectData.sources || [];
         const now = new Date().toISOString();
-        const deviceOrigin = getOrigin();
+        const deviceOrigin = await getDeviceOrigin();
         // Clean, determine origin, and ensure all sources have required fields
         updateObj.sources = rawSources.map(src => ({
           uri: cleanUri(src.uri),
