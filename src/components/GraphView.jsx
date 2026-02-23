@@ -30,7 +30,7 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
     const nodes = objects.map((obj, i) => ({
       id: obj.id,
       name: obj.name,
-      source: obj.source_local || obj.source_remote,
+      source: obj.sources?.[0]?.uri,
       x: width / 2 + (Math.random() - 0.5) * 100,
       y: height / 2 + (Math.random() - 0.5) * 100,
     }));

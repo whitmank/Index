@@ -103,8 +103,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Snapshot object data for undo
       const snapshot = {
         name: object.name,
-        source_local: object.source_local,
-        source_remote: object.source_remote,
+        sources: object.sources,
       };
 
       // Get user tags (non-system) assigned to this object
@@ -139,8 +138,10 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   };
 
   const handleOpenSource = () => {
-    const source = object.source_local || object.source_remote;
-    window.electronAPI?.openSource?.(source);
+    const uri = object.sources?.[0]?.uri;
+    if (uri) {
+      window.electronAPI?.openSource?.(uri);
+    }
   };
 
   const handleSaveTitleEdit = async () => {
@@ -197,12 +198,23 @@ export default function ObjectDetailSidebar({ object, onClose }) {
         </div>
 
         <div className="sidebar-content">
-          {/* Source */}
-          <div className="sidebar-section">
-            <div className="source-path" onClick={handleOpenSource}>
-              {object.source_local || object.source_remote}
+          {/* Sources */}
+          {object.sources && object.sources.length > 0 && (
+            <div className="sidebar-section">
+              <div className="sources-list">
+                {object.sources.map((source, index) => (
+                  <div key={index} className="source-item" onClick={() => {
+                    if (source.uri) {
+                      window.electronAPI?.openSource?.(source.uri);
+                    }
+                  }}>
+                    <div className="source-origin">{source.origin}</div>
+                    <div className="source-uri">{source.uri}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tags */}
           <TagAssignmentSection objectId={object.id.id || object.id} />

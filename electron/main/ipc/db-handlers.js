@@ -5,7 +5,7 @@ import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
-import { deriveSourceMetadata, cleanURI, extractMediaType, extractFileExtension } from '../utils/metadata.js';
+import { extractMediaTypeFromSource, extractFileType, cleanUri } from '../utils/metadata-extractor.js';
 
 // Author: Claude Code
 // IPC handlers for database operations - exposed to renderer process
@@ -123,27 +123,31 @@ export function registerDbHandlers() {
 
       console.log('[IPC] Create object:', objectData);
 
-      // Clean source URIs (remove quotes)
-      const cleanedSourceLocal = objectData.source_local ? cleanURI(objectData.source_local) : null;
-      const cleanedSourceRemote = objectData.source_remote ? cleanURI(objectData.source_remote) : null;
+      // Accept sources array (can be empty)
+      const rawSources = objectData.sources || [];
+      const now = new Date().toISOString();
 
-      // Derive source metadata from local or remote source
-      const sourceMetadata = await deriveSourceMetadata(cleanedSourceLocal || cleanedSourceRemote);
+      // Clean each URI and ensure added_at timestamp
+      const sources = rawSources.map(src => ({
+        uri: cleanUri(src.uri),
+        origin: src.origin || 'unknown',
+        added_at: src.added_at || now,
+      }));
 
-      const objectWithMetadata = {
+      const objectRecord = {
         name: objectData.name,
-        source_local: cleanedSourceLocal,
-        source_remote: cleanedSourceRemote,
-        user_metadata: objectData.user_metadata || {},
-        source_metadata: sourceMetadata,
+        description: objectData.description || null,
+        sources,
+        created_at: now,
+        updated_at: now,
       };
 
-      const result = await db.create('objects', objectWithMetadata);
+      const result = await db.create('objects', objectRecord);
       const newObject = Array.isArray(result) ? result[0] : result;
       const objectId = (newObject.id && newObject.id.id) || newObject.id;
 
-      // Assign system tags based on source
-      await assignSystemTags(db, objectId, cleanedSourceLocal, cleanedSourceRemote);
+      // Assign system tags based on sources
+      await assignSystemTagsFromSources(db, objectId, sources);
 
       // Persist after creation
       await persistToIndex(db);
@@ -825,9 +829,9 @@ export function registerDbHandlers() {
         throw new Error(`Object ${objectId} not found`);
       }
 
-      const source = object.source_local || object.source_remote;
-      if (!source) {
-        console.log('[IPC] Object has no source, skipping system tag repair');
+      const sources = object.sources || [];
+      if (sources.length === 0) {
+        console.log('[IPC] Object has no sources, skipping system tag repair');
         return { success: true, data: { repaired: [] } };
       }
 
@@ -851,7 +855,7 @@ export function registerDbHandlers() {
           .map((t) => t.type)
       );
 
-      const expectedTypes = ['media_type', 'file_extension'];
+      const expectedTypes = ['media_type', 'file_type', 'origin'];
       const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
 
       if (missingTypes.length === 0) {
@@ -865,27 +869,60 @@ export function registerDbHandlers() {
 
       // Regenerate missing system tags
       for (const type of missingTypes) {
-        let value = null;
         if (type === 'media_type') {
-          value = extractMediaType(source);
-        } else if (type === 'file_extension') {
-          value = extractFileExtension(source);
-        }
-
-        // Find or create the system tag
-        const tagId = await findOrCreateSystemTag(db, type, value);
-        if (tagId) {
-          // Assign it to the object
-          const existingResult = await db.query(
-            `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
-          );
-          if (!existingResult[0] || existingResult[0].length === 0) {
-            await db.create('tag_assignments', {
-              object_id: objectId,
-              tag_id: tagId,
-            });
-            repaired.push({ type, value: value || null });
-            console.log(`[IPC] Restored missing system tag: ${type}:${value || '(empty)'}`);
+          // Object-level, from first source only
+          const mediaType = extractMediaTypeFromSource(sources[0].uri);
+          const tagId = await findOrCreateSystemTag(db, type, mediaType);
+          if (tagId) {
+            const existingResult = await db.query(
+              `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+            );
+            if (!existingResult[0] || existingResult[0].length === 0) {
+              await db.create('tag_assignments', {
+                object_id: objectId,
+                tag_id: tagId,
+              });
+              repaired.push({ type, value: mediaType || null });
+              console.log(`[IPC] Restored missing system tag: ${type}:${mediaType || '(empty)'}`);
+            }
+          }
+        } else if (type === 'file_type') {
+          // Per-source, unique extensions
+          const uniqueFileTypes = new Set(sources.map(s => extractFileType(s.uri)).filter(Boolean));
+          for (const fileType of uniqueFileTypes) {
+            const tagId = await findOrCreateSystemTag(db, type, fileType);
+            if (tagId) {
+              const existingResult = await db.query(
+                `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+              );
+              if (!existingResult[0] || existingResult[0].length === 0) {
+                await db.create('tag_assignments', {
+                  object_id: objectId,
+                  tag_id: tagId,
+                });
+                repaired.push({ type, value: fileType });
+                console.log(`[IPC] Restored missing system tag: ${type}:${fileType}`);
+              }
+            }
+          }
+        } else if (type === 'origin') {
+          // Per-source, unique device origins
+          const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
+          for (const origin of uniqueOrigins) {
+            const tagId = await findOrCreateSystemTag(db, type, origin);
+            if (tagId) {
+              const existingResult = await db.query(
+                `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+              );
+              if (!existingResult[0] || existingResult[0].length === 0) {
+                await db.create('tag_assignments', {
+                  object_id: objectId,
+                  tag_id: tagId,
+                });
+                repaired.push({ type, value: origin });
+                console.log(`[IPC] Restored missing system tag: ${type}:${origin}`);
+              }
+            }
           }
         }
       }
@@ -911,14 +948,22 @@ export function registerDbHandlers() {
       }
 
       // Clean source URI (remove quotes)
-      const cleanedSource = cleanURI(source);
+      const cleanedSource = cleanUri(source);
 
       // Check if it's a URL (starts with http/https)
       if (cleanedSource.startsWith('http://') || cleanedSource.startsWith('https://')) {
         console.log('[IPC] Opening URL:', cleanedSource);
         await shell.openExternal(cleanedSource);
+      } else if (cleanedSource.startsWith('file://')) {
+        // Strip file:// to get local path for openPath
+        const filePath = cleanedSource.replace(/^file:\/\//, '');
+        console.log('[IPC] Opening file:', filePath);
+        const error = await shell.openPath(filePath);
+        if (error) {
+          return { success: false, error };
+        }
       } else {
-        // Try to open as file path
+        // Assume raw local path (backward compat)
         console.log('[IPC] Opening file:', cleanedSource);
         const error = await shell.openPath(cleanedSource);
         if (error) {
@@ -967,22 +1012,19 @@ export function registerDbHandlers() {
 }
 
 /**
- * Find or create a system tag
+ * Assign system tags from sources array
+ * Derives media_type (object-level), file_type (per-source), origin (per-source)
  * @private
  */
-
-/**
- * Assign system tags (media_type, file_extension) to an object
- * @private
- */
-async function assignSystemTags(db, objectId, source_local, source_remote) {
+async function assignSystemTagsFromSources(db, objectId, sources) {
   try {
-    const source = source_local || source_remote;
+    if (!sources || sources.length === 0) {
+      console.log(`[IPC] Object ${objectId} has no sources, skipping system tag assignment`);
+      return;
+    }
 
-    const mediaType = source ? extractMediaType(source) : null;
-    const fileExtension = source ? extractFileExtension(source) : null;
-
-    // Always create/assign media_type tag (with null if not available)
+    // 1. media_type — object-level, from first source only
+    const mediaType = extractMediaTypeFromSource(sources[0].uri);
     const mediaTypeTagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
     if (mediaTypeTagId) {
       const existingResult = await db.query(
@@ -997,18 +1039,39 @@ async function assignSystemTags(db, objectId, source_local, source_remote) {
       }
     }
 
-    // Always create/assign file_extension tag (with null if not available)
-    const fileExtensionTagId = await findOrCreateSystemTag(db, 'file_extension', fileExtension);
-    if (fileExtensionTagId) {
-      const existingResult = await db.query(
-        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${fileExtensionTagId}'`
-      );
-      if (!existingResult[0] || existingResult[0].length === 0) {
-        await db.create('tag_assignments', {
-          object_id: objectId,
-          tag_id: fileExtensionTagId,
-        });
-        console.log(`[IPC] Assigned system tag: ${objectId} <- file_extension:${fileExtension || '(empty)'}`);
+    // 2. file_type — per-source, unique extensions
+    const uniqueFileTypes = new Set(sources.map(s => extractFileType(s.uri)).filter(Boolean));
+    for (const fileType of uniqueFileTypes) {
+      const fileTypeTagId = await findOrCreateSystemTag(db, 'file_type', fileType);
+      if (fileTypeTagId) {
+        const existingResult = await db.query(
+          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${fileTypeTagId}'`
+        );
+        if (!existingResult[0] || existingResult[0].length === 0) {
+          await db.create('tag_assignments', {
+            object_id: objectId,
+            tag_id: fileTypeTagId,
+          });
+          console.log(`[IPC] Assigned system tag: ${objectId} <- file_type:${fileType}`);
+        }
+      }
+    }
+
+    // 3. origin — per-source, unique device origins
+    const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
+    for (const origin of uniqueOrigins) {
+      const originTagId = await findOrCreateSystemTag(db, 'origin', origin);
+      if (originTagId) {
+        const existingResult = await db.query(
+          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${originTagId}'`
+        );
+        if (!existingResult[0] || existingResult[0].length === 0) {
+          await db.create('tag_assignments', {
+            object_id: objectId,
+            tag_id: originTagId,
+          });
+          console.log(`[IPC] Assigned system tag: ${objectId} <- origin:${origin}`);
+        }
       }
     }
   } catch (error) {

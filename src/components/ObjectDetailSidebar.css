@@ -168,7 +168,47 @@
   letter-spacing: 0.5px;
 }
 
-/* Source section */
+/* Sources section */
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-item {
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.source-item:hover {
+  background: #faf8f6;
+  border-color: #d8d4cf;
+}
+
+.source-origin {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #999999;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.source-uri {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: #666666;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+/* Source section (legacy) */
 .source-path {
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
   font-size: 0.8rem;

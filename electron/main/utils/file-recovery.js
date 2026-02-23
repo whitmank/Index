@@ -123,48 +123,60 @@ export async function verifyAndRepairSources(objects) {
   const repaired = [];
 
   for (const obj of objects) {
-    // Only process local sources (source_local); remote sources (URLs) don't need repair
-    if (!obj.source_local) {
-      // No local source, just ensure metadata exists
-      if (!obj.source_metadata) obj.source_metadata = {};
+    // If no sources array, object is metadata-only or has no sources
+    if (!obj.sources || obj.sources.length === 0) {
       repaired.push(obj);
       continue;
     }
 
-    if (!obj.source_metadata?.content_hash) {
-      // No hash, can't do recovery, just check if file exists
-      if (!obj.source_metadata) obj.source_metadata = {};
-      obj.source_metadata.exists = fs.existsSync(obj.source_local);
-      repaired.push(obj);
-      continue;
+    // Repair each local source in the array
+    let repairedObj = { ...obj };
+    repairedObj.sources = [];
+
+    for (const source of obj.sources) {
+      // Remote sources (URLs) don't need repair
+      if (!source.uri || source.uri.startsWith('http://') || source.uri.startsWith('https://')) {
+        repairedObj.sources.push(source);
+        continue;
+      }
+
+      // Local file source
+      if (!source.uri.startsWith('file://')) {
+        // Legacy format without file:// scheme
+        repairedObj.sources.push(source);
+        continue;
+      }
+
+      const filePath = source.uri.replace(/^file:\/\//, '');
+
+      // Check if source still exists
+      if (fs.existsSync(filePath)) {
+        // File still exists at original path
+        repairedObj.sources.push(source);
+        continue;
+      }
+
+      // File not found, try to recover by content hash if available
+      const searchPath = path.dirname(filePath);
+      const recoveredPath = await findFileByContentHash(
+        source.content_hash,
+        searchPath
+      );
+
+      if (recoveredPath) {
+        console.log(`[FileRecovery] Recovered file for "${obj.name}": ${source.uri} → file://${recoveredPath}`);
+        repairedObj.sources.push({
+          ...source,
+          uri: `file://${recoveredPath}`,
+        });
+      } else {
+        // Could not recover, keep original source
+        console.warn(`[FileRecovery] Could not recover file for "${obj.name}": ${source.uri}`);
+        repairedObj.sources.push(source);
+      }
     }
 
-    // Check if source still exists
-    if (fs.existsSync(obj.source_local)) {
-      // File still exists at original path
-      obj.source_metadata.exists = true;
-      repaired.push(obj);
-      continue;
-    }
-
-    // File not found, try to recover by content hash
-    const searchPath = path.dirname(obj.source_local);
-    const recoveredPath = await findFileByContentHash(
-      obj.source_metadata.content_hash,
-      searchPath
-    );
-
-    if (recoveredPath) {
-      console.log(`[FileRecovery] Recovered file for "${obj.name}": ${obj.source_local} → ${recoveredPath}`);
-      obj.source_local = recoveredPath;
-      obj.source_metadata.exists = true;
-    } else {
-      // Could not recover
-      console.warn(`[FileRecovery] Could not recover file for "${obj.name}": ${obj.source_local}`);
-      obj.source_metadata.exists = false;
-    }
-
-    repaired.push(obj);
+    repaired.push(repairedObj);
   }
 
   return repaired;

@@ -1,19 +1,25 @@
 // Author: Claude Code (Anthropic)
 // System tag repair logic - ensures all objects have their system tags
 
-import { extractMediaType, extractFileExtension } from '../utils/metadata.js';
+import { extractMediaTypeFromSource, extractFileType } from '../utils/metadata-extractor.js';
 import { findOrCreateSystemTag } from './system-tags.js';
 
 /**
  * Repair missing system tags for a single object
+ * Handles both v1 (source_local/remote) and v2 (sources array) formats
  * @private
  */
 async function repairObjectSystemTags(db, object) {
   try {
     const objectId = (object.id && object.id.id) || object.id;
-    const source = object.source_local || object.source_remote;
 
-    if (!source) {
+    // v2: Check for sources array
+    const sources = object.sources || [];
+
+    // v1 fallback: Check for source_local/remote
+    const legacySource = !sources.length ? (object.source_local || object.source_remote) : null;
+
+    if (!sources.length && !legacySource) {
       return { objectId, repaired: [] };
     }
 
@@ -37,7 +43,14 @@ async function repairObjectSystemTags(db, object) {
         .map((t) => t.type)
     );
 
-    const expectedTypes = ['media_type', 'file_extension'];
+    // Determine expected types based on data format
+    let expectedTypes = [];
+    if (sources.length) {
+      expectedTypes = ['media_type', 'file_type', 'origin'];
+    } else {
+      expectedTypes = ['media_type', 'file_extension'];
+    }
+
     const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
 
     if (missingTypes.length === 0) {
@@ -49,10 +62,23 @@ async function repairObjectSystemTags(db, object) {
     // Regenerate missing system tags
     for (const type of missingTypes) {
       let value = null;
-      if (type === 'media_type') {
-        value = extractMediaType(source);
-      } else if (type === 'file_extension') {
-        value = extractFileExtension(source);
+
+      if (sources.length) {
+        // v2: Handle sources array
+        if (type === 'media_type') {
+          value = extractMediaTypeFromSource(sources[0].uri);
+        } else if (type === 'file_type') {
+          value = extractFileType(sources[0].uri);
+        } else if (type === 'origin') {
+          value = sources[0].origin;
+        }
+      } else {
+        // v1: Handle legacy format
+        if (type === 'media_type') {
+          value = extractMediaTypeFromSource(legacySource);
+        } else if (type === 'file_extension') {
+          value = extractFileType(legacySource);
+        }
       }
 
       // Find or create the system tag

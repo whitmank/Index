@@ -36,6 +36,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('collectionsCollapsed');
     return saved ? JSON.parse(saved) : false;
@@ -44,6 +45,13 @@ export default function App() {
     const saved = localStorage.getItem('sidebarWidth');
     return saved ? parseInt(saved, 10) : 240;
   });
+
+  // Load device origin on mount
+  useEffect(() => {
+    window.electronAPI?.device?.getOrigin().then(origin => {
+      setDeviceOrigin(origin || 'unknown');
+    });
+  }, []);
 
   // Listen for sidebar collapse and width changes
   useEffect(() => {
@@ -125,8 +133,12 @@ export default function App() {
       try {
         const file = files[0];
         const filePath = window.electronAPI.fs.getPathForFile(file);
+        const uri = `file://${filePath}`;
         const name = getNameFromSource(filePath);
-        await addObject({ name, source_local: filePath, source_remote: null });
+        await addObject({
+          name,
+          sources: [{ uri, origin: deviceOrigin || 'unknown' }],
+        });
       } catch (error) {
         console.error('Error creating object from dropped file:', error);
       }
@@ -140,8 +152,12 @@ export default function App() {
       try {
         const file = e.clipboardData.files[0];
         const filePath = window.electronAPI.fs.getPathForFile(file);
+        const uri = `file://${filePath}`;
         const name = getNameFromSource(filePath);
-        await addObject({ name, source_local: filePath, source_remote: null });
+        await addObject({
+          name,
+          sources: [{ uri, origin: deviceOrigin || 'unknown' }],
+        });
       } catch (error) {
         console.error('Error creating object from pasted file:', error);
       }
@@ -155,11 +171,10 @@ export default function App() {
       try {
         const name = getNameFromSource(text);
         const isUrl = text.startsWith('http://') || text.startsWith('https://');
-        await addObject({
-          name,
-          source_local: isUrl ? null : text,
-          source_remote: isUrl ? text : null,
-        });
+        const sources = isUrl
+          ? [{ uri: text, origin: 'web' }]
+          : [{ uri: `file://${text}`, origin: deviceOrigin || 'unknown' }];
+        await addObject({ name, sources });
       } catch (error) {
         console.error('Error creating object from pasted text:', error);
       }
