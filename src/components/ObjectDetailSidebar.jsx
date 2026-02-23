@@ -248,11 +248,16 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const addSourceToObject = async (uri) => {
     try {
       const objectId = object.id.id || object.id;
+
+      // Determine origin: web for HTTP(S) URLs, device for local files
+      const isWebUrl = uri.startsWith('http://') || uri.startsWith('https://');
+      const origin = isWebUrl ? 'web' : (deviceOrigin || 'unknown');
+
       const newSources = [
         ...(object.sources || []),
         {
           uri,
-          origin: deviceOrigin || 'unknown',
+          origin,
           added_at: new Date().toISOString(),
         },
       ];
