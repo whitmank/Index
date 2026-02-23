@@ -182,9 +182,10 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #333333;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #666666;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -194,11 +195,12 @@
 .source-item:hover {
   background: #faf8f6;
   border-color: #d8d4cf;
-  color: #000000;
+  color: #333333;
 }
 
 .source-item:active {
   background: #f3ede7;
+  color: #333333;
 }
 
 /* Source section (legacy) */
