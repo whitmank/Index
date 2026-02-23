@@ -5,7 +5,7 @@ import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
-import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
+import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin, determineFileType } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
 
 // Author: Claude Code
@@ -129,10 +129,11 @@ export function registerDbHandlers() {
       const now = new Date().toISOString();
       const deviceOrigin = await getDeviceOrigin();
 
-      // Clean each URI, determine origin, and ensure added_at timestamp
+      // Clean each URI, determine origin and file type, and ensure added_at timestamp
       const sources = rawSources.map(src => ({
         uri: cleanUri(src.uri),
         origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
+        fileType: determineFileType(src.uri),
         added_at: src.added_at || now,
       }));
 
@@ -224,10 +225,11 @@ export function registerDbHandlers() {
         const rawSources = objectData.sources || [];
         const now = new Date().toISOString();
         const deviceOrigin = await getDeviceOrigin();
-        // Clean, determine origin, and ensure all sources have required fields
+        // Clean, determine origin and file type, and ensure all sources have required fields
         updateObj.sources = rawSources.map(src => ({
           uri: cleanUri(src.uri),
           origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
+          fileType: determineFileType(src.uri),
           added_at: src.added_at || now,
         }));
         updateObj.updated_at = now;

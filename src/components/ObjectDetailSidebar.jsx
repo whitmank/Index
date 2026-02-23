@@ -331,16 +331,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
               <div className="sidebar-section-title">SOURCE</div>
               <div className="sources-list">
                 {object.sources?.map((source, index) => {
-                  // Extract file extension or determine type
-                  let fileType = 'unknown';
-                  if (source.uri.startsWith('http://') || source.uri.startsWith('https://')) {
-                    fileType = 'url';
-                  } else {
-                    const match = source.uri.match(/\.([a-z0-9]+)$/i);
-                    if (match) {
-                      fileType = match[1].toLowerCase();
-                    }
-                  }
+                  // Use fileType from source (determined by backend)
+                  const fileType = source.fileType || 'unknown';
 
                   return (
                     <div key={index} className="source-item-wrapper">
