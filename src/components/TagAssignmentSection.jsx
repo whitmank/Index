@@ -312,8 +312,8 @@ export default function TagAssignmentSection({ objectId }) {
                   systemTagsByType[tag.type] = [];
                 }
                 systemTagsByType[tag.type].push(tag);
-              } else {
-                // All other tags (user tags or hidden system tags) go to user list
+              } else if (tag.system !== true) {
+                // Only user-generated tags go to the TAGS list (exclude all system tags)
                 userTags.push(tag);
               }
             });
