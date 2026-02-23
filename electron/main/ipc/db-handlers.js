@@ -855,7 +855,7 @@ export function registerDbHandlers() {
           .map((t) => t.type)
       );
 
-      const expectedTypes = ['media_type', 'file_type'];
+      const expectedTypes = ['media_type', 'file_type', 'origin'];
       const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
 
       if (missingTypes.length === 0) {
@@ -902,6 +902,25 @@ export function registerDbHandlers() {
                 });
                 repaired.push({ type, value: fileType });
                 console.log(`[IPC] Restored missing system tag: ${type}:${fileType}`);
+              }
+            }
+          }
+        } else if (type === 'origin') {
+          // Per-source, unique device origins
+          const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
+          for (const origin of uniqueOrigins) {
+            const tagId = await findOrCreateSystemTag(db, type, origin);
+            if (tagId) {
+              const existingResult = await db.query(
+                `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+              );
+              if (!existingResult[0] || existingResult[0].length === 0) {
+                await db.create('tag_assignments', {
+                  object_id: objectId,
+                  tag_id: tagId,
+                });
+                repaired.push({ type, value: origin });
+                console.log(`[IPC] Restored missing system tag: ${type}:${origin}`);
               }
             }
           }
@@ -1034,6 +1053,24 @@ async function assignSystemTagsFromSources(db, objectId, sources) {
             tag_id: fileTypeTagId,
           });
           console.log(`[IPC] Assigned system tag: ${objectId} <- file_type:${fileType}`);
+        }
+      }
+    }
+
+    // 3. origin — per-source, unique device origins
+    const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
+    for (const origin of uniqueOrigins) {
+      const originTagId = await findOrCreateSystemTag(db, 'origin', origin);
+      if (originTagId) {
+        const existingResult = await db.query(
+          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${originTagId}'`
+        );
+        if (!existingResult[0] || existingResult[0].length === 0) {
+          await db.create('tag_assignments', {
+            object_id: objectId,
+            tag_id: originTagId,
+          });
+          console.log(`[IPC] Assigned system tag: ${objectId} <- origin:${origin}`);
         }
       }
     }

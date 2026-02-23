@@ -16,10 +16,16 @@ function toTitleCase(str) {
 }
 
 /**
+ * System tag types to display in the UI
+ * Origin is omitted since it's already shown in the sources list
+ */
+const DISPLAYED_SYSTEM_TAG_TYPES = new Set(['media_type', 'file_type']);
+
+/**
  * Define consistent ordering for system tag types
  * Ensures they appear in the same order regardless of database query order
  */
-const SYSTEM_TAG_ORDER = ['media_type', 'file_extension'];
+const SYSTEM_TAG_ORDER = ['media_type', 'file_type'];
 
 /**
  * Map system tag type to short label
@@ -27,7 +33,7 @@ const SYSTEM_TAG_ORDER = ['media_type', 'file_extension'];
 function getTagTypeLabel(type) {
   const labels = {
     media_type: 'TYPE',
-    file_extension: 'EXTENSION',
+    file_type: 'FILE TYPE',
   };
   return labels[type] || toTitleCase(type);
 }
@@ -296,17 +302,19 @@ export default function TagAssignmentSection({ objectId }) {
           <p className="tags-empty">No tags</p>
         ) : (
           (() => {
-            // Separate system tags by type and user tags
+            // Separate system tags by type (only displayed types) and user tags
             const systemTagsByType = {};
             const userTags = [];
 
             assignedTags.forEach((tag) => {
-              if (tag.system === true && tag.type) {
+              // Check if this is a system tag in the displayed types whitelist
+              if (tag.system === true && tag.type && DISPLAYED_SYSTEM_TAG_TYPES.has(tag.type)) {
                 if (!systemTagsByType[tag.type]) {
                   systemTagsByType[tag.type] = [];
                 }
                 systemTagsByType[tag.type].push(tag);
               } else {
+                // All other tags (user tags or hidden system tags) go to user list
                 userTags.push(tag);
               }
             });
