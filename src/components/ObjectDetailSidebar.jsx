@@ -233,7 +233,14 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     const trimmedTitle = titleValue.trim();
     if (trimmedTitle && trimmedTitle !== object.name) {
       const objectId = object.id.id || object.id;
+
+      // Prevent file watcher from reloading objects on this internal update
+      window._skipNextFileWatcherReload = true;
+
       await window.electronAPI.db.updateObject(objectId, { name: trimmedTitle });
+
+      // Reset flag after update completes
+      window._skipNextFileWatcherReload = false;
     } else {
       setTitleValue(object.name);
     }
@@ -266,8 +273,14 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       const updatedSources = [...sources, newSource];
       setSources(updatedSources);
 
+      // Prevent file watcher from reloading objects on this internal update
+      window._skipNextFileWatcherReload = true;
+
       // Send backend update asynchronously (via IPC, not Zustand)
       await window.electronAPI.db.updateObject(objectId, { sources: updatedSources });
+
+      // Reset flag after update completes
+      window._skipNextFileWatcherReload = false;
     } catch (error) {
       console.error('Error adding source:', error);
     }
@@ -293,8 +306,14 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Update local state immediately
       setSources(newSources);
 
+      // Prevent file watcher from reloading objects on this internal update
+      window._skipNextFileWatcherReload = true;
+
       // Send backend update asynchronously (via IPC, not Zustand)
       await window.electronAPI.db.updateObject(objectId, { sources: newSources });
+
+      // Reset flag after update completes
+      window._skipNextFileWatcherReload = false;
     } catch (error) {
       console.error('Error deleting source:', error);
     }
