@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getOrigin: () => ipcRenderer.invoke('device:getOrigin'),
     getId: () => ipcRenderer.invoke('device:getId'),
     isNamed: () => ipcRenderer.invoke('device:isNamed'),
+    submitName: (name) => ipcRenderer.send('device:submit-name', name),
   },
   // Database operations
   db: {
