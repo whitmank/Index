@@ -202,16 +202,33 @@ export default function ObjectDetailSidebar({ object, onClose }) {
           {object.sources && object.sources.length > 0 && (
             <div className="sidebar-section">
               <div className="sources-list">
-                {object.sources.map((source, index) => (
-                  <div key={index} className="source-item" onClick={() => {
-                    if (source.uri) {
-                      window.electronAPI?.openSource?.(source.uri);
+                {object.sources.map((source, index) => {
+                  // Extract file extension or determine type
+                  let fileType = 'unknown';
+                  if (source.uri.startsWith('http://') || source.uri.startsWith('https://')) {
+                    fileType = 'web';
+                  } else {
+                    const match = source.uri.match(/\.([a-z0-9]+)$/i);
+                    if (match) {
+                      fileType = match[1].toLowerCase();
                     }
-                  }}>
-                    <div className="source-origin">{source.origin}</div>
-                    <div className="source-uri">{source.uri}</div>
-                  </div>
-                ))}
+                  }
+
+                  return (
+                    <button
+                      key={index}
+                      className="source-item"
+                      onClick={() => {
+                        if (source.uri) {
+                          window.electronAPI?.openSource?.(source.uri);
+                        }
+                      }}
+                      title={`Open source: ${source.uri}`}
+                    >
+                      {source.origin} ({fileType})
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
