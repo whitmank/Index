@@ -89,9 +89,9 @@ export function extractMetadataFromSource(uri, origin) {
 export function extractFileType(uri) {
   if (!uri || typeof uri !== 'string') return 'unknown';
 
-  // Web URLs get 'url' type
+  // Web URLs get 'url' type (capitalized for display)
   if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return 'url';
+    return 'Url';
   }
 
   // Extract file extension from local files
