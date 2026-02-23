@@ -345,7 +345,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
                         }}
                         title={`Open source: ${source.uri}`}
                       >
-                        {source.origin} [{fileType}]
+                        {source.origin.toUpperCase()} [{fileType}]
                       </button>
                       <button
                         className="source-item-delete"
