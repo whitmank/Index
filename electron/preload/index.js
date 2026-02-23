@@ -2,6 +2,13 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Expose database IPC methods to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Device identification
+  device: {
+    ensureNamed: () => ipcRenderer.invoke('device:ensureNamed'),
+    getOrigin: () => ipcRenderer.invoke('device:getOrigin'),
+    getId: () => ipcRenderer.invoke('device:getId'),
+    isNamed: () => ipcRenderer.invoke('device:isNamed'),
+  },
   // Database operations
   db: {
     query: (sql) => ipcRenderer.invoke('db:query', sql),

@@ -3,6 +3,9 @@ import WindowManagerFactory from './window-manager/index.js';
 import { startDatabase, stopDatabase, getDatabase } from './db/index.js';
 import { registerDbHandlers, setMainWindow, broadcastObjectsChanged } from './ipc/db-handlers.js';
 import { startObjectsWatcher, stopObjectsWatcher } from './watchers/objects.js';
+import { initializeDeviceId } from './config/device.js';
+import { ensureDeviceNamed } from './windows/device-naming-dialog.js';
+import * as deviceHandlers from './ipc/device-handlers.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -49,22 +52,46 @@ app.on('ready', async () => {
     if (process.platform === 'darwin' && app.dock) {
       app.dock.hide();
     }
-    // Start database first
+
+    // Step 1: Initialize device (load or create ID)
+    console.log('[App] Initializing device...');
+    const device = await initializeDeviceId();
+    console.log(`[App] Device ID loaded: ${device.id}`);
+
+    // Step 2: Ensure device is named (shows dialog if needed)
+    console.log('[App] Checking device name...');
+    const deviceNamed = await ensureDeviceNamed();
+    if (!deviceNamed) {
+      // User cancelled naming dialog, quit app
+      console.log('[App] User cancelled device naming, quitting');
+      app.quit();
+      return;
+    }
+
+    // Step 3: Start database
+    console.log('[App] Starting database...');
     await startDatabase();
     dbStarted = true;
-    // Register IPC handlers
+
+    // Register IPC handlers (including device handlers)
     registerDbHandlers();
+
     // Create window
+    console.log('[App] Creating main window...');
     createWindow();
+
     // Set window for IPC broadcasting
     setMainWindow(mainWindow);
+
     // Start file watcher for live updates
     const db = getDatabase();
     startObjectsWatcher(db, (objects) => {
       broadcastObjectsChanged(objects);
     });
+
+    console.log('[App] Application ready');
   } catch (error) {
-    console.error('Failed to initialize app:', error);
+    console.error('[App] Failed to initialize app:', error);
     app.quit();
   }
 });

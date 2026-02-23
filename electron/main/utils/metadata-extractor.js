@@ -1,0 +1,153 @@
+// Author: Claude Code
+// Metadata extraction from source URIs
+// Derives system tags: media_type (object-level), file_type (per-source), origin (per-source)
+
+/**
+ * Extract media type from URI (object-level, determined once)
+ * Media type is what the object fundamentally IS (document, image, video, etc.)
+ * Determined from first source only and applies to entire object
+ * @param {string} uri - Source URI (file://, https://, etc.)
+ * @returns {string|null} - Media type: document, image, video, audio, spreadsheet, presentation, or null
+ */
+export function extractMediaTypeFromSource(uri) {
+  const fileType = extractFileType(uri);
+  if (!fileType) return null;
+
+  const mediaTypeMap = {
+    // Documents
+    'pdf': 'document',
+    'doc': 'document',
+    'docx': 'document',
+    'txt': 'document',
+    'md': 'document',
+    'rst': 'document',
+    'odt': 'document',
+
+    // Images
+    'jpg': 'image',
+    'jpeg': 'image',
+    'png': 'image',
+    'gif': 'image',
+    'svg': 'image',
+    'webp': 'image',
+    'ico': 'image',
+    'bmp': 'image',
+
+    // Video
+    'mp4': 'video',
+    'mkv': 'video',
+    'mov': 'video',
+    'avi': 'video',
+    'webm': 'video',
+    'flv': 'video',
+    'm4v': 'video',
+
+    // Audio
+    'mp3': 'audio',
+    'wav': 'audio',
+    'flac': 'audio',
+    'm4a': 'audio',
+    'aac': 'audio',
+    'ogg': 'audio',
+    'wma': 'audio',
+
+    // Spreadsheet
+    'xls': 'spreadsheet',
+    'xlsx': 'spreadsheet',
+    'csv': 'spreadsheet',
+    'ods': 'spreadsheet',
+
+    // Presentation
+    'ppt': 'presentation',
+    'pptx': 'presentation',
+    'odp': 'presentation',
+  };
+
+  return mediaTypeMap[fileType] || null;
+}
+
+/**
+ * Extract per-source metadata from URI
+ * Returns file_type and origin (scheme implicit in origin)
+ * @param {string} uri - Source URI (file://, https://, smb://, etc.)
+ * @param {string} origin - Device identifier ("myLaptop", "web", "nas", etc.)
+ * @returns {{fileType: string|null, origin: string}} - Per-source metadata
+ */
+export function extractMetadataFromSource(uri, origin) {
+  return {
+    fileType: extractFileType(uri),
+    origin: origin,
+  };
+}
+
+/**
+ * Extract file type (extension) from URI
+ * @param {string} uri - Source URI
+ * @returns {string|null} - File extension (lowercase), or null if not found
+ */
+export function extractFileType(uri) {
+  if (!uri || typeof uri !== 'string') return null;
+
+  // Remove query params and fragments
+  const path = uri.split('?')[0].split('#')[0];
+
+  // Extract extension
+  const match = path.match(/\.([a-z0-9]+)$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+/**
+ * Extract URI scheme from source
+ * Useful for logging/debugging, though scheme is implicit in origin
+ * @param {string} uri - Source URI
+ * @returns {string|null} - URI scheme (file, https, smb, etc.), or null if not found
+ */
+export function extractScheme(uri) {
+  if (!uri || typeof uri !== 'string') return null;
+
+  const match = uri.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+/**
+ * Validate URI format
+ * @param {string} uri - Source URI to validate
+ * @returns {boolean} - True if URI looks valid
+ */
+export function isValidUri(uri) {
+  if (!uri || typeof uri !== 'string') return false;
+
+  // Must have a scheme
+  if (!extractScheme(uri)) return false;
+
+  // Must have something after scheme
+  if (uri.length < 10) return false; // Minimum: file:///x
+
+  return true;
+}
+
+/**
+ * Clean and normalize URI
+ * Removes trailing slashes, normalizes separators, etc.
+ * @param {string} uri - Raw URI
+ * @returns {string} - Cleaned URI
+ */
+export function cleanUri(uri) {
+  if (!uri || typeof uri !== 'string') return uri;
+
+  // Trim whitespace
+  let cleaned = uri.trim();
+
+  // Normalize file:// URIs (ensure consistent path separators)
+  if (cleaned.startsWith('file://')) {
+    // file:// URIs should use forward slashes
+    cleaned = cleaned.replace(/\\/g, '/');
+  }
+
+  // Remove trailing slash for consistency (except for root paths)
+  if (cleaned.length > 1 && cleaned.endsWith('/') && !cleaned.match(/^file:\/\/\/$/)) {
+    cleaned = cleaned.slice(0, -1);
+  }
+
+  return cleaned;
+}
