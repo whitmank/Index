@@ -334,7 +334,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
                   // Extract file extension or determine type
                   let fileType = 'unknown';
                   if (source.uri.startsWith('http://') || source.uri.startsWith('https://')) {
-                    fileType = 'web';
+                    fileType = 'url';
                   } else {
                     const match = source.uri.match(/\.([a-z0-9]+)$/i);
                     if (match) {
