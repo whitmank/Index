@@ -89,9 +89,9 @@ export function extractMetadataFromSource(uri, origin) {
 export function extractFileType(uri) {
   if (!uri || typeof uri !== 'string') return 'unknown';
 
-  // Web URLs get 'url' type (capitalized for display)
+  // Web URLs get 'url' type
   if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return 'Url';
+    return 'url';
   }
 
   // Extract file extension from local files
@@ -118,19 +118,19 @@ export function extractScheme(uri) {
 
 /**
  * Determine origin for a source URI
- * Web URLs get 'web' origin, local files get device origin
+ * Web URLs get 'Web' origin, local files get device origin
  * @param {string} uri - Source URI
  * @param {string} deviceOrigin - Current device identifier (used for local files)
- * @returns {string} - Origin value (e.g., 'web', 'My Laptop', 'nas')
+ * @returns {string} - Origin value (e.g., 'Web', 'My Laptop', 'nas')
  */
 export function determineOrigin(uri, deviceOrigin = 'unknown') {
   if (!uri || typeof uri !== 'string') {
     return deviceOrigin;
   }
 
-  // Web URLs always get 'web' origin
+  // Web URLs always get 'Web' origin (capitalized)
   if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return 'web';
+    return 'Web';
   }
 
   // Local files get device origin
