@@ -249,15 +249,13 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     try {
       const objectId = object.id.id || object.id;
 
-      // Determine origin: web for HTTP(S) URLs, device for local files
-      const isWebUrl = uri.startsWith('http://') || uri.startsWith('https://');
-      const origin = isWebUrl ? 'web' : (deviceOrigin || 'unknown');
-
+      // Origin will be determined by backend (web for URLs, device for files)
+      // UI just passes the device origin as context
       const newSources = [
         ...(object.sources || []),
         {
           uri,
-          origin,
+          origin: deviceOrigin || 'unknown',
           added_at: new Date().toISOString(),
         },
       ];

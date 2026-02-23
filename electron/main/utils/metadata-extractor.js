@@ -110,6 +110,27 @@ export function extractScheme(uri) {
 }
 
 /**
+ * Determine origin for a source URI
+ * Web URLs get 'web' origin, local files get device origin
+ * @param {string} uri - Source URI
+ * @param {string} deviceOrigin - Current device identifier (used for local files)
+ * @returns {string} - Origin value (e.g., 'web', 'My Laptop', 'nas')
+ */
+export function determineOrigin(uri, deviceOrigin = 'unknown') {
+  if (!uri || typeof uri !== 'string') {
+    return deviceOrigin;
+  }
+
+  // Web URLs always get 'web' origin
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    return 'web';
+  }
+
+  // Local files get device origin
+  return deviceOrigin;
+}
+
+/**
  * Validate URI format
  * @param {string} uri - Source URI to validate
  * @returns {boolean} - True if URI looks valid

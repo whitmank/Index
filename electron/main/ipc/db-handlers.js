@@ -5,7 +5,8 @@ import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
-import { extractMediaTypeFromSource, extractFileType, cleanUri } from '../utils/metadata-extractor.js';
+import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
+import { getOrigin } from '../config/device.js';
 
 // Author: Claude Code
 // IPC handlers for database operations - exposed to renderer process
@@ -126,11 +127,12 @@ export function registerDbHandlers() {
       // Accept sources array (can be empty)
       const rawSources = objectData.sources || [];
       const now = new Date().toISOString();
+      const deviceOrigin = getOrigin();
 
-      // Clean each URI and ensure added_at timestamp
+      // Clean each URI, determine origin, and ensure added_at timestamp
       const sources = rawSources.map(src => ({
         uri: cleanUri(src.uri),
-        origin: src.origin || 'unknown',
+        origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
         added_at: src.added_at || now,
       }));
 
@@ -221,10 +223,11 @@ export function registerDbHandlers() {
       if (objectData.sources !== undefined) {
         const rawSources = objectData.sources || [];
         const now = new Date().toISOString();
-        // Clean and ensure all sources have required fields
+        const deviceOrigin = getOrigin();
+        // Clean, determine origin, and ensure all sources have required fields
         updateObj.sources = rawSources.map(src => ({
           uri: cleanUri(src.uri),
-          origin: src.origin || 'unknown',
+          origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
           added_at: src.added_at || now,
         }));
         updateObj.updated_at = now;
