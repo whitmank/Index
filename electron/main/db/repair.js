@@ -46,7 +46,7 @@ async function repairObjectSystemTags(db, object) {
     // Determine expected types based on data format
     let expectedTypes = [];
     if (sources.length) {
-      expectedTypes = ['media_type', 'file_type', 'origin'];
+      expectedTypes = ['media_type', 'file_type'];
     } else {
       expectedTypes = ['media_type', 'file_extension'];
     }
@@ -69,8 +69,6 @@ async function repairObjectSystemTags(db, object) {
           value = extractMediaTypeFromSource(sources[0].uri);
         } else if (type === 'file_type') {
           value = extractFileType(sources[0].uri);
-        } else if (type === 'origin') {
-          value = sources[0].origin;
         }
       } else {
         // v1: Handle legacy format
