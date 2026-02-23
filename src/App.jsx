@@ -87,8 +87,11 @@ export default function App() {
     loadObjects();
     // Listen for file system changes
     window.electronAPI?.onObjectsChanged(() => {
-      // Skip reload if this was an internal update (sidebar modified an object)
-      if (window._skipNextFileWatcherReload) {
+      // Check and reset flag (handle race condition)
+      const skipThisEvent = window._skipNextFileWatcherReload;
+      window._skipNextFileWatcherReload = false;
+
+      if (skipThisEvent) {
         console.log('File change detected, but skipping reload (internal update)');
         return;
       }

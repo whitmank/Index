@@ -239,8 +239,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
 
       await window.electronAPI.db.updateObject(objectId, { name: trimmedTitle });
 
-      // Reset flag after update completes
-      window._skipNextFileWatcherReload = false;
+      // Flag will be reset by file watcher when it detects the change
     } else {
       setTitleValue(object.name);
     }
@@ -279,8 +278,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Send backend update asynchronously (via IPC, not Zustand)
       await window.electronAPI.db.updateObject(objectId, { sources: updatedSources });
 
-      // Reset flag after update completes
-      window._skipNextFileWatcherReload = false;
+      // Flag will be reset by file watcher when it detects the change
     } catch (error) {
       console.error('Error adding source:', error);
     }
@@ -312,8 +310,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Send backend update asynchronously (via IPC, not Zustand)
       await window.electronAPI.db.updateObject(objectId, { sources: newSources });
 
-      // Reset flag after update completes
-      window._skipNextFileWatcherReload = false;
+      // Flag will be reset by file watcher when it detects the change
     } catch (error) {
       console.error('Error deleting source:', error);
     }
