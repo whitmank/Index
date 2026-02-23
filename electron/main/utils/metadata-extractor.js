@@ -132,6 +132,7 @@ export function determineOrigin(uri, deviceOrigin = 'unknown') {
 
 /**
  * Determine display file type for a source URI
+ * Reuses extractFileType() to eliminate redundancy
  * @param {string} uri - Source URI
  * @returns {string} - File type for display (e.g., 'pdf', 'url', 'unknown')
  */
@@ -145,9 +146,8 @@ export function determineFileType(uri) {
     return 'url';
   }
 
-  // Extract file extension from local files
-  const match = uri.match(/\.([a-z0-9]+)$/i);
-  return match ? match[1].toLowerCase() : 'unknown';
+  // For local files, use extractFileType (which already handles extension extraction)
+  return extractFileType(uri) || 'unknown';
 }
 
 /**
