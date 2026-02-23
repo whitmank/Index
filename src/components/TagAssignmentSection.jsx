@@ -17,15 +17,15 @@ function toTitleCase(str) {
 
 /**
  * System tag types to display in the UI
- * Origin is omitted since it's already shown in the sources list
+ * Origin and file_type are omitted
  */
-const DISPLAYED_SYSTEM_TAG_TYPES = new Set(['media_type', 'file_type']);
+const DISPLAYED_SYSTEM_TAG_TYPES = new Set(['media_type']);
 
 /**
  * Define consistent ordering for system tag types
  * Ensures they appear in the same order regardless of database query order
  */
-const SYSTEM_TAG_ORDER = ['media_type', 'file_type'];
+const SYSTEM_TAG_ORDER = ['media_type'];
 
 /**
  * Map system tag type to short label
@@ -33,7 +33,6 @@ const SYSTEM_TAG_ORDER = ['media_type', 'file_type'];
 function getTagTypeLabel(type) {
   const labels = {
     media_type: 'TYPE',
-    file_type: 'FILE TYPE',
   };
   return labels[type] || toTitleCase(type);
 }
