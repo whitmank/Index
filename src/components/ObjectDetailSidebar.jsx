@@ -13,7 +13,6 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const sidebarRef = useRef(null);
   const titleInputRef = useRef(null);
   const addSourceCardRef = useRef(null);
-  const updateObject = useObjectsStore((state) => state.updateObject);
   const deleteObject = useObjectsStore((state) => state.deleteObject);
   const loadObjects = useObjectsStore((state) => state.loadObjects);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -234,7 +233,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     const trimmedTitle = titleValue.trim();
     if (trimmedTitle && trimmedTitle !== object.name) {
       const objectId = object.id.id || object.id;
-      await updateObject(objectId, { name: trimmedTitle });
+      await window.electronAPI.db.updateObject(objectId, { name: trimmedTitle });
     } else {
       setTitleValue(object.name);
     }
@@ -267,8 +266,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       const updatedSources = [...sources, newSource];
       setSources(updatedSources);
 
-      // Send backend update asynchronously
-      await updateObject(objectId, { sources: updatedSources });
+      // Send backend update asynchronously (via IPC, not Zustand)
+      await window.electronAPI.db.updateObject(objectId, { sources: updatedSources });
     } catch (error) {
       console.error('Error adding source:', error);
     }
@@ -294,8 +293,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Update local state immediately
       setSources(newSources);
 
-      // Send backend update asynchronously
-      await updateObject(objectId, { sources: newSources });
+      // Send backend update asynchronously (via IPC, not Zustand)
+      await window.electronAPI.db.updateObject(objectId, { sources: newSources });
     } catch (error) {
       console.error('Error deleting source:', error);
     }
