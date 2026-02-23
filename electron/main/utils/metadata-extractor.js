@@ -81,19 +81,26 @@ export function extractMetadataFromSource(uri, origin) {
 }
 
 /**
- * Extract file type (extension) from URI
+ * Extract file type from URI for display
+ * Returns 'url' for web links, file extension for local files, 'unknown' as fallback
  * @param {string} uri - Source URI
- * @returns {string|null} - File extension (lowercase), or null if not found
+ * @returns {string} - File type (e.g., 'pdf', 'jpg', 'url', 'unknown')
  */
 export function extractFileType(uri) {
-  if (!uri || typeof uri !== 'string') return null;
+  if (!uri || typeof uri !== 'string') return 'unknown';
 
-  // Remove query params and fragments
+  // Web URLs get 'url' type
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    return 'url';
+  }
+
+  // Extract file extension from local files
+  // Remove query params and fragments first
   const path = uri.split('?')[0].split('#')[0];
 
   // Extract extension
   const match = path.match(/\.([a-z0-9]+)$/i);
-  return match ? match[1].toLowerCase() : null;
+  return match ? match[1].toLowerCase() : 'unknown';
 }
 
 /**
@@ -130,25 +137,6 @@ export function determineOrigin(uri, deviceOrigin = 'unknown') {
   return deviceOrigin;
 }
 
-/**
- * Determine display file type for a source URI
- * Reuses extractFileType() to eliminate redundancy
- * @param {string} uri - Source URI
- * @returns {string} - File type for display (e.g., 'pdf', 'url', 'unknown')
- */
-export function determineFileType(uri) {
-  if (!uri || typeof uri !== 'string') {
-    return 'unknown';
-  }
-
-  // Web URLs get 'url' type
-  if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return 'url';
-  }
-
-  // For local files, use extractFileType (which already handles extension extraction)
-  return extractFileType(uri) || 'unknown';
-}
 
 /**
  * Validate URI format

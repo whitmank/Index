@@ -5,7 +5,7 @@ import os from 'os';
 import { getDatabase } from '../db/index.js';
 import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
-import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin, determineFileType } from '../utils/metadata-extractor.js';
+import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
 
 // Author: Claude Code
@@ -133,7 +133,7 @@ export function registerDbHandlers() {
       const sources = rawSources.map(src => ({
         uri: cleanUri(src.uri),
         origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
-        fileType: determineFileType(src.uri),
+        fileType: extractFileType(src.uri),
         added_at: src.added_at || now,
       }));
 
@@ -229,7 +229,7 @@ export function registerDbHandlers() {
         updateObj.sources = rawSources.map(src => ({
           uri: cleanUri(src.uri),
           origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
-          fileType: determineFileType(src.uri),
+          fileType: extractFileType(src.uri),
           added_at: src.added_at || now,
         }));
         updateObj.updated_at = now;
