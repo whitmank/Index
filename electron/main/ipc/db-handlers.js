@@ -205,14 +205,34 @@ export function registerDbHandlers() {
       console.log('[IPC] Update object:', id, objectData);
 
       // Prepare update object
-      const updateObj = {
-        name: objectData.name,
-        user_metadata: objectData.user_metadata || {},
-      };
+      const updateObj = {};
 
-      // If source changed, re-derive source metadata
+      // Handle name updates
+      if (objectData.name !== undefined) {
+        updateObj.name = objectData.name;
+      }
+
+      // Handle user metadata updates
+      if (objectData.user_metadata !== undefined) {
+        updateObj.user_metadata = objectData.user_metadata;
+      }
+
+      // Handle sources array updates (v2 data model)
+      if (objectData.sources !== undefined) {
+        const rawSources = objectData.sources || [];
+        const now = new Date().toISOString();
+        // Clean and ensure all sources have required fields
+        updateObj.sources = rawSources.map(src => ({
+          uri: cleanUri(src.uri),
+          origin: src.origin || 'unknown',
+          added_at: src.added_at || now,
+        }));
+        updateObj.updated_at = now;
+      }
+
+      // If source changed, re-derive source metadata (legacy support)
       if (objectData.source !== undefined) {
-        const cleanedSource = objectData.source ? cleanURI(objectData.source) : null;
+        const cleanedSource = objectData.source ? cleanUri(objectData.source) : null;
         updateObj.source = cleanedSource;
         updateObj.source_metadata = await deriveSourceMetadata(cleanedSource);
       }

@@ -12,8 +12,10 @@ import './ObjectDetailSidebar.css';
 export default function ObjectDetailSidebar({ object, onClose }) {
   const sidebarRef = useRef(null);
   const titleInputRef = useRef(null);
+  const addSourceCardRef = useRef(null);
   const updateObject = useObjectsStore((state) => state.updateObject);
   const deleteObject = useObjectsStore((state) => state.deleteObject);
+  const loadObjects = useObjectsStore((state) => state.loadObjects);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(object.name);
   const [isClosing, setIsClosing] = useState(false);
@@ -22,6 +24,9 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     return saved ? parseInt(saved, 10) : 260;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [isAddingSource, setIsAddingSource] = useState(false);
+  const [deviceOrigin, setDeviceOrigin] = useState(null);
+  const [isDraggingSource, setIsDraggingSource] = useState(false);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -33,6 +38,13 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     setIsResizing(true);
   };
 
+  // Load device origin on mount
+  useEffect(() => {
+    window.electronAPI?.device?.getOrigin().then(origin => {
+      setDeviceOrigin(origin || 'unknown');
+    });
+  }, []);
+
   // Focus title input when entering edit mode
   useEffect(() => {
     if (isEditingTitle && titleInputRef.current) {
@@ -40,6 +52,71 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       titleInputRef.current.select();
     }
   }, [isEditingTitle]);
+
+  // Handle drag and paste on add source card
+  useEffect(() => {
+    if (!isAddingSource || !addSourceCardRef.current) return;
+
+    const card = addSourceCardRef.current;
+
+    const handleDragEnter = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingSource(true);
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleDragLeave = (e) => {
+      if (e.target === card) {
+        setIsDraggingSource(false);
+      }
+    };
+
+    const handleDrop = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingSource(false);
+
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        const filePath = window.electronAPI.fs.getPathForFile(file);
+        const uri = `file://${filePath}`;
+        await addSourceToObject(uri);
+      }
+    };
+
+    const handlePaste = async (e) => {
+      const text = e.clipboardData?.getData('text');
+      if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+        e.preventDefault();
+        await addSourceToObject(text);
+      } else if (e.clipboardData?.files.length > 0) {
+        e.preventDefault();
+        const file = e.clipboardData.files[0];
+        const filePath = window.electronAPI.fs.getPathForFile(file);
+        const uri = `file://${filePath}`;
+        await addSourceToObject(uri);
+      }
+    };
+
+    card.addEventListener('dragenter', handleDragEnter);
+    card.addEventListener('dragover', handleDragOver);
+    card.addEventListener('dragleave', handleDragLeave);
+    card.addEventListener('drop', handleDrop);
+    card.addEventListener('paste', handlePaste);
+
+    return () => {
+      card.removeEventListener('dragenter', handleDragEnter);
+      card.removeEventListener('dragover', handleDragOver);
+      card.removeEventListener('dragleave', handleDragLeave);
+      card.removeEventListener('drop', handleDrop);
+      card.removeEventListener('paste', handlePaste);
+    };
+  }, [isAddingSource]);
 
   // Handle resize
   useEffect(() => {
@@ -168,6 +245,38 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     }
   };
 
+  const addSourceToObject = async (uri) => {
+    try {
+      const objectId = object.id.id || object.id;
+      const newSources = [
+        ...(object.sources || []),
+        {
+          uri,
+          origin: deviceOrigin || 'unknown',
+          added_at: new Date().toISOString(),
+        },
+      ];
+
+      await updateObject(objectId, { sources: newSources });
+      setIsAddingSource(false);
+      await loadObjects();
+    } catch (error) {
+      console.error('Error adding source:', error);
+    }
+  };
+
+  const handleBrowseFile = async () => {
+    try {
+      const result = await window.electronAPI.fs.pickFile();
+      if (result.success && result.filePath) {
+        const uri = `file://${result.filePath}`;
+        await addSourceToObject(uri);
+      }
+    } catch (error) {
+      console.error('Error picking file:', error);
+    }
+  };
+
 
   return (
     <div className={`sidebar-overlay ${isClosing ? 'closing' : ''}`} onClick={handleBackdropClick}>
@@ -199,11 +308,11 @@ export default function ObjectDetailSidebar({ object, onClose }) {
 
         <div className="sidebar-content">
           {/* Sources */}
-          {object.sources && object.sources.length > 0 && (
+          {(object.sources && object.sources.length > 0) || isAddingSource ? (
             <div className="sidebar-section">
               <div className="sidebar-section-title">SOURCE</div>
               <div className="sources-list">
-                {object.sources.map((source, index) => {
+                {object.sources?.map((source, index) => {
                   // Extract file extension or determine type
                   let fileType = 'unknown';
                   if (source.uri.startsWith('http://') || source.uri.startsWith('https://')) {
@@ -230,9 +339,40 @@ export default function ObjectDetailSidebar({ object, onClose }) {
                     </button>
                   );
                 })}
+
+                {/* Add source card */}
+                {isAddingSource && (
+                  <div
+                    ref={addSourceCardRef}
+                    className={`source-add-card ${isDraggingSource ? 'dragging' : ''}`}
+                    tabIndex={0}
+                  >
+                    <div className="source-add-placeholder">
+                      Drop file or paste URL here
+                    </div>
+                    <button
+                      className="source-add-browse-btn"
+                      onClick={handleBrowseFile}
+                      title="Browse for a file"
+                    >
+                      📁 Browse file
+                    </button>
+                  </div>
+                )}
+
+                {/* Add source button */}
+                {!isAddingSource && (
+                  <button
+                    className="source-add-btn"
+                    onClick={() => setIsAddingSource(true)}
+                    title="Add another source"
+                  >
+                    + Add source
+                  </button>
+                )}
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Tags */}
           <TagAssignmentSection objectId={object.id.id || object.id} />
