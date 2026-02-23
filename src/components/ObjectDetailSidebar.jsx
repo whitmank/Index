@@ -201,6 +201,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
           {/* Sources */}
           {object.sources && object.sources.length > 0 && (
             <div className="sidebar-section">
+              <div className="sidebar-section-title">SOURCE</div>
               <div className="sources-list">
                 {object.sources.map((source, index) => {
                   // Extract file extension or determine type
