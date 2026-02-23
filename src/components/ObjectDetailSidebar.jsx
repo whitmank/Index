@@ -27,6 +27,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const [isAddingSource, setIsAddingSource] = useState(false);
   const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [isDraggingSource, setIsDraggingSource] = useState(false);
+  const [sources, setSources] = useState(object.sources || []);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -44,6 +45,11 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       setDeviceOrigin(origin || 'unknown');
     });
   }, []);
+
+  // Sync local sources when object prop changes
+  useEffect(() => {
+    setSources(object.sources || []);
+  }, [object.id]);
 
   // Focus title input when entering edit mode
   useEffect(() => {
@@ -183,7 +189,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Snapshot object data for undo
       const snapshot = {
         name: object.name,
-        sources: object.sources,
+        sources: sources,
       };
 
       // Get user tags (non-system) assigned to this object
@@ -218,7 +224,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   };
 
   const handleOpenSource = () => {
-    const uri = object.sources?.[0]?.uri;
+    const uri = sources[0]?.uri;
     if (uri) {
       window.electronAPI?.openSource?.(uri);
     }
@@ -251,21 +257,18 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const addSourceToObject = async (uri) => {
     try {
       const objectId = object.id.id || object.id;
+      const newSource = {
+        uri,
+        origin: deviceOrigin || 'unknown',
+        added_at: new Date().toISOString(),
+      };
 
-      // Origin will be determined by backend (web for URLs, device for files)
-      // UI just passes the device origin as context
-      const newSources = [
-        ...(object.sources || []),
-        {
-          uri,
-          origin: deviceOrigin || 'unknown',
-          added_at: new Date().toISOString(),
-        },
-      ];
+      // Update local state immediately for instant feedback
+      const updatedSources = [...sources, newSource];
+      setSources(updatedSources);
 
-      await updateObject(objectId, { sources: newSources });
-      setIsAddingSource(false);
-      await loadObjects();
+      // Send backend update asynchronously
+      await updateObject(objectId, { sources: updatedSources });
     } catch (error) {
       console.error('Error adding source:', error);
     }
@@ -286,10 +289,13 @@ export default function ObjectDetailSidebar({ object, onClose }) {
   const handleDeleteSource = async (index) => {
     try {
       const objectId = object.id.id || object.id;
-      const newSources = object.sources.filter((_, i) => i !== index);
+      const newSources = sources.filter((_, i) => i !== index);
 
+      // Update local state immediately
+      setSources(newSources);
+
+      // Send backend update asynchronously
       await updateObject(objectId, { sources: newSources });
-      await loadObjects();
     } catch (error) {
       console.error('Error deleting source:', error);
     }
@@ -326,11 +332,11 @@ export default function ObjectDetailSidebar({ object, onClose }) {
 
         <div className="sidebar-content">
           {/* Sources */}
-          {(object.sources && object.sources.length > 0) || isAddingSource ? (
+          {(sources && sources.length > 0) || isAddingSource ? (
             <div className="sidebar-section">
               <div className="sidebar-section-title">SOURCE</div>
               <div className="sources-list">
-                {object.sources?.map((source, index) => {
+                {sources?.map((source, index) => {
                   // Use fileType from source (determined by backend)
                   const fileType = source.fileType || 'unknown';
 
