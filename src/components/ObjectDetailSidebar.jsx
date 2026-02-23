@@ -58,6 +58,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     if (!isAddingSource || !addSourceCardRef.current) return;
 
     const card = addSourceCardRef.current;
+    // Focus the card so paste events are captured
+    card.focus();
 
     const handleDragEnter = (e) => {
       e.preventDefault();
@@ -90,12 +92,13 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     };
 
     const handlePaste = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
       const text = e.clipboardData?.getData('text');
       if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-        e.preventDefault();
         await addSourceToObject(text);
       } else if (e.clipboardData?.files.length > 0) {
-        e.preventDefault();
         const file = e.clipboardData.files[0];
         const filePath = window.electronAPI.fs.getPathForFile(file);
         const uri = `file://${filePath}`;
