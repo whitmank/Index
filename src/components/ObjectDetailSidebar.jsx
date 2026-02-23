@@ -280,6 +280,18 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     }
   };
 
+  const handleDeleteSource = async (index) => {
+    try {
+      const objectId = object.id.id || object.id;
+      const newSources = object.sources.filter((_, i) => i !== index);
+
+      await updateObject(objectId, { sources: newSources });
+      await loadObjects();
+    } catch (error) {
+      console.error('Error deleting source:', error);
+    }
+  };
+
 
   return (
     <div className={`sidebar-overlay ${isClosing ? 'closing' : ''}`} onClick={handleBackdropClick}>
@@ -328,18 +340,26 @@ export default function ObjectDetailSidebar({ object, onClose }) {
                   }
 
                   return (
-                    <button
-                      key={index}
-                      className="source-item"
-                      onClick={() => {
-                        if (source.uri) {
-                          window.electronAPI?.openSource?.(source.uri);
-                        }
-                      }}
-                      title={`Open source: ${source.uri}`}
-                    >
-                      {source.origin} [{fileType}]
-                    </button>
+                    <div key={index} className="source-item-wrapper">
+                      <button
+                        className="source-item"
+                        onClick={() => {
+                          if (source.uri) {
+                            window.electronAPI?.openSource?.(source.uri);
+                          }
+                        }}
+                        title={`Open source: ${source.uri}`}
+                      >
+                        {source.origin} [{fileType}]
+                      </button>
+                      <button
+                        className="source-item-delete"
+                        onClick={() => handleDeleteSource(index)}
+                        title="Remove this source"
+                      >
+                        ×
+                      </button>
+                    </div>
                   );
                 })}
 

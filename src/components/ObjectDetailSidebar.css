@@ -175,7 +175,14 @@
   gap: 6px;
 }
 
+.source-item-wrapper {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
 .source-item {
+  flex: 1;
   padding: 8px 12px;
   background: #ffffff;
   border: 1px solid #e0dcd8;
@@ -201,6 +208,30 @@
 .source-item:active {
   background: #f3ede7;
   color: #333333;
+}
+
+.source-item-delete {
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e0dcd8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+  color: #999999;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.source-item-delete:hover {
+  background: #faf8f6;
+  border-color: #d8d4cf;
+  color: #d9534f;
+}
+
+.source-item-delete:active {
+  background: #f3ede7;
+  color: #c9423f;
 }
 
 /* Add source button */
