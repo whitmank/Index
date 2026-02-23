@@ -81,6 +81,11 @@ export default function App() {
   // Use filtered objects if a collection is active, otherwise use all objects
   const displayObjects = filteredObjects !== null ? filteredObjects : objects;
 
+  // Check if selected object still exists in store
+  const selectedObjectExists = selectedNodeId && objects.some(
+    (obj) => obj.id === selectedNodeId || obj.id?.id === selectedNodeId
+  );
+
   // Load objects on mount and setup file watcher
   useEffect(() => {
     loadObjects();
@@ -215,7 +220,7 @@ export default function App() {
             onNodeClick={setSelectedNodeId}
             selectedNodeId={selectedNodeId}
           />
-          {selectedNodeId && (
+          {selectedObjectExists && (
             <ObjectDetailSidebar
               objectId={selectedNodeId}
               onClose={() => setSelectedNodeId(null)}

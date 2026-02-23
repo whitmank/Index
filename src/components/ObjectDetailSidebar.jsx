@@ -11,14 +11,9 @@ import './ObjectDetailSidebar.css';
  */
 export default function ObjectDetailSidebar({ objectId, onClose }) {
   // Fetch object directly from store by ID, bypassing parent prop dependency
+  // Parent guarantees the object exists before rendering this component
   const objects = useObjectsStore((state) => state.objects);
   const object = objects.find((obj) => obj.id === objectId || obj.id?.id === objectId);
-
-  // If object was deleted while sidebar was open, close it
-  if (!object) {
-    setTimeout(onClose, 0);
-    return null;
-  }
   const sidebarRef = useRef(null);
   const titleInputRef = useRef(null);
   const addSourceCardRef = useRef(null);
