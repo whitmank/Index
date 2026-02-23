@@ -1,10 +1,54 @@
 import { dialog, BrowserWindow, ipcMain } from 'electron';
 import { isDeviceNamed, setDeviceName } from '../config/device.js';
+import { readdir, readFile } from 'fs/promises';
+import { join } from 'path';
+import { homedir } from 'os';
 
 // Author: Claude Code
 // Device naming dialog - prompts user to name device on first run
 
 let deviceNameResult = null;
+
+/**
+ * Check if a device name is already in use by existing objects
+ * @param {string} name Device name to check
+ * @returns {Promise<boolean>} true if name is already in use
+ */
+async function isDeviceNameInUse(name) {
+  try {
+    const objectsDir = join(homedir(), '.index', 'objects');
+    const files = await readdir(objectsDir);
+
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+
+      try {
+        const content = await readFile(join(objectsDir, file), 'utf-8');
+        const obj = JSON.parse(content);
+
+        // Check if any source has this origin
+        if (obj.sources && Array.isArray(obj.sources)) {
+          const hasOrigin = obj.sources.some(source => source.origin === name);
+          if (hasOrigin) {
+            return true;
+          }
+        }
+      } catch (err) {
+        // Skip files that can't be parsed
+        console.warn(`[Device Dialog] Could not parse object file ${file}:`, err.message);
+      }
+    }
+
+    return false;
+  } catch (err) {
+    // If objects directory doesn't exist yet, name is not in use
+    if (err.code === 'ENOENT') {
+      return false;
+    }
+    console.error('[Device Dialog] Error checking device name:', err);
+    return false;
+  }
+}
 
 /**
  * Show device naming dialog if needed
@@ -29,10 +73,31 @@ export async function ensureDeviceNamed() {
     return false;
   }
 
+  const trimmedName = deviceName.trim();
+
+  // Check for invalid names
+  if (trimmedName.length > 50) {
+    await dialog.showErrorBox(
+      'Invalid Name',
+      'Device name must be 50 characters or less.'
+    );
+    return ensureDeviceNamed(); // Retry
+  }
+
+  // Check if device name is already in use
+  const nameInUse = await isDeviceNameInUse(trimmedName);
+  if (nameInUse) {
+    await dialog.showErrorBox(
+      'Name Already Used',
+      `The device name "${trimmedName}" is already in use by another device. Please choose a different name.`
+    );
+    return ensureDeviceNamed(); // Retry
+  }
+
   // Save device name
   try {
-    await setDeviceName(deviceName.trim());
-    console.log(`[Device Dialog] Device named successfully: ${deviceName}`);
+    await setDeviceName(trimmedName);
+    console.log(`[Device Dialog] Device named successfully: ${trimmedName}`);
     return true;
   } catch (error) {
     console.error('[Device Dialog] Failed to set device name:', error);
