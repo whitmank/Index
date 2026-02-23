@@ -69,9 +69,8 @@ function showDeviceNamePrompt() {
       resizable: false,
       show: false,
       webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: undefined,
+        nodeIntegration: true,
+        contextIsolation: false,
       }
     });
 
@@ -158,16 +157,19 @@ function showDeviceNamePrompt() {
           </div>
         </div>
         <script>
+          const { ipcRenderer } = require('electron');
           const input = document.getElementById('deviceName');
           const [cancelBtn, saveBtn] = document.querySelectorAll('button');
 
           function save() {
             const value = input.value.trim() || null;
-            window.electronAPI.device.submitName(value);
+            ipcRenderer.send('device:submit-name', value);
+            window.close();
           }
 
           function cancel() {
-            window.electronAPI.device.submitName(null);
+            ipcRenderer.send('device:submit-name', null);
+            window.close();
           }
 
           saveBtn.addEventListener('click', save);
