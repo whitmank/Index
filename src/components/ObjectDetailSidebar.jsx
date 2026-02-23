@@ -9,7 +9,16 @@ import './ObjectDetailSidebar.css';
  *
  * Author: Claude Code (Anthropic)
  */
-export default function ObjectDetailSidebar({ object, onClose }) {
+export default function ObjectDetailSidebar({ objectId, onClose }) {
+  // Fetch object directly from store by ID, bypassing parent prop dependency
+  const objects = useObjectsStore((state) => state.objects);
+  const object = objects.find((obj) => obj.id === objectId || obj.id?.id === objectId);
+
+  // If object was deleted while sidebar was open, close it
+  if (!object) {
+    setTimeout(onClose, 0);
+    return null;
+  }
   const sidebarRef = useRef(null);
   const titleInputRef = useRef(null);
   const addSourceCardRef = useRef(null);
@@ -233,13 +242,7 @@ export default function ObjectDetailSidebar({ object, onClose }) {
     const trimmedTitle = titleValue.trim();
     if (trimmedTitle && trimmedTitle !== object.name) {
       const objectId = object.id.id || object.id;
-
-      // Prevent file watcher from reloading objects on this internal update
-      window._skipNextFileWatcherReload = true;
-
       await window.electronAPI.db.updateObject(objectId, { name: trimmedTitle });
-
-      // Flag will be reset by file watcher when it detects the change
     } else {
       setTitleValue(object.name);
     }
@@ -272,13 +275,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       const updatedSources = [...sources, newSource];
       setSources(updatedSources);
 
-      // Prevent file watcher from reloading objects on this internal update
-      window._skipNextFileWatcherReload = true;
-
-      // Send backend update asynchronously (via IPC, not Zustand)
+      // Send backend update asynchronously (via IPC)
       await window.electronAPI.db.updateObject(objectId, { sources: updatedSources });
-
-      // Flag will be reset by file watcher when it detects the change
     } catch (error) {
       console.error('Error adding source:', error);
     }
@@ -304,13 +302,8 @@ export default function ObjectDetailSidebar({ object, onClose }) {
       // Update local state immediately
       setSources(newSources);
 
-      // Prevent file watcher from reloading objects on this internal update
-      window._skipNextFileWatcherReload = true;
-
-      // Send backend update asynchronously (via IPC, not Zustand)
+      // Send backend update asynchronously (via IPC)
       await window.electronAPI.db.updateObject(objectId, { sources: newSources });
-
-      // Flag will be reset by file watcher when it detects the change
     } catch (error) {
       console.error('Error deleting source:', error);
     }

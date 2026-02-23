@@ -80,21 +80,12 @@ export default function App() {
 
   // Use filtered objects if a collection is active, otherwise use all objects
   const displayObjects = filteredObjects !== null ? filteredObjects : objects;
-  const selectedObject = displayObjects.find((obj) => obj.id === selectedNodeId);
 
   // Load objects on mount and setup file watcher
   useEffect(() => {
     loadObjects();
     // Listen for file system changes
     window.electronAPI?.onObjectsChanged(() => {
-      // Check and reset flag (handle race condition)
-      const skipThisEvent = window._skipNextFileWatcherReload;
-      window._skipNextFileWatcherReload = false;
-
-      if (skipThisEvent) {
-        console.log('File change detected, but skipping reload (internal update)');
-        return;
-      }
       console.log('File change detected, reloading objects...');
       loadObjects();
     });
@@ -224,9 +215,9 @@ export default function App() {
             onNodeClick={setSelectedNodeId}
             selectedNodeId={selectedNodeId}
           />
-          {selectedObject && (
+          {selectedNodeId && (
             <ObjectDetailSidebar
-              object={selectedObject}
+              objectId={selectedNodeId}
               onClose={() => setSelectedNodeId(null)}
             />
           )}
