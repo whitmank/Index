@@ -9,6 +9,9 @@ import CollectionsSidebar from './components/CollectionsSidebar';
 import SettingsModal from './components/SettingsModal';
 import './App.css';
 
+// Helper to normalize object ID (handles both string and {id} formats)
+const normalizeId = (id) => (typeof id === 'string' ? id : id?.id);
+
 // Helper function to derive object name from source
 function getNameFromSource(source) {
   // Remove extension if it's a file path
@@ -81,17 +84,11 @@ export default function App() {
   // Use filtered objects if a collection is active, otherwise use all objects
   const displayObjects = filteredObjects !== null ? filteredObjects : objects;
 
-  // Check if selected object still exists in store
-  const selectedObjectExists = selectedNodeId && objects.some(
-    (obj) => obj.id === selectedNodeId || obj.id?.id === selectedNodeId
-  );
-
   // Load objects on mount and setup file watcher
   useEffect(() => {
     loadObjects();
     // Listen for file system changes
     window.electronAPI?.onObjectsChanged(() => {
-      console.log('File change detected, reloading objects...');
       loadObjects();
     });
   }, [loadObjects]);
@@ -207,7 +204,7 @@ export default function App() {
         </div>
       )}
       <CollectionsSidebar />
-      {loading ? (
+      {loading && objects.length === 0 ? (
         <div className="loading">Loading...</div>
       ) : objects.length === 0 ? (
         <div className="empty-state">No objects yet</div>
@@ -220,8 +217,9 @@ export default function App() {
             onNodeClick={setSelectedNodeId}
             selectedNodeId={selectedNodeId}
           />
-          {selectedObjectExists && (
+          {selectedNodeId && (
             <ObjectDetailSidebar
+              key={`sidebar-${normalizeId(selectedNodeId)}`}
               objectId={selectedNodeId}
               onClose={() => setSelectedNodeId(null)}
             />

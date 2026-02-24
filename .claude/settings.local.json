@@ -25,7 +25,8 @@
       "Bash(pkill:*)",
       "Bash(node -c:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Skill(commit-commands:commit)"
     ]
   }
 }

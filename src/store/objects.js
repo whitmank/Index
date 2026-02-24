@@ -111,23 +111,4 @@ export const useObjectsStore = create((set) => ({
    * Clear error
    */
   clearError: () => set({ error: null }),
-
-  /**
-   * Listen for file system changes and reload
-   * Called from React component on mount
-   */
-  setupFileWatcher: () => {
-    if (!window.electronAPI) return;
-
-    // Listen for file change events from main process
-    const handleObjectsChanged = () => {
-      console.log('[Store] Objects changed via file watcher, reloading...');
-      useObjectsStore.getState().loadObjects();
-    };
-
-    // Register listener (this is simplified - in real app would use proper IPC listener)
-    if (window.electronAPI.onObjectsChanged) {
-      window.electronAPI.onObjectsChanged(handleObjectsChanged);
-    }
-  },
 }));

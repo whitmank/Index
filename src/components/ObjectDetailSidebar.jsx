@@ -9,18 +9,31 @@ import './ObjectDetailSidebar.css';
  *
  * Author: Claude Code (Anthropic)
  */
+
+// Helper to normalize object ID (handles both string and {id} formats)
+const normalizeId = (id) => (typeof id === 'string' ? id : id?.id);
+
 export default function ObjectDetailSidebar({ objectId, onClose }) {
   // Fetch object directly from store by ID, bypassing parent prop dependency
-  // Parent guarantees the object exists before rendering this component
   const objects = useObjectsStore((state) => state.objects);
-  const object = objects.find((obj) => obj.id === objectId || obj.id?.id === objectId);
+  const foundObject = objects.find((obj) => normalizeId(obj.id) === normalizeId(objectId));
+
+  // Cache the last valid object to persist through reload gaps
+  const cachedObjectRef = useRef(foundObject);
+  if (foundObject) {
+    cachedObjectRef.current = foundObject;
+  }
+
+  // Use cached object to prevent unmounting during transient gaps
+  const object = foundObject || cachedObjectRef.current;
+
+  // All hooks must be initialized first (before any early returns)
   const sidebarRef = useRef(null);
   const titleInputRef = useRef(null);
   const addSourceCardRef = useRef(null);
   const deleteObject = useObjectsStore((state) => state.deleteObject);
-  const loadObjects = useObjectsStore((state) => state.loadObjects);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [titleValue, setTitleValue] = useState(object.name);
+  const [titleValue, setTitleValue] = useState(object?.name || '');
   const [isClosing, setIsClosing] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('rightSidebarWidth');
@@ -30,7 +43,7 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
   const [isAddingSource, setIsAddingSource] = useState(false);
   const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [isDraggingSource, setIsDraggingSource] = useState(false);
-  const [sources, setSources] = useState(object.sources || []);
+  const [sources, setSources] = useState(object?.sources || []);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -51,8 +64,10 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
 
   // Sync local sources when object prop changes
   useEffect(() => {
-    setSources(object.sources || []);
-  }, [object.id]);
+    if (object) {
+      setSources(object.sources || []);
+    }
+  }, [object?.id]);
 
   // Focus title input when entering edit mode
   useEffect(() => {
@@ -186,7 +201,7 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
 
   const handleDelete = async () => {
     if (window.confirm(`Delete object "${object.name}"?`)) {
-      const objectId = object.id.id || object.id;
+      const objectId = normalizeId(object.id);
       const push = useHistoryStore.getState().push;
 
       // Snapshot object data for undo
@@ -226,17 +241,10 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
     }
   };
 
-  const handleOpenSource = () => {
-    const uri = sources[0]?.uri;
-    if (uri) {
-      window.electronAPI?.openSource?.(uri);
-    }
-  };
-
   const handleSaveTitleEdit = async () => {
     const trimmedTitle = titleValue.trim();
     if (trimmedTitle && trimmedTitle !== object.name) {
-      const objectId = object.id.id || object.id;
+      const objectId = normalizeId(object.id);
       await window.electronAPI.db.updateObject(objectId, { name: trimmedTitle });
     } else {
       setTitleValue(object.name);
@@ -259,7 +267,7 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
 
   const addSourceToObject = async (uri) => {
     try {
-      const objectId = object.id.id || object.id;
+      const objectId = normalizeId(object.id);
       const newSource = {
         uri,
         origin: deviceOrigin || 'unknown',
@@ -291,7 +299,7 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
 
   const handleDeleteSource = async (index) => {
     try {
-      const objectId = object.id.id || object.id;
+      const objectId = normalizeId(object.id);
       const newSources = sources.filter((_, i) => i !== index);
 
       // Update local state immediately
@@ -402,7 +410,7 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
           ) : null}
 
           {/* Tags */}
-          <TagAssignmentSection objectId={object.id.id || object.id} />
+          <TagAssignmentSection objectId={normalizeId(object.id)} />
 
           {/* Delete */}
           <div className="sidebar-section sidebar-section-delete">
