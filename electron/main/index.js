@@ -2,8 +2,10 @@ import { app, globalShortcut } from 'electron';
 import WindowManagerFactory from './window-manager/index.js';
 import { startDatabase, stopDatabase, getDatabase } from './db/index.js';
 import { registerDbHandlers, setMainWindow, broadcastObjectsChanged } from './ipc/db-handlers.js';
+import { registerWindowHandlers, setProfileChangeCallback } from './ipc/window-handlers.js';
 import { startObjectsWatcher, stopObjectsWatcher } from './watchers/objects.js';
 import { initializeDeviceId } from './config/device.js';
+import { loadWindowSettings } from './config/window-settings.js';
 import { ensureDeviceNamed } from './windows/device-naming-dialog.js';
 import * as deviceHandlers from './ipc/device-handlers.js';
 import path from 'path';
@@ -14,44 +16,81 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow;
 let windowManager;
 let dbStarted = false;
+let windowConfig; // saved so we can recreate the window with the same base config
 
-function createWindow() {
-  // Get platform-specific window manager
-  windowManager = new WindowManagerFactory();
+const toggleHotkey = process.platform === 'darwin' ? 'cmd+`' : 'ctrl+`';
 
-  // Create window with platform-specific settings
-  mainWindow = windowManager.createWindow({
-    devServerUrl: process.env.VITE_DEV_SERVER_URL,
-    prodPath: path.join(__dirname, '../../dist/index.html'),
-  });
+function applyDockVisibility(profile) {
+  if (process.platform === 'darwin' && app.dock) {
+    if (profile === 'window') {
+      app.dock.show();
+    } else {
+      app.dock.hide();
+    }
+  }
+}
 
-  // Setup platform-specific behaviors (e.g., space-change detection on macOS)
-  windowManager.setupPlatformBehavior(() => {
-    console.log('[Window] Space/desktop changed, window was hidden');
-  });
-
-  // Toggle window visibility on Cmd+` (or Ctrl+`)
-  const toggleHotkey = process.platform === 'darwin' ? 'cmd+`' : 'ctrl+`';
+function registerToggleShortcut() {
+  globalShortcut.unregister(toggleHotkey);
   globalShortcut.register(toggleHotkey, () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     if (mainWindow.isVisible()) {
       mainWindow.hide();
     } else {
       mainWindow.show();
+      mainWindow.focus();
     }
+  });
+}
+
+function createWindow(profile) {
+  windowManager = new WindowManagerFactory();
+  mainWindow = windowManager.createWindow({ ...windowConfig, profile });
+
+  windowManager.setupPlatformBehavior(() => {
+    console.log('[Window] Space/desktop changed');
   });
 
   mainWindow.on('closed', () => {
-    globalShortcut.unregister(toggleHotkey);
     mainWindow = null;
   });
+
+  registerToggleShortcut();
+}
+
+async function recreateWindow(profile) {
+  console.log(`[Window] Recreating window with profile: ${profile}`);
+
+  // Unregister shortcut before destroying window
+  globalShortcut.unregister(toggleHotkey);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.destroy();
+    mainWindow = null;
+  }
+
+  applyDockVisibility(profile);
+  createWindow(profile);
+  setMainWindow(mainWindow);
+
+  // Show the window immediately after a profile switch so the user sees the result
+  mainWindow.show();
+  if (profile === 'window') {
+    mainWindow.focus();
+  }
 }
 
 app.on('ready', async () => {
   try {
-    // Hide from macOS dock
-    if (process.platform === 'darwin' && app.dock) {
-      app.dock.hide();
-    }
+    // Load window profile before creating window
+    const { profile } = loadWindowSettings();
+    applyDockVisibility(profile);
+
+    // Store base config for later recreation
+    windowConfig = {
+      devServerUrl: process.env.VITE_DEV_SERVER_URL,
+      prodPath: path.join(__dirname, '../../dist/index.html'),
+    };
 
     // Step 1: Initialize device (load or create ID)
     console.log('[App] Initializing device...');
@@ -62,7 +101,6 @@ app.on('ready', async () => {
     console.log('[App] Checking device name...');
     const deviceNamed = await ensureDeviceNamed();
     if (!deviceNamed) {
-      // User cancelled naming dialog, quit app
       console.log('[App] User cancelled device naming, quitting');
       app.quit();
       return;
@@ -73,14 +111,15 @@ app.on('ready', async () => {
     await startDatabase();
     dbStarted = true;
 
-    // Register IPC handlers (including device handlers)
+    // Register IPC handlers
     registerDbHandlers();
+    registerWindowHandlers();
+    setProfileChangeCallback(recreateWindow);
 
     // Create window
     console.log('[App] Creating main window...');
-    createWindow();
+    createWindow(profile);
 
-    // Set window for IPC broadcasting
     setMainWindow(mainWindow);
 
     // Start file watcher for live updates
@@ -97,7 +136,6 @@ app.on('ready', async () => {
 });
 
 app.on('window-all-closed', () => {
-  // On macOS, apps stay active until user quits explicitly
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -110,7 +148,6 @@ app.on('before-quit', async (event) => {
       stopObjectsWatcher();
       await stopDatabase();
       dbStarted = false;
-      // Cleanup platform-specific window resources
       if (windowManager) {
         windowManager.cleanup();
       }
@@ -123,8 +160,8 @@ app.on('before-quit', async (event) => {
 });
 
 app.on('activate', () => {
-  // On macOS, re-create window when dock icon is clicked
   if (mainWindow === null) {
-    createWindow();
+    const { profile } = loadWindowSettings();
+    createWindow(profile);
   }
 });

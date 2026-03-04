@@ -1,7 +1,7 @@
 {
   "name": "index-rebuild",
   "productName": "Index",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Personal information indexing and visualization system - Phase 0",
   "main": "electron/main/index.js",
   "type": "module",

@@ -110,6 +110,35 @@
   color: #333;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e0dcd8;
+  padding: 0 24px;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+  color: #555;
+}
+
+.settings-tab.active {
+  color: #333;
+  border-bottom-color: #333;
+}
+
 .settings-content {
   padding: 24px;
   display: flex;
@@ -172,6 +201,59 @@
   padding: 8px 10px;
   border-radius: 4px;
   border: 1px solid #e8e8e8;
+}
+
+/* Window Profile Options */
+.window-profile-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.window-profile-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid #e0dcd8;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.window-profile-option:hover:not(:disabled) {
+  border-color: #bbb;
+  background: #faf9f7;
+}
+
+.window-profile-option.active {
+  border-color: #333;
+  background: #faf9f7;
+}
+
+.window-profile-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.window-profile-option-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.window-profile-option.active .window-profile-option-label::after {
+  content: ' ✓';
+  font-weight: 400;
+  color: #666;
+}
+
+.window-profile-option-desc {
+  font-size: 0.85rem;
+  color: #888;
+  line-height: 1.4;
 }
 
 /* Tag Type Form */

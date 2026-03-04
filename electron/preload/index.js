@@ -41,5 +41,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // Open file or URL
   openSource: (source) => ipcRenderer.invoke('app:openSource', source),
-  version: '0.1.0',
+  // Window behavior profile
+  window: {
+    getProfile: () => ipcRenderer.invoke('window:getProfile'),
+    setProfile: (profile) => ipcRenderer.invoke('window:setProfile', profile),
+  },
 });
