@@ -36,7 +36,6 @@ export function broadcastObjectsChanged(objects) {
  * Call this after both Electron and database are ready
  */
 export function registerDbHandlers() {
-  console.log('[IPC] Registering database handlers...');
 
   /**
    * Execute a read query (SELECT)
@@ -49,7 +48,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Query:', queryString);
       const result = await db.query(queryString);
       return { success: true, data: result };
     } catch (error) {
@@ -70,7 +68,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Mutation:', queryString);
       const result = await db.query(queryString);
 
       // Persist to disk after mutation
@@ -99,10 +96,8 @@ export function registerDbHandlers() {
         throw new Error(`Invalid table: ${table}`);
       }
 
-      console.log('[IPC] GetAll:', table);
       const result = await db.query(`SELECT * FROM ${table}`);
       const data = (Array.isArray(result) && result.length > 0) ? result[0] : [];
-      console.log('[IPC] Loaded', data.length, 'items from', table);
 
       return { success: true, data };
     } catch (error) {
@@ -122,7 +117,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Create object:', objectData);
 
       // Accept sources array (can be empty)
       const rawSources = objectData.sources || [];
@@ -173,7 +167,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Create tag:', tagData);
       const tagRecord = {
         name: tagData.name,
         type: tagData.type || null,
@@ -205,7 +198,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Update object:', id, objectData);
 
       // Prepare update object
       const updateObj = {};
@@ -267,7 +259,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Assign tag:', { objectId, tagId });
 
       // Check if object and tag exist
       const objResult = await db.query(`SELECT * FROM objects:${objectId}`);
@@ -322,7 +313,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Unassign tag:', { objectId, tagId });
 
       // Find and delete the assignment
       const result = await db.query(
@@ -357,7 +347,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Get tags for object:', objectId);
 
       // Get all tag assignments for this object
       const result = await db.query(
@@ -365,7 +354,6 @@ export function registerDbHandlers() {
       );
 
       const assignmentIds = (result[0] || []).map(a => a.tag_id);
-      console.log('[IPC] Found', assignmentIds.length, 'tags for object');
 
       if (assignmentIds.length === 0) {
         return { success: true, data: [] };
@@ -401,7 +389,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Get objects for tag:', tagId);
 
       // Get all object assignments for this tag
       const result = await db.query(
@@ -438,7 +425,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Update tag:', tagId, tagData);
 
       const updateObj = {};
       if (tagData.name !== undefined) updateObj.name = tagData.name;
@@ -475,7 +461,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Delete tag:', tagId);
 
       // Delete all assignments for this tag
       await db.query(`DELETE FROM tag_assignments WHERE tag_id = '${tagId}'`);
@@ -556,13 +541,11 @@ export function registerDbHandlers() {
         updated_at: now,
       };
 
-      console.log('[IPC] Create collection:', name);
 
       const result = await db.query(
         `CREATE collections CONTENT ${JSON.stringify(collectionRecord)}`
       );
 
-      console.log('[IPC] Created collection result:', result);
 
       // Persist after creation
       await persistToIndex(db);
@@ -647,7 +630,6 @@ export function registerDbHandlers() {
       }
       if (order !== undefined) updateObj.order = order;
 
-      console.log('[IPC] Update collection:', plainCollectionId, updateObj);
 
       const result = await db.query(
         `UPDATE collections:${plainCollectionId} MERGE ${JSON.stringify(updateObj)}`
@@ -680,7 +662,6 @@ export function registerDbHandlers() {
         plainCollectionId = collectionId.id;
       }
 
-      console.log('[IPC] Delete collection:', plainCollectionId);
 
       // Delete the collection
       const result = await db.query(`DELETE FROM collections:${plainCollectionId}`);
@@ -796,12 +777,6 @@ export function registerDbHandlers() {
         return true;
       });
 
-      console.log(`[IPC] Evaluate collection: found ${matchingObjects.length} matching objects`);
-      console.log('[IPC] Matching objects:', matchingObjects.map((o) => ({
-        id: (o.id && o.id.id) || o.id,
-        name: o.name,
-        tags: Array.from(objectTagMap.get(((o.id && o.id.id) || o.id).split(':')[1]) || new Set()),
-      })));
       return { success: true, data: matchingObjects };
     } catch (error) {
       console.error('[IPC] Evaluate collection error:', error);
@@ -844,7 +819,6 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-      console.log('[IPC] Repairing system tags for object:', objectId);
 
       // Get the object
       const objectResult = await db.query(`SELECT * FROM objects:${objectId}`);
@@ -856,7 +830,6 @@ export function registerDbHandlers() {
 
       const sources = object.sources || [];
       if (sources.length === 0) {
-        console.log('[IPC] Object has no sources, skipping system tag repair');
         return { success: true, data: { repaired: [] } };
       }
 
@@ -884,11 +857,9 @@ export function registerDbHandlers() {
       const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
 
       if (missingTypes.length === 0) {
-        console.log('[IPC] All system tags present, no repair needed');
         return { success: true, data: { repaired: [] } };
       }
 
-      console.log('[IPC] Repairing missing system tags:', missingTypes);
 
       const repaired = [];
 
@@ -908,7 +879,6 @@ export function registerDbHandlers() {
                 tag_id: tagId,
               });
               repaired.push({ type, value: mediaType || null });
-              console.log(`[IPC] Restored missing system tag: ${type}:${mediaType || '(empty)'}`);
             }
           }
         } else if (type === 'file_type') {
@@ -926,7 +896,6 @@ export function registerDbHandlers() {
                   tag_id: tagId,
                 });
                 repaired.push({ type, value: fileType });
-                console.log(`[IPC] Restored missing system tag: ${type}:${fileType}`);
               }
             }
           }
@@ -945,7 +914,6 @@ export function registerDbHandlers() {
                   tag_id: tagId,
                 });
                 repaired.push({ type, value: origin });
-                console.log(`[IPC] Restored missing system tag: ${type}:${origin}`);
               }
             }
           }
@@ -1020,7 +988,6 @@ export function registerDbHandlers() {
 
       // Return the first selected file
       const filePath = result.filePaths[0];
-      console.log('[IPC] File selected:', filePath);
       return { success: true, filePath };
     } catch (error) {
       console.error('[IPC] File picker error:', error);
@@ -1038,10 +1005,7 @@ export function registerDbHandlers() {
  */
 async function assignSystemTagsFromSources(db, objectId, sources) {
   try {
-    if (!sources || sources.length === 0) {
-      console.log(`[IPC] Object ${objectId} has no sources, skipping system tag assignment`);
-      return;
-    }
+    if (!sources || sources.length === 0) return;
 
     // 1. media_type — object-level, from first source only
     const mediaType = extractMediaTypeFromSource(sources[0].uri);
@@ -1055,7 +1019,6 @@ async function assignSystemTagsFromSources(db, objectId, sources) {
           object_id: objectId,
           tag_id: mediaTypeTagId,
         });
-        console.log(`[IPC] Assigned system tag: ${objectId} <- media_type:${mediaType || '(empty)'}`);
       }
     }
 
@@ -1072,7 +1035,6 @@ async function assignSystemTagsFromSources(db, objectId, sources) {
             object_id: objectId,
             tag_id: fileTypeTagId,
           });
-          console.log(`[IPC] Assigned system tag: ${objectId} <- file_type:${fileType}`);
         }
       }
     }
@@ -1090,7 +1052,6 @@ async function assignSystemTagsFromSources(db, objectId, sources) {
             object_id: objectId,
             tag_id: originTagId,
           });
-          console.log(`[IPC] Assigned system tag: ${objectId} <- origin:${origin}`);
         }
       }
     }

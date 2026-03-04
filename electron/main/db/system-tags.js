@@ -22,7 +22,6 @@ export async function findOrCreateSystemTag(db, type, name) {
       // Tag exists
       const existingTag = result[0][0];
       const tagId = (existingTag.id && existingTag.id.id) || existingTag.id;
-      console.log(`[SystemTags] Found existing system tag: ${type}:${name || '(empty)'}`);
       return tagId;
     }
 
@@ -36,7 +35,6 @@ export async function findOrCreateSystemTag(db, type, name) {
 
     const createdTag = Array.isArray(newTag) ? newTag[0] : newTag;
     const tagId = (createdTag.id && createdTag.id.id) || createdTag.id;
-    console.log(`[SystemTags] Created new system tag: ${type}:${name || '(empty)'}`);
     return tagId;
   } catch (error) {
     console.error('[SystemTags] Error finding/creating system tag:', error);

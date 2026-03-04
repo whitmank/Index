@@ -21,14 +21,10 @@ const DEBOUNCE_MS = 500; // Wait 500ms before reloading to batch rapid changes
  * @returns {void}
  */
 export function startObjectsWatcher(db, onObjectsChanged) {
-  if (watcher) {
-    console.log('[Watcher] Objects watcher already running');
-    return;
-  }
+  if (watcher) return;
 
-  // Ensure directory exists
   if (!fs.existsSync(OBJECTS_DIR)) {
-    console.log('[Watcher] Objects directory does not exist yet');
+    console.warn('[Watcher] Objects directory does not exist yet');
     return;
   }
 
@@ -39,7 +35,6 @@ export function startObjectsWatcher(db, onObjectsChanged) {
       return; // Ignore non-JSON files
     }
 
-    console.log(`[Watcher] Detected ${eventType} on ${filename}`);
 
     // Debounce rapid changes
     clearTimeout(debounceTimer);
@@ -78,8 +73,6 @@ export function stopObjectsWatcher() {
  */
 async function reloadObjectsFromDisk(db, onObjectsChanged) {
   try {
-    console.log('[Watcher] Reloading objects from disk...');
-
     // Delete all existing objects
     await db.query('DELETE FROM objects');
 
@@ -87,7 +80,6 @@ async function reloadObjectsFromDisk(db, onObjectsChanged) {
     const files = fs.readdirSync(OBJECTS_DIR).filter((f) => f.endsWith('.json'));
 
     if (files.length === 0) {
-      console.log('[Watcher] No object files found');
       onObjectsChanged([]);
       return;
     }
@@ -114,8 +106,6 @@ async function reloadObjectsFromDisk(db, onObjectsChanged) {
         console.warn(`[Watcher] Error loading ${file}:`, error.message);
       }
     }
-
-    console.log(`[Watcher] Reloaded ${loadedObjects.length} objects`);
 
     // Notify callback of changes
     onObjectsChanged(loadedObjects);

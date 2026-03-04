@@ -112,39 +112,25 @@ async function repairObjectSystemTags(db, object) {
  */
 export async function repairMissingSystemTagsForAllObjects(db) {
   try {
-    console.log('[Repair] Starting system tag repair for all objects...');
-
-    // Get all objects
     const objectsResult = await db.query('SELECT * FROM objects');
     const allObjects = (Array.isArray(objectsResult) && objectsResult.length > 0)
       ? objectsResult[0]
       : [];
 
-    if (allObjects.length === 0) {
-      console.log('[Repair] No objects to repair');
-      return;
-    }
-
-    console.log(`[Repair] Checking ${allObjects.length} objects...`);
+    if (allObjects.length === 0) return;
 
     let totalRepaired = 0;
     const results = [];
 
-    // Repair each object
     for (const object of allObjects) {
       const result = await repairObjectSystemTags(db, object);
       results.push(result);
       totalRepaired += result.repaired.length;
-
-      if (result.repaired.length > 0) {
-        console.log(
-          `[Repair] Restored ${result.repaired.length} tag(s) for object ${result.objectId}:`,
-          result.repaired.map((r) => `${r.type}:${r.value || '(empty)'}`).join(', ')
-        );
-      }
     }
 
-    console.log(`[Repair] Completed: repaired ${totalRepaired} total tag(s) across ${allObjects.length} objects`);
+    if (totalRepaired > 0) {
+      console.log(`[Repair] Restored ${totalRepaired} missing system tag(s)`);
+    }
   } catch (error) {
     console.error('[Repair] Error during system tag repair:', error);
     // Don't throw - repair is non-critical, continue with database startup

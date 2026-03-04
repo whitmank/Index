@@ -92,13 +92,7 @@ app.on('ready', async () => {
       prodPath: path.join(__dirname, '../../dist/index.html'),
     };
 
-    // Step 1: Initialize device (load or create ID)
-    console.log('[App] Initializing device...');
     const device = await initializeDeviceId();
-    console.log(`[App] Device ID loaded: ${device.id}`);
-
-    // Step 2: Ensure device is named (shows dialog if needed)
-    console.log('[App] Checking device name...');
     const deviceNamed = await ensureDeviceNamed();
     if (!deviceNamed) {
       console.log('[App] User cancelled device naming, quitting');
@@ -106,8 +100,6 @@ app.on('ready', async () => {
       return;
     }
 
-    // Step 3: Start database
-    console.log('[App] Starting database...');
     await startDatabase();
     dbStarted = true;
 
@@ -116,8 +108,6 @@ app.on('ready', async () => {
     registerWindowHandlers();
     setProfileChangeCallback(recreateWindow);
 
-    // Create window
-    console.log('[App] Creating main window...');
     createWindow(profile);
 
     setMainWindow(mainWindow);

@@ -24,15 +24,12 @@ export async function hydrateFromIndex(db) {
   }
 
   try {
-    console.log('[Hydration] Starting hydration from .index/ files...');
-
-    // Database is fresh (ephemeral), hydrate from local files
     await hydrateTable(db, 'objects');
     await hydrateTable(db, 'tag_definitions');
     await hydrateTable(db, 'collections');
     await hydrateSingleFileTable(db, 'tag_assignments', SINGLE_FILE_TABLES.tag_assignments);
 
-    console.log('[Hydration] Hydration complete');
+    console.log('[Hydration] Complete');
   } catch (error) {
     console.error('[Hydration] Failed to hydrate:', error);
     throw error;
@@ -47,10 +44,7 @@ async function hydrateSingleFileTable(db, tableName, fileName) {
   const filePath = path.join(INDEX_DIR, fileName);
 
   // Check if file exists
-  if (!fs.existsSync(filePath)) {
-    console.log(`[Hydration] No ${fileName} file found, skipping`);
-    return;
-  }
+  if (!fs.existsSync(filePath)) return;
 
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
@@ -60,8 +54,6 @@ async function hydrateSingleFileTable(db, tableName, fileName) {
       console.warn(`[Hydration] ${fileName} is not an array, skipping`);
       return;
     }
-
-    console.log(`[Hydration] Found ${records.length} ${tableName} records`);
 
     let insertedCount = 0;
 
@@ -90,7 +82,6 @@ async function hydrateSingleFileTable(db, tableName, fileName) {
       }
     }
 
-    console.log(`[Hydration] Loaded ${insertedCount} ${tableName}`);
   } catch (error) {
     console.error(`[Hydration] Error hydrating ${tableName}:`, error);
     throw error;
@@ -105,21 +96,13 @@ async function hydrateTable(db, tableName) {
   const tableDir = path.join(INDEX_DIR, tableName);
 
   // Check if directory exists
-  if (!fs.existsSync(tableDir)) {
-    console.log(`[Hydration] No ${tableName} directory found, skipping`);
-    return;
-  }
+  if (!fs.existsSync(tableDir)) return;
 
   try {
     // Read all JSON files in the directory
     const files = fs.readdirSync(tableDir).filter((f) => f.endsWith('.json'));
 
-    console.log(`[Hydration] Found ${files.length} ${tableName} files:`, files);
-
-    if (files.length === 0) {
-      console.log(`[Hydration] No ${tableName} files found`);
-      return;
-    }
+    if (files.length === 0) return;
 
     // Load all files first
     let loadedObjects = [];
@@ -139,7 +122,6 @@ async function hydrateTable(db, tableName) {
 
     // For objects, verify and repair file sources before inserting
     if (tableName === 'objects' && loadedObjects.length > 0) {
-      console.log('[Hydration] Verifying and repairing object file sources...');
       loadedObjects = await verifyAndRepairSources(loadedObjects);
     }
 
@@ -170,7 +152,6 @@ async function hydrateTable(db, tableName) {
       }
     }
 
-    console.log(`[Hydration] Loaded ${insertedCount} ${tableName}`);
   } catch (error) {
     console.error(`[Hydration] Error hydrating ${tableName}:`, error);
     throw error;

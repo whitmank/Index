@@ -76,7 +76,6 @@ async function persistTable(db, tableName, targetDir) {
       writeObjectFile(targetDir, obj);
     });
 
-    console.log(`[Persistence] Persisted ${objects.length} ${tableName}`);
     return objects.length;
   } catch (error) {
     console.error(`[Persistence] Error persisting ${tableName}:`, error);
@@ -97,7 +96,6 @@ async function persistTableToSingleFile(db, tableName, filePath) {
     // Write all records to a single file
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 
-    console.log(`[Persistence] Persisted ${data.length} ${tableName} to single file`);
     return data.length;
   } catch (error) {
     console.error(`[Persistence] Error persisting ${tableName} to file:`, error);
@@ -119,9 +117,6 @@ export async function persistToIndex(db) {
   try {
     ensureIndexStructure();
 
-    console.log('[Persistence] Persisting data to individual files...');
-
-    // Persist each table
     await Promise.all([
       persistTable(db, 'objects', path.join(INDEX_DIR, 'objects')),
       persistTable(db, 'tag_definitions', path.join(INDEX_DIR, 'tag_definitions')),
@@ -129,7 +124,6 @@ export async function persistToIndex(db) {
       persistTableToSingleFile(db, 'tag_assignments', path.join(INDEX_DIR, 'tag_assignments.json')),
     ]);
 
-    console.log('[Persistence] All data persisted to .index/');
   } catch (error) {
     console.error('[Persistence] Failed to persist data:', error);
     throw error;

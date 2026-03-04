@@ -28,7 +28,6 @@ function ensureDataDirectory() {
   const dataDir = path.join(os.homedir(), '.index');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
-    console.log('[DB] Created data directory:', dataDir);
   }
   return dataDir;
 }
@@ -56,8 +55,7 @@ function startDatabaseProcess() {
     tempDbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'index-db-'));
     const dbPath = path.join(tempDbDir, 'db.surdb');
 
-    console.log('[DB] Starting SurrealDB process (ephemeral - temp dir)...');
-    console.log('[DB] Temporary storage:', tempDbDir);
+    console.log('[DB] Starting SurrealDB...');
 
     // Spawn SurrealDB with temporary directory
     // Fresh state on each startup, cleaned up on shutdown
@@ -131,7 +129,6 @@ function startDatabaseProcess() {
  * @returns {Promise<Surreal>}
  */
 async function connectToDatabase() {
-  console.log('[DB] Connecting to SurrealDB...');
 
   const client = new Surreal();
   await client.connect(`ws://${DB_HOST}:${DB_PORT}`);
@@ -157,14 +154,11 @@ async function connectToDatabase() {
  * @private
  */
 async function initializeTables() {
-  console.log('[DB] Initializing tables...');
-
   const tables = ['objects', 'tag_definitions', 'tag_assignments', 'collections'];
 
   for (const table of tables) {
     try {
       await db.query(`DEFINE TABLE ${table} SCHEMALESS;`);
-      console.log(`[DB] Table '${table}' ready`);
     } catch (error) {
       // Table might already exist, that's fine
       if (!error.message.includes('already exists')) {
@@ -179,10 +173,7 @@ async function initializeTables() {
  * @returns {Promise<Surreal>} Database connection
  */
 export async function startDatabase() {
-  if (db) {
-    console.log('[DB] Database already running');
-    return db;
-  }
+  if (db) return db;
 
   try {
     // Start the process
@@ -226,10 +217,7 @@ export function getDatabase() {
  * @returns {Promise<void>}
  */
 export async function stopDatabase() {
-  if (!db && !dbProcess) {
-    console.log('[DB] Database not running');
-    return;
-  }
+  if (!db && !dbProcess) return;
 
   try {
     console.log('[DB] Stopping database...');
