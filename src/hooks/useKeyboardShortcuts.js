@@ -16,6 +16,11 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Open settings',
   },
+  DETAIL: {
+    key: '.',
+    modifiers: ['metaKey'],
+    description: 'Toggle detail panel',
+  },
   UNDO: {
     key: 'z',
     modifiers: ['metaKey', 'ctrlKey'],
@@ -58,6 +63,15 @@ export function useKeyboardShortcuts(actions, state) {
       ) {
         e.preventDefault();
         actions.onSettings?.();
+      }
+
+      // Cmd+. - toggle detail panel
+      if (
+        e.key === SHORTCUTS.DETAIL.key &&
+        SHORTCUTS.DETAIL.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onDetail?.();
       }
 
       // Cmd+Z / Ctrl+Z - undo

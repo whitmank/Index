@@ -103,25 +103,15 @@ export default function SettingsModal({ isOpen, onClose }) {
                     <p>Loading device information...</p>
                   </div>
                 ) : (
-                  <>
-                    <div className="settings-item">
-                      <label className="settings-label">Device Name</label>
-                      <p className="settings-value">{deviceOrigin || '(unnamed)'}</p>
-                    </div>
-                    <div className="settings-item">
-                      <label className="settings-label">Device ID</label>
-                      <p className="settings-value settings-monospace">{deviceId || 'Unknown'}</p>
-                    </div>
-                  </>
+                  <div className="settings-item">
+                    <p className="settings-value">{deviceOrigin || '(unnamed)'}</p>
+                    <p className="settings-value settings-secondary">{deviceId || 'Unknown'}</p>
+                  </div>
                 )}
               </section>
 
               <section className="settings-section">
                 <h3 className="settings-section-title">About</h3>
-                <div className="settings-item">
-                  <label className="settings-label">Application</label>
-                  <p className="settings-value">Index</p>
-                </div>
                 <div className="settings-item">
                   <label className="settings-label">Version</label>
                   <p className="settings-value">{__APP_VERSION__}</p>
@@ -133,9 +123,6 @@ export default function SettingsModal({ isOpen, onClose }) {
           {activeTab === 'window' && (
             <section className="settings-section">
               <h3 className="settings-section-title">Window Behavior</h3>
-              <p className="settings-section-description">
-                Choose how Index appears on your desktop. Changes take effect immediately by recreating the window.
-              </p>
               <div className="window-profile-options">
                 {[
                   {

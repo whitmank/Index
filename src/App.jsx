@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useObjectsStore } from './store/objects';
 import { useCollectionsStore } from './store/collections';
 import { useHistoryStore } from './store/history';
@@ -37,6 +37,7 @@ export default function App() {
   const filteredObjects = useCollectionsStore((state) => state.filteredObjects);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const lastSelectedNodeIdRef = useRef(null);
   const [showSettings, setShowSettings] = useState(false);
   const [deviceOrigin, setDeviceOrigin] = useState(null);
 
@@ -47,10 +48,25 @@ export default function App() {
     });
   }, []);
 
+  // Track last selected node for Cmd+. toggle
+  useEffect(() => {
+    if (selectedNodeId !== null) {
+      lastSelectedNodeIdRef.current = selectedNodeId;
+    }
+  }, [selectedNodeId]);
+
   // Setup keyboard shortcuts
   const undo = useHistoryStore((state) => state.undo);
   useKeyboardShortcuts({
     onSettings: () => setShowSettings(v => !v),
+    onDetail: () => {
+      if (selectedNodeId !== null) {
+        setSelectedNodeId(null);
+      } else {
+        const target = lastSelectedNodeIdRef.current ?? displayObjects[0]?.id ?? null;
+        setSelectedNodeId(target);
+      }
+    },
     onUndo: undo,
   });
 
@@ -178,10 +194,11 @@ export default function App() {
             onNodeClick={setSelectedNodeId}
             selectedNodeId={selectedNodeId}
           />
-          {selectedNodeId && (
+          {lastSelectedNodeIdRef.current !== null && (
             <ObjectDetailSidebar
-              key={`sidebar-${normalizeId(selectedNodeId)}`}
-              objectId={selectedNodeId}
+              key={`sidebar-${normalizeId(selectedNodeId ?? lastSelectedNodeIdRef.current)}`}
+              objectId={selectedNodeId ?? lastSelectedNodeIdRef.current}
+              isOpen={selectedNodeId !== null}
               onClose={() => setSelectedNodeId(null)}
             />
           )}

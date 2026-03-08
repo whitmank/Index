@@ -13,7 +13,7 @@ import './ObjectDetailSidebar.css';
 // Helper to normalize object ID (handles both string and {id} formats)
 const normalizeId = (id) => (typeof id === 'string' ? id : id?.id);
 
-export default function ObjectDetailSidebar({ objectId, onClose }) {
+export default function ObjectDetailSidebar({ objectId, isOpen, onClose }) {
   // Fetch object directly from store by ID, bypassing parent prop dependency
   const objects = useObjectsStore((state) => state.objects);
   const foundObject = objects.find((obj) => normalizeId(obj.id) === normalizeId(objectId));
@@ -36,21 +36,28 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
   const [titleValue, setTitleValue] = useState(object?.name || '');
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(object?.label || '');
-  const [isClosing, setIsClosing] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('rightSidebarWidth');
-    return saved ? parseInt(saved, 10) : 260;
-  });
+  const [visible, setVisible] = useState(false);
+  const [animatingOut, setAnimatingOut] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
   const [isAddingSource, setIsAddingSource] = useState(false);
   const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [isDraggingSource, setIsDraggingSource] = useState(false);
   const [sources, setSources] = useState(object?.sources || []);
 
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(onClose, 300); // Match animation duration
-  };
+  // Drive mount/unmount and animation from isOpen prop (mirrors SettingsModal)
+  useEffect(() => {
+    if (isOpen) {
+      setAnimatingOut(false);
+      setVisible(true);
+    } else if (visible) {
+      setAnimatingOut(true);
+      const t = setTimeout(() => setVisible(false), 200);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  const handleClose = () => onClose();
 
   const handleResizeStart = (e) => {
     e.preventDefault();
@@ -173,10 +180,8 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
     };
   }, [isResizing]);
 
-  // Save width to localStorage when it changes
+  // Notify App component when width changes
   useEffect(() => {
-    localStorage.setItem('rightSidebarWidth', sidebarWidth.toString());
-    // Dispatch event to notify App component
     window.dispatchEvent(new Event('rightSidebarWidthChange'));
   }, [sidebarWidth]);
 
@@ -195,13 +200,6 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isEditingTitle]);
-
-  // Handle backdrop click
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
 
   const handleDelete = async () => {
     if (window.confirm(`Delete object "${object.name}"?`)) {
@@ -329,11 +327,13 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
   };
 
 
+  if (!visible) return null;
+
   return (
-    <div className={`sidebar-overlay ${isClosing ? 'closing' : ''}`} onClick={handleBackdropClick}>
+    <div className="sidebar-overlay">
       <aside
         ref={sidebarRef}
-        className={`object-detail-sidebar ${isClosing ? 'closing' : ''} ${isResizing ? 'resizing' : ''}`}
+        className={`object-detail-sidebar ${animatingOut ? 'closing' : ''} ${isResizing ? 'resizing' : ''}`}
         style={{ width: `${sidebarWidth}px` }}
       >
         <div className="sidebar-header">
