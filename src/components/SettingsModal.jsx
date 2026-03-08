@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import AppearanceSettings from './AppearanceSettings';
 import './SettingsModal.css';
 
 /**
@@ -8,7 +9,8 @@ import './SettingsModal.css';
  * Author: Claude Code (Anthropic)
  */
 export default function SettingsModal({ isOpen, onClose }) {
-  const isClosingRef = useRef(false);
+  const [visible, setVisible] = useState(false);
+  const [animatingOut, setAnimatingOut] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
@@ -16,27 +18,27 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [windowProfile, setWindowProfile] = useState(null);
   const [profileSaving, setProfileSaving] = useState(false);
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
+  // Drive mount/unmount and animation from isOpen prop
+  useEffect(() => {
+    if (isOpen) {
+      setAnimatingOut(false);
+      setVisible(true);
+    } else if (visible) {
+      setAnimatingOut(true);
+      const t = setTimeout(() => setVisible(false), 200);
+      return () => clearTimeout(t);
     }
-  };
+  }, [isOpen]);
 
-  const handleClose = () => {
-    isClosingRef.current = true;
-    onClose();
-  };
+  const handleClose = () => onClose();
 
   const handleEscape = (e) => {
-    if (e.key === 'Escape') {
-      handleClose();
-    }
+    if (e.key === 'Escape') handleClose();
   };
 
   // Load device information when modal opens
   useEffect(() => {
     if (isOpen) {
-      isClosingRef.current = false;
       setLoading(true);
 
       Promise.all([
@@ -58,14 +60,11 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!visible) return null;
 
   return (
-    <div
-      className={`settings-overlay ${isClosingRef.current ? 'closing' : ''}`}
-      onClick={handleBackdropClick}
-    >
-      <div className={`settings-modal ${isClosingRef.current ? 'closing' : ''}`}>
+    <div className="settings-overlay">
+      <div className={`settings-modal ${animatingOut ? 'closing' : ''}`}>
         <div className="settings-header">
           <h2>Settings</h2>
           <button className="settings-close-btn" onClick={handleClose} aria-label="Close settings">
@@ -85,6 +84,12 @@ export default function SettingsModal({ isOpen, onClose }) {
             onClick={() => setActiveTab('window')}
           >
             Window Behavior
+          </button>
+          <button
+            className={`settings-tab ${activeTab === 'appearance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('appearance')}
+          >
+            Appearance
           </button>
         </div>
 
@@ -163,6 +168,7 @@ export default function SettingsModal({ isOpen, onClose }) {
               </div>
             </section>
           )}
+          {activeTab === 'appearance' && <AppearanceSettings />}
         </div>
       </div>
     </div>

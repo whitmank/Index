@@ -27,13 +27,17 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
     setDimensions({ width, height });
 
     // Create node data with initial positions
-    const nodes = objects.map((obj, i) => ({
-      id: obj.id,
-      name: obj.name,
-      source: obj.sources?.[0]?.uri,
-      x: width / 2 + (Math.random() - 0.5) * 100,
-      y: height / 2 + (Math.random() - 0.5) * 100,
-    }));
+    const nodes = objects.map((obj, i) => {
+      const fallback = obj.name.length > 24 ? obj.name.slice(0, 23) + '…' : obj.name;
+      return {
+        id: obj.id,
+        name: obj.name,
+        displayLabel: obj.label || fallback,
+        source: obj.sources?.[0]?.uri,
+        x: width / 2 + (Math.random() - 0.5) * 100,
+        y: height / 2 + (Math.random() - 0.5) * 100,
+      };
+    });
 
     // Create force simulation
     const simulation = createForceSimulation(nodes, { width, height }, () => {
@@ -61,7 +65,7 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
 
     nodeGroup.append('circle').attr('class', 'node').attr('r', 12);
 
-    nodeGroup.append('text').attr('class', 'node-label').attr('text-anchor', 'start').attr('dx', '18px').attr('dy', '0.3em').text((d) => d.name);
+    nodeGroup.append('text').attr('class', 'node-label').attr('text-anchor', 'start').attr('dx', '18px').attr('dy', '0.3em').text((d) => d.displayLabel);
 
     // Add drag behavior
     nodeGroup.call(

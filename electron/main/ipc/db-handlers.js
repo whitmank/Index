@@ -177,6 +177,11 @@ export function registerDbHandlers() {
         updateObj.name = objectData.name;
       }
 
+      // Handle label updates (short display title for graph view)
+      if (objectData.label !== undefined) {
+        updateObj.label = objectData.label || null;
+      }
+
       // Handle user metadata updates
       if (objectData.user_metadata !== undefined) {
         updateObj.user_metadata = objectData.user_metadata;

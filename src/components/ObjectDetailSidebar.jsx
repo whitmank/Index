@@ -34,6 +34,8 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
   const deleteObject = useObjectsStore((state) => state.deleteObject);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(object?.name || '');
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [labelValue, setLabelValue] = useState(object?.label || '');
   const [isClosing, setIsClosing] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('rightSidebarWidth');
@@ -259,6 +261,18 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
     setIsEditingTitle(false);
   };
 
+  const handleSaveLabelEdit = async () => {
+    const trimmed = labelValue.trim();
+    const objectId = normalizeId(object.id);
+    await window.electronAPI.db.updateObject(objectId, { label: trimmed || null });
+    setIsEditingLabel(false);
+  };
+
+  const handleCancelLabelEdit = () => {
+    setLabelValue(object.label || '');
+    setIsEditingLabel(false);
+  };
+
   const handleTitleKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleSaveTitleEdit();
@@ -341,6 +355,31 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
           <button className="sidebar-close-btn" onClick={handleClose} aria-label="Close sidebar">
             ✕
           </button>
+        </div>
+        <div className="sidebar-label-row">
+          {isEditingLabel ? (
+            <input
+              type="text"
+              value={labelValue}
+              onChange={(e) => setLabelValue(e.target.value)}
+              onBlur={handleSaveLabelEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveLabelEdit();
+                else if (e.key === 'Escape') handleCancelLabelEdit();
+              }}
+              className="sidebar-label-input"
+              placeholder="Short display label for graph…"
+              maxLength={40}
+              autoFocus
+            />
+          ) : (
+            <span
+              className={`sidebar-label-display ${object.label ? '' : 'placeholder'}`}
+              onClick={() => { setLabelValue(object.label || ''); setIsEditingLabel(true); }}
+            >
+              {object.label || 'Add graph label…'}
+            </span>
+          )}
         </div>
 
         <div className="sidebar-content">

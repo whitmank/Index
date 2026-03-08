@@ -34,6 +34,7 @@ export async function createObjectCore(db, objectData) {
 
   const objectRecord = {
     name: objectData.name,
+    label: objectData.label || null,
     description: objectData.description || null,
     sources,
     created_at: now,

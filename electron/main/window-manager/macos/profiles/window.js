@@ -17,7 +17,7 @@ export function getOptions({ screenWidth, screenHeight }) {
     x: Math.round((screenWidth - w) / 2),
     y: Math.round((screenHeight - h) / 2),
     frame: false,
-    transparent: false,
+    transparent: true,
     alwaysOnTop: false,
     resizable: true,
   };

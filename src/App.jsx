@@ -5,7 +5,6 @@ import { useHistoryStore } from './store/history';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import GraphView from './components/GraphView';
 import ObjectDetailSidebar from './components/ObjectDetailSidebar';
-import CollectionsSidebar from './components/CollectionsSidebar';
 import SettingsModal from './components/SettingsModal';
 import './App.css';
 
@@ -40,14 +39,6 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [deviceOrigin, setDeviceOrigin] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('collectionsCollapsed');
-    return saved ? JSON.parse(saved) : false;
-  });
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('sidebarWidth');
-    return saved ? parseInt(saved, 10) : 240;
-  });
 
   // Load device origin on mount
   useEffect(() => {
@@ -56,28 +47,10 @@ export default function App() {
     });
   }, []);
 
-  // Listen for sidebar collapse and width changes
-  useEffect(() => {
-    const handleCollapsedChange = () => {
-      const saved = localStorage.getItem('collectionsCollapsed');
-      setSidebarCollapsed(saved ? JSON.parse(saved) : false);
-    };
-    const handleWidthChange = () => {
-      const saved = localStorage.getItem('sidebarWidth');
-      setSidebarWidth(saved ? parseInt(saved, 10) : 240);
-    };
-    window.addEventListener('collectionsCollapsedChange', handleCollapsedChange);
-    window.addEventListener('sidebarWidthChange', handleWidthChange);
-    return () => {
-      window.removeEventListener('collectionsCollapsedChange', handleCollapsedChange);
-      window.removeEventListener('sidebarWidthChange', handleWidthChange);
-    };
-  }, []);
-
   // Setup keyboard shortcuts
   const undo = useHistoryStore((state) => state.undo);
   useKeyboardShortcuts({
-    onSettings: () => setShowSettings(true),
+    onSettings: () => setShowSettings(v => !v),
     onUndo: undo,
   });
 
@@ -100,40 +73,20 @@ export default function App() {
   const handleDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Ignore collection reorder drags
-    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
-      return;
-    }
-    // Ignore drags originating from sidebar
-    if (e.target.closest('.object-detail-sidebar')) {
-      return;
-    }
+    if (e.target.closest('.object-detail-sidebar')) return;
     setIsDragging(true);
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Ignore collection reorder drags
-    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
-      return;
-    }
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Ignore collection reorder drags
-    if (e.dataTransfer.types.includes('application/x-collection-drag')) {
-      return;
-    }
-    // Ignore drags originating from sidebar
-    if (e.target.closest('.object-detail-sidebar')) {
-      return;
-    }
-    if (e.target === e.currentTarget) {
-      setIsDragging(false);
-    }
+    if (e.target.closest('.object-detail-sidebar')) return;
+    if (e.target === e.currentTarget) setIsDragging(false);
   };
 
   const handleDrop = async (e) => {
@@ -196,10 +149,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
-      style={{
-        paddingLeft: sidebarCollapsed ? '60px' : `${sidebarWidth}px`,
-      }}
+      className="app"
       tabIndex={0}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -215,7 +165,6 @@ export default function App() {
           </div>
         </div>
       )}
-      <CollectionsSidebar />
       {loading && objects.length === 0 ? (
         <div className="loading">Loading...</div>
       ) : objects.length === 0 ? (
