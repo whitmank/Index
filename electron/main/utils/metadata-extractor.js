@@ -7,9 +7,12 @@
  * Media type is what the object fundamentally IS (document, image, video, etc.)
  * Determined from first source only and applies to entire object
  * @param {string} uri - Source URI (file://, https://, etc.)
- * @returns {string|null} - Media type: document, image, video, audio, spreadsheet, presentation, or null
+ * @param {string|null} [mediaTypeHint] - Optional override (e.g. og:type). Used verbatim when provided.
+ * @returns {string|null} - Media type value, or null
  */
-export function extractMediaTypeFromSource(uri) {
+export function extractMediaTypeFromSource(uri, mediaTypeHint = null) {
+  if (mediaTypeHint) return mediaTypeHint;
+
   const fileType = extractFileType(uri);
   if (!fileType) return null;
 

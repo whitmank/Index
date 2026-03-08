@@ -91,6 +91,10 @@ export default function App() {
     window.electronAPI?.onObjectsChanged(() => {
       loadObjects();
     });
+    // Listen for capture-triggered selection (Cmd+I from another app)
+    window.electronAPI?.onSelectObject((id) => {
+      setSelectedNodeId(id);
+    });
   }, [loadObjects]);
 
   const handleDragEnter = (e) => {
@@ -98,6 +102,10 @@ export default function App() {
     e.stopPropagation();
     // Ignore collection reorder drags
     if (e.dataTransfer.types.includes('application/x-collection-drag')) {
+      return;
+    }
+    // Ignore drags originating from sidebar
+    if (e.target.closest('.object-detail-sidebar')) {
       return;
     }
     setIsDragging(true);
@@ -117,6 +125,10 @@ export default function App() {
     e.stopPropagation();
     // Ignore collection reorder drags
     if (e.dataTransfer.types.includes('application/x-collection-drag')) {
+      return;
+    }
+    // Ignore drags originating from sidebar
+    if (e.target.closest('.object-detail-sidebar')) {
       return;
     }
     if (e.target === e.currentTarget) {

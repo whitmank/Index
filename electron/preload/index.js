@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onObjectsChanged: (callback) => {
     ipcRenderer.on('objects:changed', () => callback());
   },
+  // Capture: select a specific object in the UI
+  onSelectObject: (callback) => {
+    ipcRenderer.on('objects:selectObject', (_event, id) => callback(id));
+  },
   // Open file or URL
   openSource: (source) => ipcRenderer.invoke('app:openSource', source),
   // Window behavior profile

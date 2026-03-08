@@ -97,6 +97,8 @@ export default function ObjectDetailSidebar({ objectId, onClose }) {
     };
 
     const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (e.target === card) {
         setIsDraggingSource(false);
       }

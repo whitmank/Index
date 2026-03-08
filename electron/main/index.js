@@ -8,6 +8,7 @@ import { initializeDeviceId } from './config/device.js';
 import { loadWindowSettings } from './config/window-settings.js';
 import { ensureDeviceNamed } from './windows/device-naming-dialog.js';
 import * as deviceHandlers from './ipc/device-handlers.js';
+import { handleCaptureShortcut } from './capture/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -19,6 +20,7 @@ let dbStarted = false;
 let windowConfig; // saved so we can recreate the window with the same base config
 
 const toggleHotkey = process.platform === 'darwin' ? 'cmd+`' : 'ctrl+`';
+const captureHotkey = process.platform === 'darwin' ? 'cmd+i' : 'ctrl+i';
 
 function applyDockVisibility(profile) {
   if (process.platform === 'darwin' && app.dock) {
@@ -43,6 +45,14 @@ function registerToggleShortcut() {
   });
 }
 
+function registerCaptureShortcut() {
+  globalShortcut.unregister(captureHotkey);
+  globalShortcut.register(captureHotkey, () => {
+    const db = getDatabase();
+    handleCaptureShortcut(db, mainWindow);
+  });
+}
+
 function createWindow(profile) {
   windowManager = new WindowManagerFactory();
   mainWindow = windowManager.createWindow({ ...windowConfig, profile });
@@ -56,13 +66,15 @@ function createWindow(profile) {
   });
 
   registerToggleShortcut();
+  registerCaptureShortcut();
 }
 
 async function recreateWindow(profile) {
   console.log(`[Window] Recreating window with profile: ${profile}`);
 
-  // Unregister shortcut before destroying window
+  // Unregister shortcuts before destroying window
   globalShortcut.unregister(toggleHotkey);
+  globalShortcut.unregister(captureHotkey);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.destroy();

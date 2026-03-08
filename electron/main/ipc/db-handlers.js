@@ -7,6 +7,7 @@ import { persistToIndex } from '../db/persistence.js';
 import { findOrCreateSystemTag } from '../db/system-tags.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
+import { createObjectCore } from '../db/object-service.js';
 
 // Author: Claude Code
 // IPC handlers for database operations - exposed to renderer process
@@ -117,39 +118,8 @@ export function registerDbHandlers() {
         throw new Error('Database not connected');
       }
 
-
-      // Accept sources array (can be empty)
-      const rawSources = objectData.sources || [];
-      const now = new Date().toISOString();
-      const deviceOrigin = await getDeviceOrigin();
-
-      // Clean each URI, determine origin and file type, and ensure added_at timestamp
-      const sources = rawSources.map(src => ({
-        uri: cleanUri(src.uri),
-        origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
-        fileType: extractFileType(src.uri),
-        added_at: src.added_at || now,
-      }));
-
-      const objectRecord = {
-        name: objectData.name,
-        description: objectData.description || null,
-        sources,
-        created_at: now,
-        updated_at: now,
-      };
-
-      const result = await db.create('objects', objectRecord);
-      const newObject = Array.isArray(result) ? result[0] : result;
-      const objectId = (newObject.id && newObject.id.id) || newObject.id;
-
-      // Assign system tags based on sources
-      await assignSystemTagsFromSources(db, objectId, sources);
-
-      // Persist after creation
-      await persistToIndex(db);
-
-      return { success: true, data: result };
+      const { object } = await createObjectCore(db, objectData);
+      return { success: true, data: object };
     } catch (error) {
       console.error('[IPC] Create object error:', error);
       return { success: false, error: error.message };
@@ -998,64 +968,3 @@ export function registerDbHandlers() {
   console.log('[IPC] Database handlers registered');
 }
 
-/**
- * Assign system tags from sources array
- * Derives media_type (object-level), file_type (per-source), origin (per-source)
- * @private
- */
-async function assignSystemTagsFromSources(db, objectId, sources) {
-  try {
-    if (!sources || sources.length === 0) return;
-
-    // 1. media_type — object-level, from first source only
-    const mediaType = extractMediaTypeFromSource(sources[0].uri);
-    const mediaTypeTagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
-    if (mediaTypeTagId) {
-      const existingResult = await db.query(
-        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${mediaTypeTagId}'`
-      );
-      if (!existingResult[0] || existingResult[0].length === 0) {
-        await db.create('tag_assignments', {
-          object_id: objectId,
-          tag_id: mediaTypeTagId,
-        });
-      }
-    }
-
-    // 2. file_type — per-source, unique extensions
-    const uniqueFileTypes = new Set(sources.map(s => extractFileType(s.uri)).filter(Boolean));
-    for (const fileType of uniqueFileTypes) {
-      const fileTypeTagId = await findOrCreateSystemTag(db, 'file_type', fileType);
-      if (fileTypeTagId) {
-        const existingResult = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${fileTypeTagId}'`
-        );
-        if (!existingResult[0] || existingResult[0].length === 0) {
-          await db.create('tag_assignments', {
-            object_id: objectId,
-            tag_id: fileTypeTagId,
-          });
-        }
-      }
-    }
-
-    // 3. origin — per-source, unique device origins
-    const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
-    for (const origin of uniqueOrigins) {
-      const originTagId = await findOrCreateSystemTag(db, 'origin', origin);
-      if (originTagId) {
-        const existingResult = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${originTagId}'`
-        );
-        if (!existingResult[0] || existingResult[0].length === 0) {
-          await db.create('tag_assignments', {
-            object_id: objectId,
-            tag_id: originTagId,
-          });
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[IPC] Error assigning system tags:', error);
-  }
-}
