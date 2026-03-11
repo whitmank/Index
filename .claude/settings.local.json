@@ -28,5 +28,7 @@
       "Bash(git commit:*)",
       "Skill(commit-commands:commit)"
     ]
-  }
+  },
+  "prefersReducedMotion": true,
+  "outputStyle": "Explanatory"
 }
