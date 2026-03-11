@@ -1,0 +1,50 @@
+.graph-container-inner {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.graph-view {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.node {
+  fill: #333333;
+  stroke: #1a1a1a;
+  stroke-width: 1px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.node-group.hovered .node {
+  fill: #1a1a1a;
+  stroke: #1a1a1a;
+  stroke-width: 2px;
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
+}
+
+.node-group.hovered .node-label {
+  font-weight: 600;
+}
+
+.node-group.selected .node {
+  fill: #1a1a1a;
+  stroke: #1a1a1a;
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 12px rgba(0, 0, 0, 0.7));
+}
+
+.node-group.selected .node-label {
+  font-weight: 700;
+}
+
+.node-label {
+  font-size: 18px;
+  fill: rgba(50, 50, 50, 0.8);
+  pointer-events: none;
+  user-select: none;
+  font-weight: 400;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
