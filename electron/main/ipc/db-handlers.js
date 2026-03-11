@@ -39,49 +39,6 @@ export function broadcastObjectsChanged(objects) {
 export function registerDbHandlers() {
 
   /**
-   * Execute a read query (SELECT)
-   * Handler: db:query
-   */
-  ipcMain.handle('db:query', async (event, queryString) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      const result = await db.query(queryString);
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('[IPC] Query error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
-   * Execute a mutation (INSERT, UPDATE, DELETE, CREATE)
-   * Automatically persists to disk after mutation
-   * Handler: db:mutate
-   */
-  ipcMain.handle('db:mutate', async (event, queryString) => {
-    try {
-      const db = getDatabase();
-      if (!db) {
-        throw new Error('Database not connected');
-      }
-
-      const result = await db.query(queryString);
-
-      // Persist to disk after mutation
-      await persistToIndex(db);
-
-      return { success: true, data: result };
-    } catch (error) {
-      console.error('[IPC] Mutation error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
    * Get all data for a specific table
    * Handler: db:getAll
    */
@@ -116,6 +73,22 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) {
         throw new Error('Database not connected');
+      }
+
+      // Normalize source origins — main process is authoritative for origin conventions.
+      // Mirrors the same normalization applied in db:updateObject.
+      if (Array.isArray(objectData.sources)) {
+        const deviceOrigin = await getDeviceOrigin();
+        const now = new Date().toISOString();
+        objectData = {
+          ...objectData,
+          sources: objectData.sources.map(src => ({
+            ...src,
+            uri: cleanUri(src.uri),
+            origin: determineOrigin(src.uri, src.origin || deviceOrigin || 'unknown'),
+            added_at: src.added_at || now,
+          })),
+        };
       }
 
       const { object } = await createObjectCore(db, objectData);
@@ -153,6 +126,27 @@ export function registerDbHandlers() {
       return { success: true, data: result };
     } catch (error) {
       console.error('[IPC] Create tag error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * Delete an object by ID
+   * Handler: db:deleteObject
+   */
+  ipcMain.handle('db:deleteObject', async (event, id) => {
+    try {
+      const db = getDatabase();
+      if (!db) {
+        throw new Error('Database not connected');
+      }
+
+      await db.query(`DELETE objects:\`${id}\``);
+      await persistToIndex(db);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Delete object error:', error);
       return { success: false, error: error.message };
     }
   });
@@ -200,13 +194,6 @@ export function registerDbHandlers() {
           added_at: src.added_at || now,
         }));
         updateObj.updated_at = now;
-      }
-
-      // If source changed, re-derive source metadata (legacy support)
-      if (objectData.source !== undefined) {
-        const cleanedSource = objectData.source ? cleanUri(objectData.source) : null;
-        updateObj.source = cleanedSource;
-        updateObj.source_metadata = await deriveSourceMetadata(cleanedSource);
       }
 
       const result = await db.query(

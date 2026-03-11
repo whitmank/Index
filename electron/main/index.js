@@ -156,6 +156,7 @@ app.on('before-quit', async (event) => {
       app.quit();
     } catch (error) {
       console.error('Error stopping database:', error);
+      dbStarted = false; // Prevent re-entry if quit is called again
       app.quit();
     }
   }
@@ -165,5 +166,6 @@ app.on('activate', () => {
   if (mainWindow === null) {
     const { profile } = loadWindowSettings();
     createWindow(profile);
+    setMainWindow(mainWindow);
   }
 });

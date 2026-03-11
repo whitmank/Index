@@ -12,11 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // Database operations
   db: {
-    query: (sql) => ipcRenderer.invoke('db:query', sql),
-    mutate: (sql) => ipcRenderer.invoke('db:mutate', sql),
     getAll: (table) => ipcRenderer.invoke('db:getAll', table),
     createObject: (data) => ipcRenderer.invoke('db:createObject', data),
     updateObject: (id, data) => ipcRenderer.invoke('db:updateObject', id, data),
+    deleteObject: (id) => ipcRenderer.invoke('db:deleteObject', id),
     createTag: (data) => ipcRenderer.invoke('db:createTag', data),
     assignTag: (objectId, tagId) => ipcRenderer.invoke('db:assignTag', objectId, tagId),
     unassignTag: (objectId, tagId) => ipcRenderer.invoke('db:unassignTag', objectId, tagId),
@@ -35,12 +34,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pickFile: () => ipcRenderer.invoke('fs:pickFile'),
     getPathForFile: (file) => webUtils.getPathForFile(file),
   },
-  // File system listeners
+  // File system listeners — removeAllListeners before re-adding prevents accumulation on remount
   onObjectsChanged: (callback) => {
+    ipcRenderer.removeAllListeners('objects:changed');
     ipcRenderer.on('objects:changed', () => callback());
   },
   // Capture: select a specific object in the UI
   onSelectObject: (callback) => {
+    ipcRenderer.removeAllListeners('objects:selectObject');
     ipcRenderer.on('objects:selectObject', (_event, id) => callback(id));
   },
   // Open file or URL

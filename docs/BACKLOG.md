@@ -1,100 +1,108 @@
 ---
 Author: Claude Code
-Created: 2026-02-14
+Updated: 2026-03-10
 ---
 
 # Index — Backlog
 
-Features from the original vision not yet implemented in v0.3.
+Items not yet implemented, organized by theme.
+See `docs/feature-dev/ARCHITECTURE_v0.4.md` for the v0.4 architectural plan.
 
 ---
 
-## Tagging
+## Architecture (v0.4 Priority)
 
-- **Tag Definitions** — Global tag records with name, color, description. Enable global rename.
-- **Tag Assignments** — Many-to-many relationship between tags and objects. Support multiple tags per object.
-- **Tag UI** — Create, view, edit tags. Autocomplete on assignment. Color visualization.
-- **Tag Filtering** — Filter objects by tags with AND/OR/NOT logic.
+These are structural changes that unblock many of the features below.
+See `ARCHITECTURE_v0.4.md` for full detail and phase plan.
+
+- **Persistent SurrealDB storage** — Point SurrealDB at `~/.index/surreal/` instead of temp dir; data survives restarts natively
+- **LIVE SELECT reactivity** — Subscribe to SurrealDB live queries; eliminate full-reload pattern from mutation handlers
+- **Async JSON export** — Move `persistToIndex()` out of critical path; run debounced in background and on quit
+- **ID normalization at IPC boundary** — Centralize `RecordId` unwrapping in handlers; remove `id?.id || id` from components
+- **Domain centralization** — Tag type registry in backend (`tag-types.js`); remove hardcoded system tag rules from UI
+
+---
+
+## Tags
+
+- **Tag filtering in graph** — Filter visible graph nodes by tag with AND/OR/NOT logic (collections do this, but ad-hoc filtering does not)
+- **Tag autocomplete** — Fuzzy search when assigning tags; show color swatches
+- **Tag color in graph** — Color-code graph nodes by their primary tag
+- **Show file_type and origin system tags** — Currently hidden; expose as readable metadata in detail sidebar
+- **Global tag rename** — Rename a tag definition and have it update across all assignments
+- **Tag merge** — Combine two tags into one, re-assigning all objects
 
 ---
 
 ## Relationships
 
-- **Relationship UI** — Create, view, delete links between objects. Type selector (related, derivative, reference). Optional labels.
-- **Relationship Display** — Show outgoing and incoming relationships on object view. Navigate between linked objects.
-- **Link Types & Direction** — Complete relationship schema with type field and bidirectional flag.
+- **Relationship UI** — Create, view, delete links between objects from the detail sidebar
+- **Relationship display in graph** — Show links as edges in the force-directed graph
+- **Relationship types** — Typed links ("references", "derived from", "related to") with optional label
+- **Bidirectional traversal** — Navigate from an object to everything it links to and from
 
 ---
 
 ## Collections
 
-- **Collections** — Saved queries with tag logic (all/any/none). Auto-update as tags change.
-- **Collection UI** — Create, edit, delete collections. Query builder. Pin to sidebar for quick access.
+- **Collection builder UI** — Visual query builder (currently requires knowing tag IDs)
+- **Ad-hoc filtering** — Filter graph without saving as a collection
 
 ---
 
-## Metadata & Sources
+## Sources & Capture
 
-- **Source Type Field** — Denormalized `source_type` on objects for fast filtering ("show all URLs").
-- **Source Handler Architecture** — Refactor metadata derivation into pluggable handlers by source type. Foundation for extensibility.
-- **URL Metadata** — Fetch and cache title, description, favicon from URLs.
-- **File Metadata** — Extract extension, permissions, created/modified timestamps.
-- **Custom User Fields** — Allow arbitrary key-value pairs in user_metadata beyond notes.
-
----
-
-## Detail Panel & Visualization
-
-- **Detail Panel** — Right sidebar showing full object info: metadata, tags, relationships, notes. Edit inline.
-- **Graph View** — Visualize objects as nodes, relationships as edges. Force-directed layout. Interactive exploration.
+- **Chrome/Arc/Firefox capture** — Extend Cmd+I capture beyond Safari
+- **Source type indicators** — Visual distinction in graph between file objects and URL objects
+- **Additional URI schemes** — `notion://`, `obsidian://`, `smb://` source handling
+- **Source copying** — Copy a remote source to local device (download + add as new source)
+- **Deduplication detection** — Warn when a URI or content hash already exists; offer to merge or link
 
 ---
 
-## List Features
+## Graph & Visualization
 
-- **Sorting** — Sort by name, date, source type, tag count. Persist preferences.
-- **Multi-Select** — Select multiple objects. Bulk operations: delete, tag, link, move to collection.
-- **Keyboard Navigation** — Arrow keys, Enter, Escape. Quick tag shortcuts.
+- **Relationship edges** — Render typed links as edges between nodes
+- **Graph filtering by collection** — Already partially implemented; polish and persist filter state
+- **Node grouping** — Cluster nodes by tag or collection visually
+- **Zoom to selected** — Auto-center and zoom on selected node
+- **Performance** — Virtual rendering for 1,000+ node graphs
+
+---
+
+## Object Detail
+
+- **Notes editing** — Inline editing of `user_metadata.notes`
+- **Relationship panel** — Show and create links from detail sidebar
+- **Source file metadata** — Display file size, type, last modified for local sources
+- **URL metadata** — Display fetched title, description, favicon for web sources
 
 ---
 
 ## Data Integrity
 
-- **Deduplication Detection** — Warn when creating objects with duplicate content (same hash).
-- **Deduplication Management** — Merge duplicate objects, consolidate metadata, update relationships.
-
----
-
-## Import/Export
-
-- **Import** — Restore from backup. Import from CSV/JSON.
-- **Export** — Export filtered results to CSV/JSON.
-- **Backup & Restore** — Zip `~/.index/`, scheduled backups, restore from file.
+- **Deduplication management** — Merge duplicate objects, consolidate tags and relationships
+- **Source repair UI** — Surface objects with missing/broken sources; allow manual re-linking
+- **Export data** — Write current state to `~/.index/export/` on demand (Settings action)
+- **Import / restore** — Re-import from JSON export files or zip backup
 
 ---
 
 ## Settings & Customization
 
-- **Settings Panel** — UI for user preferences.
-- **Keyboard Shortcuts** — Customize keybindings.
-- **Handler Configuration** — Per-source-type settings (watched dirs, timeouts, cache behavior).
+- **Keyboard shortcut customization** — Rebind standard shortcuts
+- **Appearance** — Light/dark already done; add accent color, font size
+- **Data directory** — Allow changing `~/.index/` location
 
 ---
 
-## Architecture & Quality
+## Quality & Infrastructure
 
-- **Error Boundaries** — React error boundaries and graceful error handling.
-- **Query Optimization** — Indexes, pagination, caching as dataset grows.
-- **Virtual Scrolling** — Handle 10,000+ objects without lag.
-- **Testing** — Unit tests, integration tests, end-to-end scenarios.
-
----
-
-## Extensibility
-
-- **Plugin System** — Support third-party source handlers (Notion, Obsidian, custom).
-- **Real-Time Sync** — Detect external changes, sync across windows (future: devices).
+- **Error boundaries** — React error boundaries around graph and sidebar
+- **Testing suite** — Unit tests for stores, IPC handlers, domain logic
+- **Virtual scrolling** — Handle 10,000+ objects in collections sidebar
+- **Windows/Linux parity** — Vibrancy fallback, capture system for non-macOS
 
 ---
 
-*Track and prioritize based on user needs and developer capacity.*
+*Prioritize based on user impact. Architecture items unlock the most downstream value.*

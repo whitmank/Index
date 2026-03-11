@@ -1,8 +1,11 @@
 import { dialog, BrowserWindow, ipcMain } from 'electron';
 import { isDeviceNamed, setDeviceName } from '../config/device.js';
 import { readdir, readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Author: Claude Code
 // Device naming dialog - prompts user to name device on first run
@@ -134,8 +137,9 @@ function showDeviceNamePrompt() {
       resizable: false,
       show: false,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: join(__dirname, 'device-naming-preload.js'),
       }
     });
 
@@ -222,18 +226,17 @@ function showDeviceNamePrompt() {
           </div>
         </div>
         <script>
-          const { ipcRenderer } = require('electron');
           const input = document.getElementById('deviceName');
           const [cancelBtn, saveBtn] = document.querySelectorAll('button');
 
           function save() {
             const value = input.value.trim() || null;
-            ipcRenderer.send('device:submit-name', value);
+            window.dialogAPI.submitName(value);
             window.close();
           }
 
           function cancel() {
-            ipcRenderer.send('device:submit-name', null);
+            window.dialogAPI.submitName(null);
             window.close();
           }
 

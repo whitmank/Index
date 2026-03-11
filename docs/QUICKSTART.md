@@ -1,4 +1,5 @@
 # Quick Start Guide
+<!-- Author: Claude Code -->
 
 ## Installation
 
@@ -12,14 +13,19 @@ npm install
 npm run electron:dev
 ```
 
-This starts the Vite dev server and launches Electron. The app loads from `http://localhost:5173` in development mode.
+Starts the Vite dev server and launches Electron. The app loads from `http://localhost:5173`.
 
-### Global Hotkey
+On first launch you'll be prompted to name this device (e.g. "My Laptop"). This name is used as the `origin` value on all locally-added sources.
 
-- **macOS**: Cmd+` (backtick)
-- **Windows/Linux**: Ctrl+` (backtick)
+## Keyboard Shortcuts
 
-Toggle window visibility with the hotkey. Window is hidden by default on startup.
+| Shortcut | Action |
+|---|---|
+| Cmd+` | Toggle window visibility |
+| Cmd+I | Capture frontmost browser tab |
+| Cmd+. | Toggle settings modal |
+| Cmd+; | Toggle object detail sidebar |
+| Cmd+Z | Undo last destructive action |
 
 ## Building
 
@@ -27,81 +33,96 @@ Toggle window visibility with the hotkey. Window is hidden by default on startup
 npm run electron:build
 ```
 
-Builds the Vite assets and packages the Electron app via Electron Builder. Outputs to `dist-electron/`.
+Builds Vite assets and packages via Electron Builder. Output: `dist-electron/`.
 
 ## Project Structure
 
 ```
-index-workspace/
+index-workspace/0.3/
 ├── electron/
 │   ├── main/
-│   │   ├── index.js           # App entry point
-│   │   ├── db/                # Database lifecycle
-│   │   ├── ipc/               # IPC handlers
-│   │   ├── watchers/          # File watchers
-│   │   └── utils/             # Utilities
+│   │   ├── index.js              # App entry point, lifecycle, hotkeys
+│   │   ├── capture/              # Global Cmd+I capture (Safari + default handlers)
+│   │   ├── config/               # Device ID, window settings persistence
+│   │   ├── db/                   # SurrealDB lifecycle, hydration, persistence, repair
+│   │   ├── ipc/                  # IPC handlers (db, device, window)
+│   │   ├── utils/                # Metadata extraction, file recovery
+│   │   ├── watchers/             # File system watcher (~/.index/objects/)
+│   │   └── window-manager/       # macOS window profiles (overlay, window)
 │   └── preload/
-│       └── index.js           # Context bridge
+│       └── index.js              # Context bridge (secure IPC)
 ├── src/
-│   ├── App.jsx                # React app
-│   ├── App.css                # Styling
-│   ├── store/                 # Zustand stores
-│   └── hooks/                 # Custom hooks
-├── docs/                      # Documentation
-├── vite.config.js             # Vite config
-├── package.json               # Dependencies
-└── index.html                 # HTML entry
+│   ├── App.jsx                   # Root component, drag-drop, paste, keyboard
+│   ├── components/               # GraphView, ObjectDetailSidebar, CollectionsSidebar,
+│   │                             # SettingsModal, TagAssignmentSection, AppearanceSettings
+│   ├── hooks/                    # useKeyboardShortcuts, useAppearance
+│   ├── lib/                      # forceSimulation (D3 config)
+│   ├── store/                    # objects, collections, tags, history (Zustand)
+│   └── styles/                   # GraphView.css
+├── docs/                         # Documentation
+│   ├── GLOSSARY.md               # Canonical terminology
+│   ├── BACKLOG.md                # Planned features
+│   ├── PROJECT_DESIGN.md         # Design principles and architecture
+│   ├── QUICKSTART.md             # This file
+│   ├── dev-logs/                 # Session development logs
+│   └── feature-dev/              # Feature specs and architecture plans
+├── vite.config.js
+├── package.json
+└── index.html
 ```
 
 ## Data Storage
 
-Objects, relationships, and tags are persisted to `~/.index/` as JSON files.
+All data is stored in `~/.index/` on the user's machine.
 
-- `~/.index/objects/` - Individual object files
-- `~/.index/relationships/` - Relationship array
-- `~/.index/tags/` - Tag array
+```
+~/.index/
+├── objects/                 # One JSON file per object
+├── tag_definitions/         # One JSON file per tag
+├── tag_assignments.json     # All object↔tag mappings
+├── collections/             # One JSON file per collection
+├── .device-id               # Device identification
+└── window-settings.json     # Window size/position/profile
+```
 
 ## Environment
 
-- **Node.js**: 22+ (included with Electron)
+- **Node.js**: 22+
 - **Electron**: 39.2.7
-- **SurrealDB**: 1.3.2 (required)
+- **SurrealDB**: 1.3.2 (must be installed and in PATH)
 - **React**: 18.2.0
 - **Vite**: 6.0.0
 
-### macOS Specific
+### macOS
 
-- Requires SurrealDB binary installed (via Homebrew or system package manager)
-- Uses native vibrancy (`popover`) for window blur effects
-- Frameless, transparent overlay window
+- SurrealDB installed via Homebrew: `brew install surrealdb/tap/surreal`
+- Native vibrancy (`popover`) for window blur
+- Frameless transparent overlay window by default
+- Cmd+I capture requires Automation permission (System Settings → Privacy)
 
-### Windows/Linux
+### Windows / Linux
 
 - CSS fallback for window blur effects
-- Frameless, transparent overlay window
+- Capture system (Cmd+I) is macOS-only in v0.3
 
 ## Troubleshooting
 
-### SurrealDB not found
-Ensure SurrealDB is installed and in PATH:
+**SurrealDB not found:**
 ```bash
-which surreal
+which surreal       # should return a path
+brew install surrealdb/tap/surreal
 ```
 
-### Port 8000 already in use
-The database uses port 8000. Check for other processes:
+**Port 8000 in use:**
 ```bash
 lsof -i :8000
+kill -9 <PID>
 ```
 
-### Data not persisting
-Check `~/.index/` directory exists and is writable:
+**Data not appearing after restart:**
 ```bash
-ls -la ~/.index/
+ls -la ~/.index/objects/    # check files exist
 ```
 
-## Documentation
-
-- `docs/dev-logs/` - Development session logs
-- `docs/PHASE_1_PLAN.md` - Next phase roadmap
-- `docs/0 - CORE/` - Architecture and design documents
+**Device naming dialog not appearing:**
+Delete `~/.index/.device-id` to trigger first-run dialog again.

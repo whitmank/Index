@@ -223,7 +223,7 @@ export default function ObjectDetailSidebar({ objectId, isOpen, onClose }) {
         description: `Delete "${object.name}"`,
         undo: async () => {
           // Recreate the object (system tags are auto-assigned)
-          const created = await addObject(snapshot);
+          const created = await useObjectsStore.getState().addObject(snapshot);
           const newId = created?.id?.id || created?.id;
 
           // Reassign user tags

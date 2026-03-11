@@ -72,27 +72,7 @@ export const useObjectsStore = create((set) => ({
    */
   deleteObject: async (id) => {
     try {
-      const result = await window.electronAPI.db.mutate(`DELETE objects:\`${id}\``);
-      if (result.success) {
-        // Reload all objects to ensure consistency
-        await useObjectsStore.getState().loadObjects();
-        return true;
-      } else {
-        set({ error: result.error });
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
-  },
-
-  /**
-   * Delete all objects
-   */
-  deleteAll: async () => {
-    try {
-      const result = await window.electronAPI.db.mutate('DELETE FROM objects');
+      const result = await window.electronAPI.db.deleteObject(id);
       if (result.success) {
         // Reload all objects to ensure consistency
         await useObjectsStore.getState().loadObjects();

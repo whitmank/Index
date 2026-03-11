@@ -119,13 +119,13 @@ Index uses a client-server architecture where the Electron application runs the 
 
 **Objects** have:
 - Unique ID
-- Name and optional description
-- Source URI (file:// or https://)
-- Source metadata (type, size, MIME type, content hash)
-- User metadata (notes, custom fields)
-- Tags (many-to-many relationship)
+- Name, optional label (short graph display name), optional description
+- `sources[]` array — each source has a URI, device origin, and timestamp
+- User metadata (notes)
+- System tags (auto-derived: `media_type`, `file_type`, `origin`)
+- User tags (many-to-many via `tag_assignments`)
 - Links (relationships to other objects)
-- Timestamps (created, modified)
+- Timestamps (created, updated)
 
 **Collections** are:
 - Saved queries with AND/OR/NOT tag logic
@@ -147,9 +147,11 @@ Index uses a client-server architecture where the Electron application runs the 
 ### Data Persistence
 
 - Objects stored individually as JSON files in `~/.index/objects/`
-- Relationships in `~/.index/relationships/`
-- Tags in `~/.index/tags/`
-- Format designed for external editing and version control
+- Tag definitions in `~/.index/tag_definitions/`
+- Tag assignments in `~/.index/tag_assignments.json`
+- Collections in `~/.index/collections/`
+- Device identity in `~/.index/.device-id`
+- Format designed for external inspection and version control
 
 ### Non-Destructiveness
 
@@ -196,24 +198,30 @@ The application succeeds when users can consistently:
 
 ### v0.3 (Current)
 
-- Solid foundation with Electron + SurrealDB + React
 - File (`file://`) and URL (`https://`) indexing
-- Tagging system with collections
-- Link creation and basic visualization
-- Keyboard-driven interface
+- Multi-source objects — one object, many locations/devices
+- Auto-assigned system tags (media_type, file_type, origin)
+- User tagging with collections (saved AND/OR/NOT queries)
+- Force-directed graph visualization (D3)
+- Object detail sidebar (inline editing, sources, tags)
+- Global Cmd+I capture (Safari integration)
 - File recovery via content hashing
-- Live file watching with automatic updates
+- Device identification (named devices, origin tracking)
+- Keyboard-driven interface (Cmd+`, Cmd+I, Cmd+., Cmd+;)
+- Transparent overlay + standard window profiles (macOS)
 
-### v0.4+
+### v0.4 (Planned)
 
-- Additional source types (Notion, Obsidian)
-- Full-text search within indexed content
-- Richer graph visualization and 3D navigation
-- Batch operations (multi-select, bulk tagging)
-- Import/export functionality
-- Settings panel with user customization
-- Configurable keyboard shortcuts
-- Multi-monitor support
+Architecture overhaul — see `docs/feature-dev/ARCHITECTURE_v0.4.md` for the full plan:
+
+- **Persistent SurrealDB** — DB is the source of truth; JSON becomes human-readable export
+- **LIVE SELECT reactivity** — UI updates via DB push, no full state reloads
+- **Domain centralization** — Tag type rules owned by backend, not UI components
+- **ID normalization** — Consistent record ID handling across all layers
+- Relationship visualization (edges in graph)
+- Chrome/Arc/Firefox capture support
+- Tag filtering UI improvements
+- Deduplication detection
 
 ### Future Possibilities
 
@@ -265,7 +273,9 @@ v0.3 supports metadata and tag-based search. Full-text content search is a natur
 
 ### Why SurrealDB?
 
-SurrealDB provides schemaless JSON storage with a clean API, good query language, and WebSocket support. It's lightweight enough to run in-process. The ephemeral in-memory approach (with disk persistence for recovery) balances performance and data safety.
+SurrealDB provides schemaless JSON storage, a rich query language, graph traversal, and LIVE SELECT (push-based reactivity). These capabilities are core to Index's long-term direction: dynamic queries, relationship traversal, and live UI updates without polling.
+
+In v0.3, SurrealDB runs ephemerally (temp dir) with JSON files as the source of truth. In v0.4, SurrealDB becomes the persistent store and its live query features drive UI reactivity directly.
 
 ### Why Electron + React?
 

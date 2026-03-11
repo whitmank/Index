@@ -44,8 +44,6 @@ function startDatabaseProcess() {
     // Kill any existing SurrealDB process on the target port to ensure fresh start
     try {
       execSync(`lsof -ti :${DB_PORT} | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
-      // Give it a moment to fully close
-      setTimeout(() => {}, 200);
     } catch (e) {
       // If no process exists or kill fails, that's fine
     }

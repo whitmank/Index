@@ -60,13 +60,8 @@ export const useTagsStore = create((set, get) => ({
     try {
       const result = await window.electronAPI.db.getTagsForObject(objectId);
       if (result.success) {
-        console.log(`[TagsStore] Loaded ${result.data?.length || 0} tags for object ${objectId}`);
-        console.log(`[TagsStore] Tag data:`, result.data);
         const objectTags = get().objectTags;
-        const newState = { ...objectTags, [objectId]: result.data || [] };
-        console.log(`[TagsStore] Setting objectTags state:`, newState);
-        set({ objectTags: newState });
-        console.log(`[TagsStore] State set, current tags:`, get().objectTags);
+        set({ objectTags: { ...objectTags, [objectId]: result.data || [] } });
         return result.data;
       } else {
         set({ error: result.error });
