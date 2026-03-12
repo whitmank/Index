@@ -1,108 +1,107 @@
 ---
 Author: Claude Code
-Updated: 2026-03-10
+Updated: 2026-03-11
 ---
 
 # Index — Backlog
 
-Items not yet implemented, organized by theme.
-See `docs/feature-dev/ARCHITECTURE_v0.4.md` for the v0.4 architectural plan.
-
----
-
-## Architecture (v0.4 Priority)
-
-These are structural changes that unblock many of the features below.
-See `ARCHITECTURE_v0.4.md` for full detail and phase plan.
-
-- **Persistent SurrealDB storage** — Point SurrealDB at `~/.index/surreal/` instead of temp dir; data survives restarts natively
-- **LIVE SELECT reactivity** — Subscribe to SurrealDB live queries; eliminate full-reload pattern from mutation handlers
-- **Async JSON export** — Move `persistToIndex()` out of critical path; run debounced in background and on quit
-- **ID normalization at IPC boundary** — Centralize `RecordId` unwrapping in handlers; remove `id?.id || id` from components
-- **Domain centralization** — Tag type registry in backend (`tag-types.js`); remove hardcoded system tag rules from UI
-
----
-
-## Tags
-
-- **Tag filtering in graph** — Filter visible graph nodes by tag with AND/OR/NOT logic (collections do this, but ad-hoc filtering does not)
-- **Tag autocomplete** — Fuzzy search when assigning tags; show color swatches
-- **Tag color in graph** — Color-code graph nodes by their primary tag
-- **Show file_type and origin system tags** — Currently hidden; expose as readable metadata in detail sidebar
-- **Global tag rename** — Rename a tag definition and have it update across all assignments
-- **Tag merge** — Combine two tags into one, re-assigning all objects
-
----
-
-## Relationships
-
-- **Relationship UI** — Create, view, delete links between objects from the detail sidebar
-- **Relationship display in graph** — Show links as edges in the force-directed graph
-- **Relationship types** — Typed links ("references", "derived from", "related to") with optional label
-- **Bidirectional traversal** — Navigate from an object to everything it links to and from
+Items not yet implemented, organized by theme. Status reflects codebase as of 2026-03-11.
 
 ---
 
 ## Collections
 
-- **Collection builder UI** — Visual query builder (currently requires knowing tag IDs)
-- **Ad-hoc filtering** — Filter graph without saving as a collection
+- **Collection filtering is a no-op** — `_evaluateCollectionLocally()` in `useIndexStore` ignores its `query` argument and returns all objects. `activateCollection` sets `activeCollectionId` but never calls `db:evaluateCollection`. The server-side evaluator is fully implemented in `ipc/db-handlers.js`; it has no caller. Fix: call `db:evaluateCollection` from `activateCollection` and store the result, or implement client-side evaluation against the `objectTags` cache.
+- **Collection builder UI** — TagSelector dropdown exists and shows tag names, but no visual query builder; users must know tag IDs to construct rules manually.
+- **Ad-hoc filtering** — No way to filter the graph without saving as a named collection.
+
+---
+
+## Relationships
+
+- **Data model** — No relationship table or schema exists yet. Must be designed before any UI work.
+- **Relationship UI** — Create, view, and delete links between objects from the detail sidebar.
+- **Relationship display in graph** — Render typed links as edges in the force-directed graph. GraphView currently renders nodes only.
+- **Relationship types** — Typed links ("references", "derived from", "related to") with optional label.
+- **Bidirectional traversal** — Navigate from an object to everything it links to and from.
+
+---
+
+## Tags
+
+- **Tag autocomplete** — No fuzzy search or autocomplete when assigning tags. TagAssignmentSection allows creation but not search.
+- **Tag color in graph** — Graph nodes render as uniform circles. No color differentiation by tag.
+- **Expose file_type and origin as tag UI** — `media_type` is displayed (`display: true` in `tag-types.js`). `file_type` and `origin` are `display: false` — their values appear in source metadata but not as editable tag UI. Decide whether to expose them.
+- **Global tag rename** — Only individual tag editing via `db:updateTag`. No bulk rename across all assignments.
+- **Tag merge** — No logic to combine two tags and re-assign all objects.
 
 ---
 
 ## Sources & Capture
 
-- **Chrome/Arc/Firefox capture** — Extend Cmd+I capture beyond Safari
-- **Source type indicators** — Visual distinction in graph between file objects and URL objects
-- **Additional URI schemes** — `notion://`, `obsidian://`, `smb://` source handling
-- **Source copying** — Copy a remote source to local device (download + add as new source)
-- **Deduplication detection** — Warn when a URI or content hash already exists; offer to merge or link
+- **Chrome/Arc/Firefox capture** — Cmd+I capture is Safari-only. `capture/index.js` has `safariHandler` and a generic `defaultHandler`; no browser-specific handlers for others.
+- **Source type indicators** — No visual distinction in graph between file and URL objects.
+- **Additional URI schemes** — No support for `notion://`, `obsidian://`, `smb://`. Only `http/https` and `file://` handled.
+- **Source copying** — No download/cache functionality for remote sources.
+- **Deduplication warning** — Cmd+I silently focuses existing object when a URI already exists. No user-facing warning or merge offer.
 
 ---
 
 ## Graph & Visualization
 
-- **Relationship edges** — Render typed links as edges between nodes
-- **Graph filtering by collection** — Already partially implemented; polish and persist filter state
-- **Node grouping** — Cluster nodes by tag or collection visually
-- **Zoom to selected** — Auto-center and zoom on selected node
-- **Performance** — Virtual rendering for 1,000+ node graphs
+- **Relationship edges** — No edges rendered. Blocked by relationship data model.
+- **Node grouping** — No visual clustering by tag or collection.
+- **Zoom to selected** — GraphView supports zoom/pan but no auto-center on node selection.
+- **Performance** — No virtual rendering for large graphs. Force simulation will degrade with 1,000+ nodes.
 
 ---
 
 ## Object Detail
 
-- **Notes editing** — Inline editing of `user_metadata.notes`
-- **Relationship panel** — Show and create links from detail sidebar
-- **Source file metadata** — Display file size, type, last modified for local sources
-- **URL metadata** — Display fetched title, description, favicon for web sources
-
----
-
-## Data Integrity
-
-- **Deduplication management** — Merge duplicate objects, consolidate tags and relationships
-- **Source repair UI** — Surface objects with missing/broken sources; allow manual re-linking
-- **Export data** — Write current state to `~/.index/export/` on demand (Settings action)
-- **Import / restore** — Re-import from JSON export files or zip backup
+- **Notes editing** — `user_metadata` exists in object schema but no UI to edit `user_metadata.notes`.
+- **Relationship panel** — No links section in ObjectDetailSidebar. Blocked by relationship data model.
+- **Source file metadata** — File size and last-modified not displayed for local sources.
+- **URL metadata** — No title, description, or favicon fetching for web sources.
 
 ---
 
 ## Settings & Customization
 
-- **Keyboard shortcut customization** — Rebind standard shortcuts
-- **Appearance** — Light/dark already done; add accent color, font size
-- **Data directory** — Allow changing `~/.index/` location
+- **Appearance: accent color and font size** — HSLA background controls are implemented (`AppearanceSettings.jsx`). Accent color picker and font size controls are not.
+- **Keyboard shortcut customization** — Shortcuts are hardcoded in `useKeyboardShortcuts.js`. No Settings UI to rebind.
+- **Data directory** — `~/.index/` is hardcoded across multiple files. No UI to change location.
+- **Export on demand** — Export runs automatically (debounced 5s, and on quit) to `~/.index/export/`. No user-facing trigger button in Settings.
+
+---
+
+## Data Integrity
+
+- **Deduplication management** — No UI to surface or merge duplicate objects.
+- **Source repair UI** — `db:repairMissingSystemTags` exists in handlers but is not wired to any UI.
+- **Import / restore** — No UI to re-import from JSON export files or zip backup.
 
 ---
 
 ## Quality & Infrastructure
 
-- **Error boundaries** — React error boundaries around graph and sidebar
-- **Testing suite** — Unit tests for stores, IPC handlers, domain logic
-- **Virtual scrolling** — Handle 10,000+ objects in collections sidebar
-- **Windows/Linux parity** — Vibrancy fallback, capture system for non-macOS
+- **Error boundaries** — No React error boundaries around GraphView or sidebars.
+- **Testing suite** — No unit or integration tests.
+- **Virtual scrolling** — Collections sidebar and object lists have no virtualization.
+- **Windows/Linux parity** — Vibrancy and capture system are macOS-only. File paths and window management need platform abstraction.
 
 ---
 
-*Prioritize based on user impact. Architecture items unlock the most downstream value.*
+## Implemented (for reference)
+
+Features that are complete and working as of this writing:
+
+- Persistent SurrealDB at `~/.index/surreal/`
+- LIVE SELECT reactivity — DB pushes diffs to renderer, no full reloads
+- Async debounced JSON export — `scheduleExport()` everywhere mutations happen
+- ID normalization — fully-qualified SurrealDB IDs (`table:id`) throughout
+- Domain centralization — system tag registry in `domain/tag-types.js`, exposed via `db:getTagTypes`
+- v0.3 → v0.4 migration — one-time import from `~/.index/objects/` JSON on first boot
+- Undo system — `UndoToast` + `useHistoryStore` wired to all destructive actions
+- Window behavior profiles — Overlay and Window modes in SettingsModal
+- Appearance settings — light/dark theme + HSLA background controls
+- Cmd+I capture — Safari + generic default handler, deduplication by URI

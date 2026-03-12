@@ -8,7 +8,7 @@ import { useHistoryStore } from '../store/history';
 import TagAssignmentSection from './TagAssignmentSection';
 import './ObjectDetailSidebar.css';
 
-const normalizeId = (id) => (typeof id === 'string' ? id : id?.id);
+const normalizeId = (id) => id;
 
 export default function ObjectDetailSidebar({ objectId, isOpen, onClose }) {
   const objects = useIndexStore(state => state.objects);
@@ -158,14 +158,14 @@ export default function ObjectDetailSidebar({ objectId, isOpen, onClose }) {
       const tagsResult = await window.electronAPI.db.getTagsForObject(id);
       const userTagIds = (tagsResult.data || [])
         .filter(t => !t.system)
-        .map(t => t.id?.id || t.id);
+        .map(t => t.id);
 
       push({
         description: `Delete "${object.name}"`,
         undo: async () => {
           // Recreate — LIVE SELECT pushes the restored object to the store
           const created = await addObject(snapshot);
-          const newId = created?.id?.id || created?.id;
+          const newId = created?.id;
           if (newId) {
             for (const tagId of userTagIds) {
               await window.electronAPI.db.assignTag(newId, tagId);

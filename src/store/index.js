@@ -67,14 +67,14 @@ export const useIndexStore = create((set, get) => ({
   subscribeToLive: () => {
     window.electronAPI.onObjectsLive(({ action, result }) => {
       const { objects } = get();
-      const id = result.id?.id || result.id;
+      const id = result.id;
 
       if (action === 'CREATE') {
         set({ objects: [...objects, result] });
       } else if (action === 'UPDATE') {
-        set({ objects: objects.map(o => (o.id?.id || o.id) === id ? result : o) });
+        set({ objects: objects.map(o => o.id === id ? result : o) });
       } else if (action === 'DELETE') {
-        set({ objects: objects.filter(o => (o.id?.id || o.id) !== id) });
+        set({ objects: objects.filter(o => o.id !== id) });
       }
     });
 
@@ -91,15 +91,15 @@ export const useIndexStore = create((set, get) => ({
 
     window.electronAPI.onCollectionsLive(({ action, result }) => {
       const { collections } = get();
-      const id = result.id?.id || result.id;
+      const id = result.id;
 
       if (action === 'CREATE') {
         const sorted = [...collections, result].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
         set({ collections: sorted });
       } else if (action === 'UPDATE') {
-        set({ collections: collections.map(c => (c.id?.id || c.id) === id ? result : c) });
+        set({ collections: collections.map(c => c.id === id ? result : c) });
       } else if (action === 'DELETE') {
-        const newCollections = collections.filter(c => (c.id?.id || c.id) !== id);
+        const newCollections = collections.filter(c => c.id !== id);
         set({ collections: newCollections });
 
         // Clear active collection if deleted
@@ -121,7 +121,7 @@ export const useIndexStore = create((set, get) => ({
     const { objects, activeCollectionId, collections } = get();
     if (!activeCollectionId || activeCollectionId === SYSTEM_ALL_ID) return objects;
 
-    const collection = collections.find(c => (c.id?.id || c.id) === activeCollectionId);
+    const collection = collections.find(c => c.id === activeCollectionId);
     if (!collection) return objects;
 
     return get()._evaluateCollectionLocally(collection.query, objects);

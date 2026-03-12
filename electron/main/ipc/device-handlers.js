@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { getDeviceId, getDeviceOrigin, isDeviceNamed } from '../config/device.js';
-import { ensureDeviceNamed } from '../windows/device-naming-dialog.js';
+import { ensureDeviceNamed } from '../dialogs/device-naming-dialog.js';
 
 // Author: Claude Code
 // IPC handlers for device identification

@@ -2,10 +2,10 @@
 // Core object creation and lookup logic — shared between IPC handlers and the capture system.
 // v0.4: uses scheduleExport (async, non-blocking) instead of persistToIndex.
 
-import { scheduleExport } from './export.js';
+import { scheduleExport } from '../export.js';
 import { findOrCreateSystemTag } from './system-tags.js';
-import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
-import { getDeviceOrigin } from '../config/device.js';
+import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../../utils/metadata-extractor.js';
+import { getDeviceOrigin } from '../../config/device.js';
 
 /**
  * Create a new object in the database.
@@ -41,7 +41,7 @@ export async function createObjectCore(db, objectData) {
 
   const result = await db.create('objects', objectRecord);
   const newObject = Array.isArray(result) ? result[0] : result;
-  const objectId = (newObject.id && newObject.id.id) || newObject.id;
+  const objectId = newObject.id?.toString?.() ?? newObject.id;
 
   await assignSystemTagsFromSources(db, objectId, sources, objectData.mediaTypeHint || null);
   scheduleExport(db);
