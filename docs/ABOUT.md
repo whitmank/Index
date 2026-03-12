@@ -64,11 +64,11 @@ Single Zustand store (`useIndexStore`) owns: objects, collections, tags, tag-typ
 | File | Purpose |
 |------|---------|
 | `electron/main/index.js` | App lifecycle, hotkeys, startup sequence |
-| `electron/main/db/index.js` | SurrealDB process management |
+| `electron/main/db/connection.js` | SurrealDB process management |
 | `electron/main/db/live-queries.js` | LIVE SELECT subscriptions to renderer |
 | `electron/main/db/export.js` | Async JSON export with debouncing |
 | `electron/main/db/migration.js` | v0.3→v0.4 one-time import |
-| `electron/main/db/object-service.js` | Object creation + system tag assignment |
+| `electron/main/db/services/object-service.js` | Object creation + system tag assignment |
 | `electron/main/ipc/db-handlers.js` | Database API handlers |
 | `electron/main/domain/tag-types.js` | System tag type registry |
 | `electron/preload/index.js` | Context bridge (secure IPC surface) |
@@ -116,3 +116,43 @@ Single Zustand store (`useIndexStore`) owns: objects, collections, tags, tag-typ
 **Built:** Object CRUD, tagging, collections, D3 force graph (nodes, physics, zoom/drag), undo, capture, device identity, v0.3 migration, async export, LIVE SELECT reactivity.
 
 **Modeled, not yet rendered:** Graph edges (relationships exist in data model, not yet in GraphView), full-text search, multi-device sync.
+
+---
+
+## Roadmap
+
+### v0.3 (shipped)
+
+- File (`file://`) and URL (`https://`) indexing
+- Multi-source objects — one object, many locations/devices
+- Auto-assigned system tags (`media_type`, `file_type`, `origin`)
+- User tagging with collections (saved AND/OR/NOT queries)
+- Force-directed graph visualization (D3)
+- Object detail sidebar (inline editing, sources, tags)
+- Global Cmd+I capture (Safari integration)
+- File recovery via content hashing
+- Device identification (named devices, origin tracking)
+- Keyboard-driven interface
+- Transparent overlay + standard window profiles (macOS)
+
+### v0.4 (current)
+
+Architecture overhaul:
+
+- Persistent SurrealDB — source of truth at `~/.index/surreal/`; JSON becomes human-readable export
+- LIVE SELECT reactivity — UI updates via DB push, no full state reloads
+- Domain centralization — tag type rules owned by `domain/tag-types.js`, not UI components
+- Fully-qualified SurrealDB IDs (`table:id`) throughout all layers
+- Single unified store (`useIndexStore`) replacing three fragmented stores
+- Undo system — `UndoToast` + `useHistoryStore` wired to all destructive actions
+- v0.3 → v0.4 one-time migration on first boot
+
+### Future
+
+- Relationship visualization (edges in graph)
+- Collection filtering wired end-to-end
+- Chrome/Arc/Firefox capture support
+- Tag autocomplete and color-in-graph
+- Full-text search
+- Optional sync (local-first, sync-optional model)
+- Plugin system for custom source handlers

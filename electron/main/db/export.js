@@ -73,7 +73,7 @@ async function exportTable(db, tableName, targetDir) {
 
   records.forEach(record => {
     try {
-      const recordId = (record.id && record.id.id) || Date.now().toString();
+      const recordId = record.id?.id ?? Date.now().toString();
       const sanitizedName = (record.name || 'record')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')

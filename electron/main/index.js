@@ -7,14 +7,14 @@
 
 import { app, globalShortcut } from 'electron';
 import WindowManagerFactory from './window-manager/index.js';
-import { startDatabase, stopDatabase, getDatabase } from './db/index.js';
+import { startDatabase, stopDatabase, getDatabase } from './db/connection.js';
 import { exportToJson } from './db/export.js';
 import { startLiveQueries } from './db/live-queries.js';
 import { registerDbHandlers, setMainWindow } from './ipc/db-handlers.js';
 import { registerWindowHandlers, setProfileChangeCallback } from './ipc/window-handlers.js';
 import { initializeDeviceId } from './config/device.js';
 import { loadWindowSettings } from './config/window-settings.js';
-import { ensureDeviceNamed } from './windows/device-naming-dialog.js';
+import { ensureDeviceNamed } from './dialogs/device-naming-dialog.js';
 import * as deviceHandlers from './ipc/device-handlers.js';
 import { handleCaptureShortcut } from './capture/index.js';
 import path from 'path';

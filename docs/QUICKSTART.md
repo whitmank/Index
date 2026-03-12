@@ -1,31 +1,41 @@
-# Quick Start Guide
-<!-- Author: Claude Code -->
+---
+Author: Claude Code
+Updated: 2026-03-12
+---
 
-## Installation
+# Index — Quick Start
+
+## Prerequisites
+
+- **Node.js** 22+
+- **SurrealDB** 1.3.2+ — must be installed and available in PATH
+
+```bash
+brew install surrealdb/tap/surreal
+which surreal   # verify
+```
+
+---
+
+## Setup
 
 ```bash
 npm install
 ```
 
-## Development
+---
+
+## Running
 
 ```bash
 npm run electron:dev
 ```
 
-Starts the Vite dev server and launches Electron. The app loads from `http://localhost:5173`.
+Starts the Vite dev server and launches Electron. UI loads from `http://localhost:5173`.
 
-On first launch you'll be prompted to name this device (e.g. "My Laptop"). This name is used as the `origin` value on all locally-added sources.
+On first launch, you'll be prompted to name this device (e.g. "My Laptop"). This name is recorded as the `origin` on all locally-added sources.
 
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|---|---|
-| Cmd+` | Toggle window visibility |
-| Cmd+I | Capture frontmost browser tab |
-| Cmd+. | Toggle settings modal |
-| Cmd+; | Toggle object detail sidebar |
-| Cmd+Z | Undo last destructive action |
+---
 
 ## Building
 
@@ -33,96 +43,116 @@ On first launch you'll be prompted to name this device (e.g. "My Laptop"). This 
 npm run electron:build
 ```
 
-Builds Vite assets and packages via Electron Builder. Output: `dist-electron/`.
+Produces a distributable in `dist-electron/`.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Cmd+` | Toggle window visibility |
+| Cmd+I | Capture frontmost browser tab |
+| Cmd+, | Toggle settings |
+| Cmd+. | Toggle object detail sidebar |
+| Cmd+Z | Undo last destructive action |
+
+**Cmd+I capture** requires Automation permission on macOS: System Settings → Privacy & Security → Automation.
+
+---
+
+## Data
+
+All data lives in `~/.index/` on the user's machine.
+
+```
+~/.index/
+├── surreal/                 # SurrealDB — primary source of truth
+├── export/                  # Auto-exported JSON (human-readable backup)
+│   ├── objects/
+│   ├── tag_definitions/
+│   ├── collections/
+│   └── tag_assignments.json
+├── .device-id               # Device UUID and name
+├── .version                 # Written on first v0.4 boot; gates v0.3 migration
+└── window-settings.json     # Window geometry and profile
+```
+
+Export runs automatically — debounced 5 seconds after any mutation, and on quit.
+
+On first v0.4 boot, any existing v0.3 data at `~/.index/objects/` is automatically imported into SurrealDB.
+
+---
 
 ## Project Structure
 
 ```
-index-workspace/0.3/
-├── electron/
-│   ├── main/
-│   │   ├── index.js              # App entry point, lifecycle, hotkeys
-│   │   ├── capture/              # Global Cmd+I capture (Safari + default handlers)
-│   │   ├── config/               # Device ID, window settings persistence
-│   │   ├── db/                   # SurrealDB lifecycle, hydration, persistence, repair
-│   │   ├── ipc/                  # IPC handlers (db, device, window)
-│   │   ├── utils/                # Metadata extraction, file recovery
-│   │   ├── watchers/             # File system watcher (~/.index/objects/)
-│   │   └── window-manager/       # macOS window profiles (overlay, window)
-│   └── preload/
-│       └── index.js              # Context bridge (secure IPC)
-├── src/
-│   ├── App.jsx                   # Root component, drag-drop, paste, keyboard
-│   ├── components/               # GraphView, ObjectDetailSidebar, CollectionsSidebar,
-│   │                             # SettingsModal, TagAssignmentSection, AppearanceSettings
-│   ├── hooks/                    # useKeyboardShortcuts, useAppearance
-│   ├── lib/                      # forceSimulation (D3 config)
-│   ├── store/                    # objects, collections, tags, history (Zustand)
-│   └── styles/                   # GraphView.css
-├── docs/                         # Documentation
-│   ├── GLOSSARY.md               # Canonical terminology
-│   ├── BACKLOG.md                # Planned features
-│   ├── PROJECT_DESIGN.md         # Design principles and architecture
-│   ├── QUICKSTART.md             # This file
-│   ├── dev-logs/                 # Session development logs
-│   └── feature-dev/              # Feature specs and architecture plans
-├── vite.config.js
-├── package.json
-└── index.html
+electron/
+  main/
+    index.js              # Entry point — app lifecycle, hotkeys, startup sequence
+    capture/              # Cmd+I global capture (Safari + default handlers)
+    config/               # Device ID, window settings
+    db/
+      connection.js       # SurrealDB process management
+      live-queries.js     # LIVE SELECT → renderer push
+      export.js           # Async JSON export
+      migration.js        # v0.3 → v0.4 one-time import
+      repair.js           # System tag repair
+      services/
+        object-service.js # Object creation + system tag assignment
+        system-tags.js    # Find-or-create system tags
+    dialogs/              # Device naming dialog (first run)
+    domain/               # System tag type registry
+    ipc/                  # IPC handlers: db, device, window
+    utils/                # Metadata extraction, ID normalization, file recovery
+    window-manager/       # macOS window profiles (overlay, window)
+  preload/
+    index.js              # Context bridge — secure IPC surface
+
+src/
+  App.jsx                 # Root component
+  components/             # GraphView, ObjectDetailSidebar, CollectionsSidebar,
+                          # SettingsModal, TagAssignmentSection, UndoToast
+  hooks/                  # useKeyboardShortcuts, useAppearance
+  lib/                    # forceSimulation (D3 config)
+  store/
+    index.js              # useIndexStore — unified state
+    history.js            # useHistoryStore — undo stack
+
+docs/
+  ABOUT.md                # Technical reference: architecture, flows, key files, roadmap
+  GLOSSARY.md             # Canonical terminology and IPC API
+  BACKLOG.md              # Known gaps and planned features
+  PROJECT_DESIGN.md       # Design philosophy and principles
 ```
 
-## Data Storage
-
-All data is stored in `~/.index/` on the user's machine.
-
-```
-~/.index/
-├── objects/                 # One JSON file per object
-├── tag_definitions/         # One JSON file per tag
-├── tag_assignments.json     # All object↔tag mappings
-├── collections/             # One JSON file per collection
-├── .device-id               # Device identification
-└── window-settings.json     # Window size/position/profile
-```
-
-## Environment
-
-- **Node.js**: 22+
-- **Electron**: 39.2.7
-- **SurrealDB**: 1.3.2 (must be installed and in PATH)
-- **React**: 18.2.0
-- **Vite**: 6.0.0
-
-### macOS
-
-- SurrealDB installed via Homebrew: `brew install surrealdb/tap/surreal`
-- Native vibrancy (`popover`) for window blur
-- Frameless transparent overlay window by default
-- Cmd+I capture requires Automation permission (System Settings → Privacy)
-
-### Windows / Linux
-
-- CSS fallback for window blur effects
-- Capture system (Cmd+I) is macOS-only in v0.3
+---
 
 ## Troubleshooting
 
-**SurrealDB not found:**
+**SurrealDB not found at startup**
 ```bash
-which surreal       # should return a path
-brew install surrealdb/tap/surreal
+which surreal                         # must return a path
+brew install surrealdb/tap/surreal    # install if missing
 ```
 
-**Port 8000 in use:**
+**Port 8000 already in use**
 ```bash
 lsof -i :8000
 kill -9 <PID>
 ```
 
-**Data not appearing after restart:**
+**Blank screen / data not loading**
 ```bash
-ls -la ~/.index/objects/    # check files exist
+ls ~/.index/surreal/    # confirm DB directory exists
 ```
 
-**Device naming dialog not appearing:**
-Delete `~/.index/.device-id` to trigger first-run dialog again.
+**Reset device name**
+```bash
+rm ~/.index/.device-id    # triggers naming dialog on next launch
+```
+
+**Wipe and start fresh**
+```bash
+rm -rf ~/.index/surreal/
+```

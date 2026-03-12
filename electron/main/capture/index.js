@@ -4,7 +4,7 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { createObjectCore, findObjectByUri } from '../db/object-service.js';
+import { createObjectCore, findObjectByUri } from '../db/services/object-service.js';
 
 import * as safariHandler from './context-handlers/safari.js';
 import * as defaultHandler from './context-handlers/default.js';
@@ -60,7 +60,7 @@ export async function handleCaptureShortcut(db, mainWindow) {
     const existing = await findObjectByUri(db, uri);
 
     if (existing) {
-      objectId = (existing.id && existing.id.id) || existing.id;
+      objectId = existing.id?.toString?.() ?? existing.id;
       console.log(`[Capture] Duplicate found, focusing existing object: ${objectId}`);
     } else {
       try {

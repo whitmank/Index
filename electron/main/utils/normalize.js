@@ -11,7 +11,7 @@ export function normalizeRecord(record) {
   if (!record) return record;
   return {
     ...record,
-    id: record.id?.id || record.id,
+    id: record.id?.toString?.() ?? record.id,
   };
 }
 

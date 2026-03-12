@@ -2,7 +2,7 @@
 // System tag repair logic - ensures all objects have their system tags
 
 import { extractMediaTypeFromSource, extractFileType } from '../utils/metadata-extractor.js';
-import { findOrCreateSystemTag } from './system-tags.js';
+import { findOrCreateSystemTag } from './services/system-tags.js';
 
 /**
  * Repair missing system tags for a single object
@@ -11,7 +11,7 @@ import { findOrCreateSystemTag } from './system-tags.js';
  */
 async function repairObjectSystemTags(db, object) {
   try {
-    const objectId = (object.id && object.id.id) || object.id;
+    const objectId = object.id?.toString?.() ?? object.id;
 
     // v2: Check for sources array
     const sources = object.sources || [];
@@ -32,7 +32,7 @@ async function repairObjectSystemTags(db, object) {
     // Fetch the actual tags to check which types are assigned
     let assignedTags = [];
     if (assignedTagIds.length > 0) {
-      const inClause = `[${assignedTagIds.map(id => `tag_definitions:${id}`).join(', ')}]`;
+      const inClause = `[${assignedTagIds.join(', ')}]`;
       const fullTagsResult = await db.query(`SELECT * FROM ${inClause}`);
       assignedTags = fullTagsResult[0] || [];
     }
@@ -101,7 +101,7 @@ async function repairObjectSystemTags(db, object) {
     return { objectId, repaired };
   } catch (error) {
     console.error('[Repair] Error repairing object system tags:', error);
-    return { objectId: (object.id && object.id.id) || object.id, repaired: [] };
+    return { objectId: object.id?.toString?.() ?? object.id, repaired: [] };
   }
 }
 

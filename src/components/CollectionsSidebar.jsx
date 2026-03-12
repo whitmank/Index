@@ -9,7 +9,7 @@ import './CollectionsSidebar.css';
 function TagSelector({ label, selectedTags, onTagsChange, availableTags, maxTags = Infinity }) {
   const [expanded, setExpanded] = useState(false);
 
-  const findTagById = (tagId) => availableTags.find(t => (t.id?.id || t.id) === tagId || t.id === tagId);
+  const findTagById = (tagId) => availableTags.find(t => t.id === tagId);
 
   return (
     <div className="tag-selector">
@@ -35,7 +35,7 @@ function TagSelector({ label, selectedTags, onTagsChange, availableTags, maxTags
       {expanded && (
         <div className="tag-selector-menu">
           {availableTags.map(tag => {
-            const tagId = tag.id?.id || tag.id;
+            const tagId = tag.id;
             const isSelected = selectedTags.includes(tagId);
             return (
               <button
@@ -193,7 +193,7 @@ export default function CollectionsSidebar() {
 
   const handleDeleteCollection = async (collectionId) => {
     const push = useHistoryStore.getState().push;
-    const toDelete = collections.find(c => (c.id?.id || c.id) === collectionId);
+    const toDelete = collections.find(c => c.id === collectionId);
 
     if (toDelete) {
       push({
@@ -245,7 +245,7 @@ export default function CollectionsSidebar() {
       {!isCollapsed && (
         <div className="collections-list">
           {collections.map((collection, index) => {
-            const collectionId = collection.id?.id || collection.id;
+            const collectionId = collection.id;
             const isActive = activeCollectionId === collectionId || (!activeCollectionId && collection.system);
             const isSystem = collection.system;
             const isDeleting = deleteConfirm === collectionId;
@@ -291,7 +291,7 @@ export default function CollectionsSidebar() {
         <CollectionEditor
           isOpen={editorOpen}
           onClose={() => { setEditorOpen(false); setCollectionToEdit(null); }}
-          onSave={collectionToEdit ? (data) => updateCollection(collectionToEdit.id?.id || collectionToEdit.id, data) : createCollection}
+          onSave={collectionToEdit ? (data) => updateCollection(collectionToEdit.id, data) : createCollection}
           collectionToEdit={collectionToEdit}
           availableTags={tags}
         />

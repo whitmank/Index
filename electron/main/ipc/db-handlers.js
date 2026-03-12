@@ -8,12 +8,12 @@
 //   - No broadcastObjectsChanged — LIVE SELECT handles reactivity
 
 import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
-import { getDatabase } from '../db/index.js';
+import { getDatabase } from '../db/connection.js';
 import { scheduleExport } from '../db/export.js';
-import { findOrCreateSystemTag } from '../db/system-tags.js';
+import { findOrCreateSystemTag } from '../db/services/system-tags.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
-import { createObjectCore } from '../db/object-service.js';
+import { createObjectCore } from '../db/services/object-service.js';
 import { normalizeRecord, normalizeRecords } from '../utils/normalize.js';
 import { SYSTEM_TAG_TYPES, isSystemTagDeletable } from '../domain/tag-types.js';
 
@@ -88,7 +88,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      await db.query(`DELETE objects:\`${id}\``);
+      await db.query(`DELETE ${id}`);
       scheduleExport(db);
 
       return { success: true };
@@ -124,7 +124,7 @@ export function registerDbHandlers() {
         updateObj.updated_at = now;
       }
 
-      const result = await db.query(`UPDATE objects:${id} MERGE ${JSON.stringify(updateObj)}`);
+      const result = await db.query(`UPDATE ${id} MERGE ${JSON.stringify(updateObj)}`);
       scheduleExport(db);
 
       return { success: true, data: result };
@@ -174,7 +174,7 @@ export function registerDbHandlers() {
 
       if (Object.keys(updateObj).length === 0) throw new Error('No fields to update');
 
-      const result = await db.query(`UPDATE tag_definitions:${tagId} MERGE ${JSON.stringify(updateObj)}`);
+      const result = await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(updateObj)}`);
       scheduleExport(db);
 
       return { success: true, data: result };
@@ -193,7 +193,7 @@ export function registerDbHandlers() {
       if (!db) throw new Error('Database not connected');
 
       // Fetch tag to check system status
-      const tagResult = await db.query(`SELECT * FROM tag_definitions:${tagId}`);
+      const tagResult = await db.query(`SELECT * FROM ${tagId}`);
       const tag = tagResult[0]?.[0] || tagResult[0];
 
       if (tag && tag.system && !isSystemTagDeletable(tag.type)) {
@@ -201,7 +201,7 @@ export function registerDbHandlers() {
       }
 
       await db.query(`DELETE FROM tag_assignments WHERE tag_id = '${tagId}'`);
-      await db.query(`DELETE FROM tag_definitions:${tagId}`);
+      await db.query(`DELETE ${tagId}`);
       scheduleExport(db);
 
       return { success: true };
@@ -218,10 +218,10 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const objResult = await db.query(`SELECT * FROM objects:${objectId}`);
+      const objResult = await db.query(`SELECT * FROM ${objectId}`);
       if (!objResult?.[0]?.length) throw new Error(`Object not found: ${objectId}`);
 
-      const tagResult = await db.query(`SELECT * FROM tag_definitions:${tagId}`);
+      const tagResult = await db.query(`SELECT * FROM ${tagId}`);
       if (!tagResult?.[0]?.length) throw new Error(`Tag not found: ${tagId}`);
 
       const existingResult = await db.query(
@@ -276,9 +276,9 @@ export function registerDbHandlers() {
 
       let tagsResult;
       if (assignmentIds.length === 1) {
-        tagsResult = await db.query(`SELECT * FROM tag_definitions:${assignmentIds[0]}`);
+        tagsResult = await db.query(`SELECT * FROM ${assignmentIds[0]}`);
       } else {
-        const inClause = `[${assignmentIds.map(id => `tag_definitions:${id}`).join(', ')}]`;
+        const inClause = `[${assignmentIds.join(', ')}]`;
         tagsResult = await db.query(`SELECT * FROM ${inClause}`);
       }
 
@@ -302,7 +302,7 @@ export function registerDbHandlers() {
       if (objectIds.length === 0) return { success: true, data: [] };
 
       const objectsResult = await db.query(
-        `SELECT * FROM objects WHERE id IN [${objectIds.map(id => `'${id}'`).join(', ')}]`
+        `SELECT * FROM objects WHERE id IN [${objectIds.join(', ')}]`
       );
 
       return { success: true, data: normalizeRecords(objectsResult[0] || []) };
@@ -346,30 +346,21 @@ export function registerDbHandlers() {
         throw new Error('Collection must have at least one rule (all, any, or none)');
       }
 
-      const extractPlainId = (id) => {
-        if (typeof id === 'object' && id.id) return id.id;
-        if (typeof id === 'string' && id.includes(':')) return id.split(':')[1];
-        return id;
-      };
-
       const now = new Date().toISOString();
       const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
 
       const tagsResult = await db.query('SELECT * FROM tag_definitions');
       const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
-      const existingTagIds = new Set(existingTags.map(t => {
-        const tagId = (t.id && t.id.id) || t.id;
-        return typeof tagId === 'string' ? tagId.split(':')[1] : tagId;
-      }));
+      const existingTagIds = new Set(existingTags.map(t => t.id?.toString?.() ?? t.id));
 
       const warnings = allTagIds.filter(tagId => !existingTagIds.has(tagId)).map(tagId => `Tag '${tagId}' not found`);
 
       const collectionRecord = {
         name,
         query: {
-          all: (query.all || []).map(extractPlainId),
-          any: (query.any || []).map(extractPlainId),
-          none: (query.none || []).map(extractPlainId),
+          all: query.all || [],
+          any: query.any || [],
+          none: query.none || [],
         },
         pinned: false,
         created_at: now,
@@ -398,33 +389,24 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      let plainCollectionId = collectionId;
-      if (typeof collectionId === 'object' && collectionId.id) plainCollectionId = collectionId.id;
-
       const { query, name, order } = updates;
 
       if (query && (!query.all?.length && !query.any?.length && !query.none?.length)) {
         throw new Error('Collection must have at least one rule (all, any, or none)');
       }
 
-      const extractPlainId = (id) => {
-        if (typeof id === 'object' && id.id) return id.id;
-        if (typeof id === 'string' && id.includes(':')) return id.split(':')[1];
-        return id;
-      };
-
       const updateObj = { updated_at: new Date().toISOString() };
       if (name !== undefined) updateObj.name = name;
       if (query !== undefined) {
         updateObj.query = {
-          all: (query.all || []).map(extractPlainId),
-          any: (query.any || []).map(extractPlainId),
-          none: (query.none || []).map(extractPlainId),
+          all: query.all || [],
+          any: query.any || [],
+          none: query.none || [],
         };
       }
       if (order !== undefined) updateObj.order = order;
 
-      const result = await db.query(`UPDATE collections:${plainCollectionId} MERGE ${JSON.stringify(updateObj)}`);
+      const result = await db.query(`UPDATE ${collectionId} MERGE ${JSON.stringify(updateObj)}`);
       scheduleExport(db);
 
       return { success: true, data: result };
@@ -441,10 +423,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      let plainCollectionId = collectionId;
-      if (typeof collectionId === 'object' && collectionId.id) plainCollectionId = collectionId.id;
-
-      await db.query(`DELETE FROM collections:${plainCollectionId}`);
+      await db.query(`DELETE ${collectionId}`);
       scheduleExport(db);
 
       return { success: true };
@@ -461,26 +440,17 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      let plainCollectionId = collectionId;
-      if (typeof collectionId === 'object' && collectionId.id) plainCollectionId = collectionId.id;
-
-      let collectionResult = await db.query(`SELECT * FROM collections:${plainCollectionId}`);
+      let collectionResult = await db.query(`SELECT * FROM ${collectionId}`);
       let collection = collectionResult;
       if (Array.isArray(collection) && collection.length > 0) collection = collection[0];
       if (Array.isArray(collection) && collection.length > 0) collection = collection[0];
 
-      if (!collection) throw new Error(`Collection ${plainCollectionId} not found`);
-
-      const normalizeTagId = (id) => {
-        if (typeof id === 'object' && id.id) return id.id;
-        if (typeof id === 'string' && id.includes(':')) return id.split(':')[1];
-        return id;
-      };
+      if (!collection) throw new Error(`Collection ${collectionId} not found`);
 
       const query = {
-        all: ((collection.query?.all) || []).map(normalizeTagId),
-        any: ((collection.query?.any) || []).map(normalizeTagId),
-        none: ((collection.query?.none) || []).map(normalizeTagId),
+        all: collection.query?.all || [],
+        any: collection.query?.any || [],
+        none: collection.query?.none || [],
       };
 
       const objectsResult = await db.query('SELECT * FROM objects');
@@ -497,7 +467,7 @@ export function registerDbHandlers() {
       });
 
       const matchingObjects = allObjects.filter(obj => {
-        const objId = (obj.id && obj.id.id) || obj.id;
+        const objId = obj.id?.toString?.() ?? obj.id;
         const tags = objectTagMap.get(objId) || new Set();
 
         if (query.all.length > 0 && !query.all.every(t => tags.has(t))) return false;
@@ -521,7 +491,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const objectResult = await db.query(`SELECT * FROM objects:${objectId}`);
+      const objectResult = await db.query(`SELECT * FROM ${objectId}`);
       const object = (Array.isArray(objectResult) && objectResult.length > 0) ? objectResult[0] : null;
 
       if (!object) throw new Error(`Object ${objectId} not found`);
@@ -534,7 +504,7 @@ export function registerDbHandlers() {
 
       let assignedTags = [];
       if (assignedTagIds.length > 0) {
-        const inClause = `[${assignedTagIds.map(id => `tag_definitions:${id}`).join(', ')}]`;
+        const inClause = `[${assignedTagIds.join(', ')}]`;
         const fullTagsResult = await db.query(`SELECT * FROM ${inClause}`);
         assignedTags = fullTagsResult[0] || [];
       }
@@ -548,7 +518,7 @@ export function registerDbHandlers() {
 
       const repaired = [];
       const { extractMediaTypeFromSource, extractFileType } = await import('../utils/metadata-extractor.js');
-      const { findOrCreateSystemTag } = await import('../db/system-tags.js');
+      const { findOrCreateSystemTag } = await import('../db/services/system-tags.js');
 
       for (const type of missingTypes) {
         if (type === 'media_type') {

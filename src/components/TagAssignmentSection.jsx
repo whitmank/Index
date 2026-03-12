@@ -61,7 +61,7 @@ export default function TagAssignmentSection({ objectId }) {
   const handleUnassignTag = async (tagId) => {
     try {
       const push = useHistoryStore.getState().push;
-      const tag = assignedTags.find(t => (t.id?.id || t.id) === tagId);
+      const tag = assignedTags.find(t => t.id === tagId);
       const tagName = tag ? (tag.name || '(empty)') : 'tag';
       const isSystemTag = tag && tag.system === true && tag.type;
 
@@ -114,7 +114,7 @@ export default function TagAssignmentSection({ objectId }) {
       });
 
       if (newTag) {
-        await assignTag(objectId, newTag.id?.id || newTag.id);
+        await assignTag(objectId, newTag.id);
       }
 
       setNewTagName('');
@@ -134,7 +134,7 @@ export default function TagAssignmentSection({ objectId }) {
     if (!editingTagValue.trim()) return;
 
     try {
-      const oldTag = assignedTags.find(t => (t.id?.id || t.id) === editingTagId);
+      const oldTag = assignedTags.find(t => t.id === editingTagId);
       if (!oldTag) return;
 
       const newTagName = editingTagValue.trim();
@@ -146,10 +146,10 @@ export default function TagAssignmentSection({ objectId }) {
 
       let newTagId;
       if (existingTag) {
-        newTagId = existingTag.id?.id || existingTag.id;
+        newTagId = existingTag.id;
       } else {
         const newTag = await createTag({ name: newTagName, type: tagType, system: true, color: oldTag.color });
-        newTagId = newTag?.id?.id || newTag?.id;
+        newTagId = newTag?.id;
         if (!newTagId) throw new Error('Failed to create tag');
       }
 
@@ -202,7 +202,7 @@ export default function TagAssignmentSection({ objectId }) {
                       <div className="system-tag-header">{label.toUpperCase()}</div>
                       <div className="system-tag-values">
                         {(systemTagsByType[type] || []).map(tag => {
-                          const tagId = tag.id?.id || tag.id;
+                          const tagId = tag.id;
                           const isEditing = editingTagId === tagId;
                           const isEditable = tagTypes[tag.type]?.editable ?? true;
 
@@ -261,7 +261,7 @@ export default function TagAssignmentSection({ objectId }) {
                 <p className="sidebar-section-title tags-user-header">Tags</p>
                 <div className="tags-list">
                   {userTags.map(tag => {
-                    const tagId = tag.id?.id || tag.id;
+                    const tagId = tag.id;
                     return (
                       <div
                         key={tagId}

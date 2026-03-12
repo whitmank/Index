@@ -4,7 +4,8 @@
       "Read(//Users/karter/files/dev/dialectic-framework/src/scripts/**)",
       "Read(//Users/karter/files/dev/dialectic-framework/src/commands/**)",
       "Read(//Users/karter/files/dev/dialectic-framework/.claude/**)",
-      "Read(//Users/karter/files/dev/dialectic-framework/**)"
+      "Read(//Users/karter/files/dev/dialectic-framework/**)",
+      "Bash(git -C /Users/karter/files/dev/index-workspace/0.4 branch -vva)"
     ]
   }
 }
