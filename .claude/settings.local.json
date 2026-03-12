@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/karter/files/dev/dialectic-framework/src/scripts/**)",
+      "Read(//Users/karter/files/dev/dialectic-framework/src/commands/**)",
+      "Read(//Users/karter/files/dev/dialectic-framework/.claude/**)",
+      "Read(//Users/karter/files/dev/dialectic-framework/**)"
+    ]
+  }
+}
