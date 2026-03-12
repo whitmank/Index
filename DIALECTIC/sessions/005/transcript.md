@@ -1,0 +1,2681 @@
+---
+session: 005
+timestamp: 2026-03-12T04:22:32Z
+session_id: 97f81790-2a83-470b-b608-ba18813acbd3
+cwd: /Users/karter/files/dev/index-workspace/0.4
+session_log: session-log.md
+---
+
+# Human
+
+<command-message>orient</command-message>
+<command-name>/orient</command-name>
+
+---
+
+# Human
+
+Read DIALECTIC/ORIENT.md in the project root. Return a concise summary in this form:
+
+**Conceptual** — philosophical and design state of the project
+**Technical** — architectural and developmental state
+**Synthesis** — what is currently settled
+**Key Decisions** — settled choices anchoring the work
+**Open** — bulleted unresolved contradictions
+
+Comprehensive enough for the user to confirm alignment, not verbose.
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md"}
+
+> **[result]** 1→---
+     2→updated: 2026-03-11
+     3→session: "005"
+     4→authored_by: Claude Sonnet 4.6
+     5→---
+     6→
+     7→## Conceptual Context
+     8→
+     9→Index is a semantic layer over a file system...
+
+---
+
+# Model
+
+**Conceptual** — Index is a semantic layer over the filesystem. Meaning over location: objects exist in multiple contexts simultaneously via tags and collections, never copies. Local-first is a first-class constraint.
+
+**Technical** — v0.4 rebuild complete: persistent SurrealDB, LIVE SELECT reactivity, single Zustand store (`useIndexStore`), async debounced export, centralized system tag domain, ID normalization at IPC boundary.
+
+**Synthesis** — Foundation is stable and the app runs. v0.3 migration handled on first boot. Ready for feature development.
+
+**Key Decisions**
+- Persistent SurrealDB over ephemeral
+- LIVE SELECT over polling
+- Single `useIndexStore` over fragmented stores
+- `scheduleExport()` everywhere mutations happen
+- System tag registry in `domain/tag-types.js`
+- `normalizeRecord()` at IPC boundary
+
+**Open**
+- Links exist in the data layer but GraphView renders no edges — the app's core value proposition (relationships) is structurally absent from the UI
+- `device-naming-dialog.js` reads the v0.3 path (`~/.index/objects/`) — noted acceptable, remains a consistency gap
+
+---
+
+# Human
+
+What's the git status?
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 status", "description": "Git status"}
+
+> **[result]** On branch main
+Your branch is ahead of 'origin/0.4' by 1 commit.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+
+---
+
+# Model
+
+Branch `main`, clean working tree. One commit ahead of `origin/0.4`.
+
+---
+
+# Human
+
+Let's push this to origin/0.4
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 push origin main:0.4", "description": "Push main to orig...
+
+> **[result]** To https://github.com/whitmank/Index.git
+   e04a84c..3604d8a  main -> 0.4
+
+---
+
+# Model
+
+Pushed. `origin/0.4` is now up to date.
+
+---
+
+# Human
+
+The remote main branch was intentionally deleted, can we fetch branch 0.4 and continue working in that?
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 branch --set-upstream-to=origin/0.4 main", "description"...
+
+> **[result]** The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to...
+
+---
+
+# Model
+
+What would you prefer? Options:
+
+1. **Set `main` to track `origin/0.4`** — keep working on local `main`, just push/pull against `origin/0.4`
+2. **Rename local branch to `0.4`** — `git branch -m main 0.4`, then set upstream to `origin/0.4`
+
+---
+
+# Human
+
+check current git status, I want to clean up our local branch structure to match the simplified remote branch structure
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 branch -vva", "description": "List all local and remote ...
+
+> **[result]** * 0.4                3604d8a [remotes/origin/0.4] init dialectic framework
+  main               3604d8a [remotes/origin/0.4] init dialectic framework
+  origin/0.4         3604d8a init dialectic framew...
+
+---
+
+# Model
+
+Local state: two branches (`0.4` and `main`) at the same commit, both tracking `origin/0.4`. Remote has only `origin/0.4`.
+
+Cleanup: delete local `main`. You're already on `0.4`, which matches the remote. Want me to proceed?
+
+---
+
+# Human
+
+delete local main
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 branch -d main", "description": "Delete local main branc...
+
+> **[result]** Deleted branch main (was 3604d8a).
+
+---
+
+# Model
+
+Done. Local branch structure now mirrors the remote — just `0.4`.
+
+---
+
+# Human
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+
+---
+
+# Human
+
+<bash-input>git branch</bash-input>
+
+---
+
+# Human
+
+<bash-stdout>* 0.4
+  origin/0.4</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+# Human
+
+Explain to me why 0.4 and origin/0.4 are both listed?
+
+---
+
+# Model
+
+`origin/0.4` in plain `git branch` output means there's a **local branch literally named `origin/0.4`** — it's not the remote tracking ref. That's separate from `remotes/origin/0.4`.
+
+It was likely created accidentally at some point. It's just noise. Want me to delete it?
+
+---
+
+# Human
+
+yes
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git -C /Users/karter/files/dev/index-workspace/0.4 branch -d \"origin/0.4\"", "description": "Delete spurio...
+
+> **[result]** Deleted branch origin/0.4 (was 3604d8a).
+
+---
+
+# Model
+
+Done. `git branch` should now show only `0.4`.
+
+---
+
+# Human
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+
+---
+
+# Human
+
+<bash-input>git status</bash-input>
+
+---
+
+# Human
+
+<bash-stdout>On branch 0.4
+Your branch is up to date with 'origin/0.4'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .claude/settings.local.json
+
+no changes added to commit (use "git add" and/or "git commit -a")</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+# Human
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+
+---
+
+# Human
+
+<bash-input>clear</bash-input>
+
+---
+
+# Human
+
+<bash-stdout>[3J[H[2J</bash-stdout><bash-stderr></bash-stderr>
+
+---
+
+# Human
+
+Alright, now our codebase is settled, we just committed, let's start working.
+
+---
+
+# Model
+
+Ready. What are we building?
+
+---
+
+# Human
+
+First, some more refactoring. I want the project structure to be a bit more ergonomic, with separation of concerns (frontend, backend, database type deal). With what you know about the project, can you suggest how you might organize the codebase better?
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "find /Users/karter/files/dev/index-workspace/0.4 -not -path '*/node_modules/*' -not -path '*/.git/*' | sort...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4
+/Users/karter/files/dev/index-workspace/0.4/.claude
+/Users/karter/files/dev/index-workspace/0.4/.claude/commands
+/Users/karter/files/dev/index-workspace/0.4...
+
+---
+
+# Model
+
+Current shape is already pretty clean. A few specific friction points worth addressing:
+
+**1. `window-manager/` + `windows/` are split for no clear reason**
+Both deal with window lifecycle. Merge into one `windows/` with the profile/macos nesting preserved inside.
+
+**2. `db/index.js` is misnamed**
+It's a connection module, not a barrel export. `db/connection.js` or `db/client.js` reads accurately.
+
+**3. `db/` mixes infrastructure and services**
+Connection, live queries, export, repair, and migration are infrastructure. `object-service.js` and `system-tags.js` are data-access services. Splitting into `db/` (infra) + `services/` would clarify the boundary.
+
+**4. Top-level frontend/backend split is implicit**
+`src/` = renderer, `electron/main/` = backend — this is fine and conventional for Electron. Renaming `src/` → `renderer/` would make it explicit, but requires vite config and package.json changes.
+
+Proposed minimal changes:
+```
+electron/main/
+  windows/          ← merge window-manager/ + windows/
+  db/
+    connection.js   ← rename from index.js
+    services/       ← object-service.js, system-tags.js
+    (infra files stay in db/)
+```
+
+Optionally:
+```
+renderer/           ← rename from src/
+```
+
+---
+
+**Contradiction to name:** renaming `src/` → `renderer/` is the most semantically meaningful change but touches the most config. The window/db reorganization is lower risk and higher clarity-per-effort. Do you want to do both, or start with the lower-risk backend reorganization?
+
+---
+
+# Human
+
+leaving src is fine, make the connection.js change, and do add a services directory to clarify the db structure.
+
+Leave the windows thing for now.
+
+---
+
+# Model
+
+Let me read the files that will be affected before touching anything.
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -r \"db/index\\|db/object-service\\|db/system-tags\" /Users/karter/files/dev/index-workspace/0.4/elect...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js
+/Users/karter/files/dev/index-workspace/0.4/electron/main/index.js
+/Users/karter/files/dev/index-workspace/0.4/electron/main/...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"db/index\\|db/object-service\\|db/system-tags\" /Users/karter/files/dev/index-workspace/0.4/elect...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js:7:import { createObjectCore, findObjectByUri } from '../db/object-service.js';
+/Users/karter/files/dev/index-workspace/0.4/el...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"require\\|import\" /Users/karter/files/dev/index-workspace/0.4/electron/main/db/object-service.js...
+
+> **[result]** 5:import { scheduleExport } from './export.js';
+6:import { findOrCreateSystemTag } from './system-tags.js';
+7:import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '.....
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/system-tags.js", "limit": 10}
+
+> **[result]** 1→// Author: Claude Code (Anthropic)
+     2→// Shared system tag utilities - prevents duplicate implementations
+     3→
+     4→/**
+     5→ * Find or create a system tag with given type and name
+     6...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"require\\|^import\" /Users/karter/files/dev/index-workspace/0.4/electron/main/db/system-tags.js",...
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+Good — `system-tags.js` has no imports, and `object-service.js` imports from `./export.js` and `./system-tags.js` (same db dir). Moving them to `services/` means those paths become `../export.js` and `./system-tags.js` (or `../system-tags.js` if both move together). Since both are moving, they stay relative to each other.
+
+Let me make all the changes:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "mkdir -p /Users/karter/files/dev/index-workspace/0.4/electron/main/db/services && cp /Users/karter/files/de...
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+Now fix the import in `services/object-service.js` (paths shift by one level):
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-service.js", "limit": 10}
+
+> **[result]** 1→// Author: Claude Code
+     2→// Core object creation and lookup logic — shared between IPC handlers and the capture system.
+     3→// v0.4: uses scheduleExport (async, non-blocking) instead of pers...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-servic...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-service.js has been updated successfully.
+
+---
+
+# Model
+
+Now update the three caller files:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/index.js", "old_string": ...
+
+> **[result]** <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/index.js", "limit": 20}
+
+> **[result]** 1→// Author: Claude Code
+     2→// Electron main process — v0.4.
+     3→// Changes from v0.3:
+     4→//   - File watcher removed (LIVE SELECT drives reactivity)
+     5→//   - exportToJson() called on ...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js", "limit": 15}
+
+> **[result]** 1→// Author: Claude Code
+     2→// Global Cmd+I capture entry point — detects frontmost app, routes to the correct handler,
+     3→// creates or focuses the matching object, then brings the Index wind...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "limit": 20}
+
+> **[result]** 1→// Author: Claude Code
+     2→// IPC handlers for database operations — v0.4.
+     3→// Changes from v0.3:
+     4→//   - persistToIndex() replaced by scheduleExport() everywhere
+     5→//   - normal...
+
+---
+
+# Model
+
+Now I have everything I need. Update all three callers and also find the dynamic import:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/index.js", "old_string": ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/index.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js", "old_s...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Now fix the dynamic import on line 551:
+
+---
+
+# Model
+
+> **[tool: Grep]** {"pattern": "db/system-tags", "path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "o...
+
+> **[result]** 549-      const repaired = [];
+550-      const { extractMediaTypeFromSource, extractFileType } = await import('../utils/metadata-extractor.js');
+551:      const { findOrCreateSystemTag } = await impor...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Now delete the old files:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "rm /Users/karter/files/dev/index-workspace/0.4/electron/main/db/index.js /Users/karter/files/dev/index-work...
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+Verify the final structure:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "find /Users/karter/files/dev/index-workspace/0.4/electron/main/db -type f | sort", "description": "Show fin...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/db/connection.js
+/Users/karter/files/dev/index-workspace/0.4/electron/main/db/export.js
+/Users/karter/files/dev/index-workspace/0.4/electron/m...
+
+---
+
+# Model
+
+Clean. `db/` has infrastructure, `db/services/` has data-access logic, `connection.js` is named accurately. All import paths updated including the dynamic import.
+
+---
+
+# Human
+
+Now about the window-manager / window thing. It appears that the /windows directory only has code pertaining to the device naming dialog. I'm not sure why it's called windows, but let's name it something more appropriate.
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "find /Users/karter/files/dev/index-workspace/0.4/electron/main/windows -type f | sort && echo \"---\" && fi...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/windows/device-naming-dialog.js
+/Users/karter/files/dev/index-workspace/0.4/electron/main/windows/device-naming-preload.js
+---
+/Users/karter/f...
+
+---
+
+# Model
+
+`windows/` contains only the device naming dialog — a first-run modal. Nothing general about it.
+
+Given the files are literally named `device-naming-dialog.js` and `device-naming-preload.js`, the folder name should reflect what they are. Options:
+
+- `dialogs/` — accurate now, scales if more dialogs are added
+- `setup/` or `onboarding/` — captures the first-run intent but doesn't generalize
+
+`dialogs/` seems most honest. Thoughts, or want me to rename?
+
+---
+
+# Human
+
+dialogs is fine for now I guess
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -rn \"windows/device-naming\" /Users/karter/files/dev/index-workspace/0.4/electron --include=\"*.js\""...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/index.js:17:import { ensureDeviceNamed } from './windows/device-naming-dialog.js';
+/Users/karter/files/dev/index-workspace/0.4/electron/main/i...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "mv /Users/karter/files/dev/index-workspace/0.4/electron/main/windows /Users/karter/files/dev/index-workspac...
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/device-handlers.js", "limit": 5}
+
+> **[result]** 1→import { ipcMain } from 'electron';
+     2→import { getDeviceId, getDeviceOrigin, isDeviceNamed } from '../config/device.js';
+     3→import { ensureDeviceNamed } from '../windows/device-naming-dialo...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/index.js", "old_string": ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/index.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/device-handlers.js", ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/device-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Done. `windows/` → `dialogs/`, two import paths updated.
+
+---
+
+# Human
+
+[Image: source: /var/folders/1_/zp6drvxd46q3pwll1kqq8p240000gn/T/TemporaryItems/NSIRD_screencaptureui_N7FFcK/Screenshot 2026-03-11 at 11.21.07 PM.png]
+
+---
+
+# Model
+
+`repair.js` imports `./system-tags.js` — I missed it. Let me check and fix.
+
+---
+
+# Model
+
+> **[tool: Grep]** {"pattern": "system-tags\\|object-service", "path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair...
+
+> **[result]** No matches found
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -rn \"db/system-tags\\|'./system-tags\\|\\\"./system-tags\" /Users/karter/files/dev/index-workspace/0....
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js:5:import { findOrCreateSystemTag } from './system-tags.js';
+/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js", "limit": 10}
+
+> **[result]** 1→// Author: Claude Code (Anthropic)
+     2→// System tag repair logic - ensures all objects have their system tags
+     3→
+     4→import { extractMediaTypeFromSource, extractFileType } from '../utils...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js", "old_strin...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js has been updated successfully.
+
+---
+
+# Model
+
+Fixed. `repair.js` was importing the old path. Should be clear now.
+
+---
+
+# Human
+
+Are there any other architecture/infrastrture level changes that we should address now as we prepare to move into v0.4 development?
+
+---
+
+# Model
+
+> **[tool: Agent]** {"subagent_type": "Explore", "description": "Audit codebase for architectural issues", "prompt": "Read and analyze the f...
+
+> **[result]** Perfect. Now I have a comprehensive view of the codebase. Let me compile my findings into a structured report.
+
+## Architectural Analysis Report: Index v0.4
+
+Based on my thorough examination of the v0...
+
+---
+
+# Model
+
+Here's what matters before building features, prioritized:
+
+**Address now — these will compound as you build**
+
+1. **ID normalization is incomplete** — `id?.id || id` still appears in `src/store/index.js` and components despite the stated architecture goal. Every new feature will either inherit the pattern or fight it. Should be cleaned up once before development starts.
+
+2. **Normalization not applied uniformly in handlers** — some IPC handlers return raw SurrealDB records, some return normalized. The renderer gets inconsistent shapes depending on which handler it called (`db-handlers.js` lines ~180, 210, 256). Same root cause as above.
+
+3. **`extractPlainId()` defined three times** in `db-handlers.js` (lines ~349, 410, 474) — it'll be copy-pasted into every new handler. Pull it into `utils/normalize.js` now.
+
+4. **`_evaluateCollectionLocally()`** in `src/store/index.js` ignores its `query` argument and returns all objects — it's a no-op. Dead code that will confuse anyone touching collections.
+
+**Worth noting, address when relevant**
+
+5. **String interpolation in SurrealDB queries** — `db.query(\`... WHERE id = '${id}'\`)` throughout `db-handlers.js`. SurrealDB supports parameterized queries. Not an emergency in a local-only app, but a pattern you'll keep repeating.
+
+6. **Duplicate repair logic** — `repair.js` and an IPC handler in `db-handlers.js` both implement system tag repair with slight differences. Will diverge over time.
+
+**Skip for now** — the rest (export timer, polling dialog, preload style, migration error handling) are low-impact and don't block feature work.
+
+The ID normalization issue is the one I'd fix first — it's architectural and currently contradicts your own stated design. Want to tackle that?
+
+---
+
+# Human
+
+Yes. What is the best pattern to use here? How should DB ids be handled in a universal way throughout the app
+
+---
+
+# Model
+
+Let me read the current normalize utility and a few examples of the inconsistency before answering.
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/utils/normalize.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// ID normalization utility — centralizes SurrealDB RecordId handling at the IPC boundary.
+     3→// Prevents id?.id || id pattern from spreading throughout stores and ...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"id?.id\\|\\.id\\.id\\|id?.id || \\|RecordId\" /Users/karter/files/dev/index-workspace/0.4/src/sto...
+
+> **[result]** 70:      const id = result.id?.id || result.id;
+75:        set({ objects: objects.map(o => (o.id?.id || o.id) === id ? result : o) });
+77:        set({ objects: objects.filter(o => (o.id?.id || o.id) ...
+
+---
+
+# Model
+
+The core issue is `record.id?.id` — that extracts the *local* part of a SurrealDB `RecordId` (e.g. `"abc123"` from `objects:abc123`). This is what's leaking because LIVE SELECT delivers raw `RecordId` objects that the store has to unwrap the same way the handlers do.
+
+**Two viable patterns:**
+
+---
+
+**Option A — Local ID only (`"abc123"`)**
+Current intent. Strip the table prefix; IPC handlers reconstruct `table:${id}` when querying.
+
+- Pro: clean, short IDs in the renderer
+- Con: reconstruction is implicit — handlers must know the table, creating hidden coupling. Every new handler has to remember to do it.
+
+---
+
+**Option B — Fully-qualified string (`"objects:abc123"`)**
+`normalizeRecord` uses `RecordId.toString()` which SurrealDB's SDK provides. IDs in the renderer are self-contained and can be sent back to the DB as-is.
+
+- Pro: IDs are unambiguous, no reconstruction, queries stay simple
+- Con: table name leaks into the renderer — but for a local-first app where the renderer and DB are tightly coupled anyway, this is honest rather than harmful
+
+---
+
+**Recommendation: Option B.**
+
+The reconstruction pattern in Option A is invisible debt — every handler silently assumes it knows the table. Option B makes the contract explicit. `"objects:abc123"` sent from renderer → used directly in query → no surprises.
+
+The fix to `normalize.js` would be:
+
+```js
+function normalizeId(id) {
+  if (!id || typeof id === 'string') return id;
+  return `${id.tb}:${id.id}`; // RecordId → "table:localId"
+}
+```
+
+And all the `id?.id || id` patterns in both handlers and store become unnecessary.
+
+**One question before proceeding:** the current handlers that interpolate IDs into queries — are they currently using the local ID (e.g. `WHERE id = objects:${id}`) or the full string? That determines whether switching to Option B requires touching handler queries or just the normalization layer. Want me to audit that before we commit to the approach?
+
+---
+
+# Human
+
+Yes, go ahead
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"objectId\\|tagId\\|collectionId\\|linkId\" /Users/karter/files/dev/index-workspace/0.4/electron/m...
+
+> **[result]** 203:      await db.query(`DELETE FROM tag_assignments WHERE tag_id = '${tagId}'`);
+204:      await db.query(`DELETE FROM tag_definitions:${tagId}`);
+222:      if (!objResult?.[0]?.length) throw new Er...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"WHERE object_id\\|WHERE id\\|objects:\\|tag_definitions:\\|tag_assignments:\\|collections:\" /Use...
+
+> **[result]** 91:      await db.query(`DELETE objects:\`${id}\``);
+127:      const result = await db.query(`UPDATE objects:${id} MERGE ${JSON.stringify(updateObj)}`);
+177:      const result = await db.query(`UPDATE...
+
+---
+
+# Model
+
+The picture is clear. Let me check the live query path too since that's the other place records enter the store:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"live\\|Live\\|LIVE\\|normaliz\" /Users/karter/files/dev/index-workspace/0.4/electron/main/db/live...
+
+> **[result]** 2:// LIVE SELECT subscriptions — pushes DB diffs to the renderer via IPC.
+6: * Subscribe to live changes on objects, tag_assignments, and collections.
+12:export async function startLiveQueries(db, mai...
+
+---
+
+# Model
+
+Found the root cause. Here's the complete picture:
+
+**Why `id?.id` leaked into the store:**
+
+IPC handlers normalize on the way out — `normalizeRecord()` is called before returning results. But `live-queries.js` sends raw DB records directly:
+
+```js
+await db.live('objects', ({ action, result }) => {
+  send('live:objects', { action, result }); // ← no normalization
+});
+```
+
+So the store receives two types of records: normalized ones from IPC calls, and raw `RecordId` objects from LIVE SELECT. Hence the defensive `id?.id || id` everywhere in the store.
+
+**And regarding Option A vs B:**
+
+The handlers are built around **local IDs** — they reconstruct `table:${id}` themselves in every query (`objects:${id}`, `tag_definitions:${tagId}`, etc.). Switching to fully-qualified strings would break every one of those.
+
+**The correct fix is simpler than switching strategies:**
+
+Normalize in `live-queries.js` before sending, not in the store after receiving. One change there, and the `id?.id` pattern in the store becomes unnecessary and can be removed.
+
+```js
+// live-queries.js
+await db.live('objects', ({ action, result }) => {
+  send('live:objects', { action, result: normalizeRecord(result) });
+});
+```
+
+The store then always receives plain local IDs regardless of source, and all the defensive unwrapping goes away.
+
+Want to proceed with this?
+
+---
+
+# Human
+
+This may be a simple fix in our current architecture, but how does this fix compare to the fully-qualified string pattern in the long run?
+
+---
+
+# Model
+
+Good question to sit with before committing.
+
+**Local IDs long-term:**
+
+Every handler must silently know which table an ID belongs to. `objects:${id}`, `tag_definitions:${tagId}` — that knowledge is embedded in each handler individually, not in the ID itself. As the handler count grows, that's repeated implicit coupling. You also can't pass an ID around generically — a function that receives an ID must know its table from context, not from the value.
+
+**Fully-qualified strings long-term:**
+
+IDs are self-describing. A function that receives `"objects:abc123"` knows everything it needs. Handlers simplify — `objects:${id}` becomes just `${id}`. IDs can be passed opaquely through the system.
+
+**The stronger argument for fully-qualified in this specific app:**
+
+Index is a graph. Tag assignments reference both objects and tag_definitions. Links connect objects to objects. Collections reference objects. IDs routinely cross table boundaries. Fully-qualified strings are SurrealDB's *native* ID format — `objects:abc123` is what the DB thinks the ID is. The local-only pattern is a simplification layered on top of that, introducing the reconstruction burden.
+
+**The cost calculus right now:**
+
+v0.4 has no production data. The migration from v0.3 is handled in `migration.js` and could be updated. This is the cheapest possible moment to make the switch — before any feature work creates more handlers built on the local ID assumption.
+
+**Contradiction to name:** the local ID fix (normalizing in `live-queries.js`) is a day's work and closes the immediate bug. The fully-qualified switch is also a day's work but closes the architectural debt permanently. They cost roughly the same right now. In three months with twenty more handlers, they won't.
+
+Recommendation: switch to fully-qualified now. The handler changes are actually *simplifications* — removing the `table:${id}` reconstruction, not adding complexity.
+
+---
+
+# Human
+
+We should make the shift to SurrealDB native fully qualified ID's. Let's plan out the refactor, then implement.
+
+---
+
+# Model
+
+> **[tool: Agent]** {"subagent_type": "Plan", "description": "Plan fully-qualified SurrealDB ID refactor", "prompt": "Plan a refactor of the...
+
+> **[result]** I now have a complete picture. Here is the full implementation plan.
+
+---
+
+## Refactor Plan: Local IDs to Fully-Qualified String IDs
+
+### The Core Problem
+
+Currently `normalizeRecord()` extracts only ...
+
+---
+
+# Model
+
+Good plan. Here's the summary and the one significant concern to resolve before we implement.
+
+---
+
+**Implementation order:**
+
+1. `normalize.js` — root fix, one line, cascades everywhere
+2. `db/services/system-tags.js` — returns tag IDs used everywhere; must change first
+3. `db/live-queries.js` — normalize before sending to renderer
+4. `db/migration.js` — **add tag_assignments ID migration here** (see below)
+5. `db/services/object-service.js`, `db/repair.js` — query cleanup
+6. `ipc/db-handlers.js` — largest surface; remove `extractPlainId` x3, fix all query interpolation, fix `evaluateCollection` map keying
+7. `src/store/index.js` — remove all `id?.id || id` patterns
+8. `src/components/*.jsx` — same cleanup in components
+
+---
+
+**The one decision to make before implementing:**
+
+The `tag_assignments` table currently stores plain local IDs (`"abc123"`). After the refactor, new rows will store `"objects:abc123"`. Any existing SurrealDB data has the old format.
+
+The fix is a one-time migration query added to `migration.js`:
+```sql
+UPDATE tag_assignments SET object_id = 'objects:' + object_id WHERE object_id !~ '^objects:'
+UPDATE tag_assignments SET tag_id = 'tag_definitions:' + tag_id WHERE tag_id !~ '^tag_definitions:'
+```
+
+**Question:** v0.4 has no production users, but you likely have a local dev database at `~/.index/surreal/` from building v0.4. Do you want to preserve it (add the migration), or wipe it and start fresh (skip the migration entirely since all new data will be correct)? Starting fresh is cleaner.
+
+---
+
+# Human
+
+We can start fresh.
+
+---
+
+# Model
+
+Let me read all the files before touching anything.
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/system-tags.js"}
+
+> **[result]** 1→// Author: Claude Code (Anthropic)
+     2→// Shared system tag utilities - prevents duplicate implementations
+     3→
+     4→/**
+     5→ * Find or create a system tag with given type and name
+     6...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-service.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// Core object creation and lookup logic — shared between IPC handlers and the capture system.
+     3→// v0.4: uses scheduleExport (async, non-blocking) instead of pers...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/live-queries.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// LIVE SELECT subscriptions — pushes DB diffs to the renderer via IPC.
+     3→// Called once at startup after the DB is ready and the main window exists.
+     4→
+     ...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js"}
+
+> **[result]** 1→// Author: Claude Code (Anthropic)
+     2→// System tag repair logic - ensures all objects have their system tags
+     3→
+     4→import { extractMediaTypeFromSource, extractFileType } from '../utils...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/export.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// Async JSON export — non-blocking replacement for v0.3 persistToIndex().
+     3→// Writes human-readable JSON to ~/.index/export/ on a debounced timer,
+     4→// on a...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// IPC handlers for database operations — v0.4.
+     3→// Changes from v0.3:
+     4→//   - persistToIndex() replaced by scheduleExport() everywhere
+     5→//   - normal...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/src/store/index.js"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// useIndexStore — unified data store for v0.4.
+     3→// Replaces useObjectsStore, useCollectionsStore, useTagsStore.
+     4→// LIVE SELECT subscriptions wire once on ...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// CollectionsSidebar — v0.4. Updated to use useIndexStore.
+     3→
+     4→import React, { useState, useEffect } from 'react';
+     5→import { useIndexStore } from '../...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// ObjectDetailSidebar — v0.4.
+     3→// Updated: imports from useIndexStore; deleteObject undo uses LIVE SELECT (no manual loadObjects).
+     4→
+     5→import { useEff...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx"}
+
+> **[result]** 1→// Author: Claude Code
+     2→// TagAssignmentSection — v0.4.
+     3→// Phase 5: hardcoded DISPLAYED_SYSTEM_TAG_TYPES, SYSTEM_TAG_ORDER, getTagTypeLabel()
+     4→// replaced by tagTypes registry fro...
+
+---
+
+# Model
+
+Good. I have everything I need. Implementing now, in order.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/utils/normalize.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/utils/normalize.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/system-tags.j...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/system-tags.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/system-tags.j...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/system-tags.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/live-queries.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/live-queries.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-servic...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/services/object-service.js has been updated successfully.
+
+---
+
+# Model
+
+Now `repair.js` — objectId extraction and the `inClause` that prepends `tag_definitions:`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js", "old_strin...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js", "old_strin...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js", "old_strin...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/repair.js has been updated successfully.
+
+---
+
+# Model
+
+Now the big one — `db-handlers.js`. Working through it section by section:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Now `db:createCollection` — remove `extractPlainId` and fix the `existingTagIds` validation:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Now `db:updateCollection` — remove `plainCollectionId` guard, `extractPlainId`, and fix query:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+`db:deleteCollection`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+`db:evaluateCollection` — remove guard, `normalizeTagId`, fix query and map keying:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+`db:repairMissingSystemTags`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js", "old...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/ipc/db-handlers.js has been updated successfully.
+
+---
+
+# Model
+
+Now `export.js` — keep local ID for the filename (cosmetic only):
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/db/export.js", "old_strin...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/db/export.js has been updated successfully.
+
+---
+
+# Model
+
+Now the frontend. `src/store/index.js`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/store/index.js", "old_string": "   ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/store/index.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/store/index.js", "old_string": "   ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/store/index.js has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/store/index.js", "old_string": "   ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/store/index.js has been updated successfully.
+
+---
+
+# Model
+
+Now `CollectionsSidebar.jsx`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx",...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx",...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx",...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx",...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx",...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/CollectionsSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+Now `ObjectDetailSidebar.jsx`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx"...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx"...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx"...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/ObjectDetailSidebar.jsx has been updated successfully.
+
+---
+
+# Model
+
+Now `TagAssignmentSection.jsx`:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/src/components/TagAssignmentSection.jsx has been updated successfully.
+
+---
+
+# Model
+
+Now do a final sweep to confirm no `id?.id` patterns remain anywhere:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -rn \"\\.id\\.id\\|id?.id\\|id?.id\\b\\|extractPlainId\\|normalizeTagId\\|plainCollectionId\\|split(':...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js:63:      objectId = (existing.id && existing.id.id) || existing.id;
+/Users/karter/files/dev/index-workspace/0.4/electron/main...
+
+---
+
+# Model
+
+One remaining in `capture/index.js`:
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js", "limit": 70, "offset": 55}
+
+> **[result]** 55→
+    56→  if (captureResult) {
+    57→    const { name, uri, mediaTypeHint } = captureResult;
+    58→
+    59→    // Deduplication: check if this URI already exists
+    60→    const existing = await...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js", "old_s...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/electron/main/capture/index.js has been updated successfully.
+
+---
+
+# Model
+
+The remaining hits are just a comment in `normalize.js` and the intentional `record.id?.id` in `export.js` (local part for filename — correct). Clean.
+
+Now wipe the local DB so there's no stale data:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "rm -rf ~/.index/surreal && echo \"DB wiped\"", "description": "Wipe local SurrealDB data"}
+
+> **[result]** DB wiped
+
+---
+
+# Model
+
+Done. Summary of what changed:
+
+- **`normalize.js`** — `RecordId.toString()` produces `"table:localId"` instead of extracting local part only
+- **`live-queries.js`** — normalizes records before sending to renderer; closes the gap that caused `id?.id` to leak into the store
+- **`system-tags.js`**, **`object-service.js`**, **`repair.js`**, **`capture/index.js`** — all use `toString()` for ID extraction
+- **`db-handlers.js`** — all query prefixes (`objects:${id}`, `tag_definitions:${tagId}`, `collections:${id}`) removed; `extractPlainId`/`normalizeTagId` functions removed; `plainCollectionId` guards removed; collection queries store IDs as-is
+- **`store/index.js`**, **`CollectionsSidebar`**, **`ObjectDetailSidebar`**, **`TagAssignmentSection`** — all `id?.id || id` patterns gone; plain `id` comparisons throughout
+- **DB wiped** — fresh start with correct ID format from first write
+
+---
+
+# Human
+
+Alright! It appears the app is working, and objects are being created and rendered succesfully!
+
+---
+
+# Model
+
+Good signal. The refactor held.
+
+Two open items from earlier worth keeping in mind as you move into feature work:
+
+1. **Graph edges** — links exist in the data layer but GraphView renders no edges. That's the core value proposition still missing from the UI.
+2. **`_evaluateCollectionLocally()`** — still a no-op in the store. Collections activate but don't actually filter client-side.
+
+Which direction do you want to go first?
+
+---
+
+# Human
+
+Elaborate on the no-op
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/src/store/index.js", "limit": 30, "offset": 114}
+
+> **[result]** 114→  // ── Derived ───────────────────────────────────────────────────────────────
+   115→
+   116→  /**
+   117→   * Returns display objects — filtered by active collection, or all objects.
+   118→   ...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"filteredObjects\\|evaluateCollection\\|activateCollection\" /Users/karter/files/dev/index-workspa...
+
+> **[result]** /Users/karter/files/dev/index-workspace/0.4/src/store/index.js:5:// filteredObjects is a derived selector — computed from objects + active collection on read.
+/Users/karter/files/dev/index-workspace/0...
+
+---
+
+# Model
+
+The picture is clear. Here's what's happening:
+
+`getDisplayObjects()` calls `_evaluateCollectionLocally()`, which ignores its `query` argument entirely and returns all objects. Selecting a collection has no effect on what's displayed.
+
+The comment references "collection activation via IPC sets filteredObjects" — but there is no `filteredObjects` in the store, and `activateCollection` just sets `activeCollectionId`. The IPC call to `db:evaluateCollection` (which does actual server-side filtering) is never made. It exists in the backend but nothing in the frontend calls it.
+
+**The intended architecture** (from the comment) was:
+- `activateCollection` calls `db:evaluateCollection` via IPC → gets matching object IDs → stores them as `filteredObjects`
+- `getDisplayObjects` returns objects filtered against that list
+
+**What was actually built:**
+- `activateCollection` just sets `activeCollectionId`
+- `_evaluateCollectionLocally` was left as a stub that returns everything
+
+So collections are visually selectable, the active state is tracked, but no filtering occurs. It's a complete stub. The server-side evaluator (`db:evaluateCollection`) is fully implemented and ready — it just has no caller.
+
+The fix is straightforward: either implement client-side evaluation using the `objectTags` cache (fast, no IPC), or call `db:evaluateCollection` from `activateCollection` and store the result. Want to address this now?
+
+---
+
+# Human
+
+Add this to docs/BACKLOG.md
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/BACKLOG.md"}
+
+> **[result]** 1→---
+     2→Author: Claude Code
+     3→Updated: 2026-03-10
+     4→---
+     5→
+     6→# Index — Backlog
+     7→
+     8→Items not yet implemented, organized by theme.
+     9→See `docs/feature-dev/ARCHI...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/BACKLOG.md", "old_string": "## Col...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/BACKLOG.md has been updated successfully.
+
+---
+
+# Model
+
+Done.
+
+---
+
+# Human
+
+Now, evaluate the BACKLOG.md document against the current state of the project.
+
+---
+
+# Model
+
+> **[tool: Agent]** {"subagent_type": "Explore", "description": "Audit BACKLOG.md against current codebase state", "prompt": "Audit the BACK...
+
+> **[result]** Great! Now let me generate the comprehensive audit report. I have all the information needed.
+
+---
+
+## BACKLOG.md Audit Report
+
+Based on a thorough review of the codebase at `/Users/karter/files/dev/i...
+
+---
+
+# Model
+
+Here's what the audit found:
+
+**Architecture section** — all 5 items are done. The section is stale and can be removed or archived.
+
+**Accurate and still pending** — Relationships (all 4), most Graph items, Object Detail, Data Integrity, Quality. These are correctly listed as not started.
+
+**Inaccurate or needs updating:**
+
+- *Show file_type and origin system tags* — `media_type` is already shown. `file_type` and `origin` are explicitly `display: false` in `tag-types.js`. Their values appear in source metadata display, just not as tag UI elements. The item needs rewording.
+- *Export data on demand* — exports already run automatically (debounced + on quit). What's actually missing is a user-facing trigger button in Settings.
+- *Appearance* — HSLA background controls are already implemented in `AppearanceSettings.jsx`. Only accent color and font size are missing.
+- *Graph filtering by collection* — listed as "partially implemented, polish and persist" but is actually fully broken (no-op). More accurately stated in the new Collections note.
+
+**Missing from backlog entirely:**
+- Undo system — fully implemented (`UndoToast`, `useHistoryStore`), not tracked anywhere
+- Window behavior profiles (Overlay/Window modes) — implemented in SettingsModal, not listed
+
+Want me to rewrite the BACKLOG.md to reflect all of this?
+
+---
+
+# Human
+
+Yes please
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/BACKLOG.md", "content": "---\nAuthor: Claude Code\nUpdat...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/BACKLOG.md has been updated successfully.
+
+---
+
+# Model
+
+Done. Key changes from the old version:
+
+- Architecture section removed — all done, moved to **Implemented** reference at the bottom
+- Collections updated with accurate no-op description
+- Relationships restructured to surface the missing data model as the blocker
+- Tags, Sources, Graph, Settings all corrected to match actual state
+- Appearance item clarified (HSLA done, accent/font not)
+- Export item clarified (auto-runs, missing UI trigger)
+- Undo system and Window profiles added as implemented
+- Implemented section added at the bottom as a reference anchor
+
+---
+
+# Human
+
+.
+
+---
+
+# Model
+
+.
+
+---
+
+# Human
+
+Let's turn our attention to GLOSSARY.md
+
+Read through and figure out what needs to be updated in light of the current project state.
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/GLOSSARY.md"}
+
+> **[result]** 1→---
+     2→Author: Claude Code
+     3→Last Updated: 2026-03-10
+     4→Version: 0.3
+     5→---
+     6→
+     7→# Index — Glossary
+     8→
+     9→> Canonical definitions for Index terminology based on ...
+
+---
+
+# Model
+
+Several things need updating:
+
+1. **Version** — header says `v0.3` throughout
+2. **Object ID comment** — says "plain string after normalization"; now it's fully-qualified `"objects:abc123"`
+3. **Collection entry** — references `useCollectionsStore` which no longer exists (merged into `useIndexStore`); also claims collections "update live" which is currently broken
+4. **Storage layout** — completely wrong for v0.4. The v0.4 layout has `surreal/` as primary storage and `export/` as the JSON output directory. The old flat `objects/`, `tag_definitions/`, etc. at root were v0.3.
+5. **Persistence behavior** — says "In v0.4 this will become async/background" — it already is
+6. **Indexing action** — step 5 says "Persists to `~/.index/` JSON files" — should say schedules async export to `~/.index/export/`
+7. **IPC Events** — `onObjectsChanged` is the v0.3 file watcher event. v0.4 uses `onObjectsLive`, `onTagAssignmentsLive`, `onCollectionsLive`
+8. **IPC Database** — missing `db.deleteObject`, `db.deleteTag`, `db.getTagTypes`, `db.getObjectsForTag`
+9. **Settings Modal** — doesn't mention HSLA background controls
+
+Want me to rewrite it now?
+
+---
+
+# Human
+
+yes
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/GLOSSARY.md", "content": "---\nAuthor: Claude Code\nLast...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/GLOSSARY.md has been updated successfully.
+
+---
+
+# Model
+
+Done. Key changes:
+
+- Version and header updated to v0.4
+- Object and tag IDs updated to reflect fully-qualified format
+- Collection entry corrected — references `useIndexStore`, notes the filtering no-op with a BACKLOG pointer
+- Storage layout rewritten — `surreal/` as source of truth, `export/` as JSON output, v0.3 migration explained
+- Persistence behavior updated — no longer future tense
+- Indexing action step 5 corrected to async export
+- IPC Events rewritten — LIVE SELECT events replacing the v0.3 file watcher
+- IPC Database section completed — `deleteObject`, `deleteTag`, `getTagTypes`, `getObjectsForTag` added
+- Settings Modal updated to include HSLA controls
+- Undo Toast added as a UI section
+- Keyboard shortcut Cmd+. corrected to Cmd+,
+
+---
+
+# Human
+
+.
+
+---
+
+# Model
+
+.
+
+---
+
+# Human
+
+I'm reading ABOUT.md and PROJECT_DESIGN.md, and it seems they are similar, and could probably be consolidated into a single document. What do you think. Read through and tell me your thoughts.
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md"}
+
+> **[result]** 1→---
+     2→title: About Index
+     3→version: 0.4.0
+     4→date: 2026-03-11
+     5→author: Claude (claude-sonnet-4-6)
+     6→---
+     7→
+     8→# Index
+     9→
+    10→Index is a local-first desktop ...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md"}
+
+> **[result]** 1→---
+     2→Author: Claude (Anthropic)
+     3→Last Updated: 2026-02-14
+     4→---
+     5→
+     6→# Index — Project Design Document
+     7→
+     8→## Executive Summary
+     9→
+    10→Index is a local-...
+
+---
+
+# Model
+
+They're distinct in purpose but overlapping in content — and one of them is significantly stale.
+
+**ABOUT.md** is a technical orientation document written from the current codebase. It covers architecture, data model, key flows, key files, stack, and storage paths. Accurate as of v0.4.
+
+**PROJECT_DESIGN.md** is a product philosophy document written in February 2026 at the v0.3 era. It covers the problem statement, six design principles, user model, use cases, success criteria, and design rationale. But it also contains a large technical section (architecture, data model, persistence, roadmap) that is entirely stale — describing v0.3 internals and listing v0.4 as "planned."
+
+**The overlap:** Both open with nearly identical concept statements. Both describe the data model. That's where they collide.
+
+**The difference:** ABOUT.md is "how does this work right now." PROJECT_DESIGN.md's unique value is the "why" — problem statement, design principles, user model, rationale. That content doesn't exist anywhere else and hasn't aged badly because it's philosophical, not technical.
+
+**My take:** They shouldn't be merged. The technical sections of PROJECT_DESIGN.md should be stripped — they're redundant with ABOUT.md and stale. What's left would be a lean product philosophy doc, clearly separated from the technical reference. Two focused documents are better than one long one that conflates "why we built this" with "how it currently works."
+
+The action would be: trim PROJECT_DESIGN.md down to just the product/philosophy content, remove the duplicate concept intro, and update the version references. Want to do that?
+
+---
+
+# Human
+
+Keep the concept intro, but as it relates to the domains of philosophy, design, and human computer interface. Remove technical sections, which are left for the other doc. Move the development roadmap and versioning stuff to the ABOUT document
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md", "content": "---\nAuthor: Claude (Ant...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md has been updated successfully.
+
+---
+
+# Model
+
+Now add the roadmap to ABOUT.md:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md", "old_string": "## Built...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md has been updated successfully.
+
+---
+
+# Model
+
+Also fix the stale key file reference in ABOUT.md while we're in it:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md", "old_string": "| `elect...
+
+> **[result]** <tool_use_error>String to replace not found in file.
+String: | `electron/main/db/index.js` | SurrealDB process management |
+| `electron/main/db/object-service.js` | Object creation + system tag assign...
+
+---
+
+# Model
+
+> **[tool: Grep]** {"pattern": "db/index|object-service", "path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md", "output_mode...
+
+> **[result]** 67:| `electron/main/db/index.js` | SurrealDB process management |
+71:| `electron/main/db/object-service.js` | Object creation + system tag assignment |
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md", "offset": 63, "limit": 15}
+
+> **[result]** 63→
+    64→| File | Purpose |
+    65→|------|---------|
+    66→| `electron/main/index.js` | App lifecycle, hotkeys, startup sequence |
+    67→| `electron/main/db/index.js` | SurrealDB process manageme...
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md", "old_string": "| `elect...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/ABOUT.md has been updated successfully.
+
+---
+
+# Model
+
+Done. Summary of changes:
+
+- **PROJECT_DESIGN.md** — stripped to philosophy and design: concept, problem statement, six principles, user model, use cases, success criteria, rationale. All technical and versioning content removed.
+- **ABOUT.md** — roadmap added (v0.3 shipped, v0.4 current, future), stale key file paths corrected (`db/index.js` → `db/connection.js`, `db/object-service.js` → `db/services/object-service.js`).
+
+---
+
+# Human
+
+"one user, one machine, one database."
+
+This is not accurate, as one of the features of Index is that the "INDEX" is a single consistent interface across one or many devices. The scope isn't a single machine, it's the identity of the user themselves.
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md", "old_string": ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md has been updated successfully.
+
+---
+
+# Model
+
+Good catch — that framing contradicted the device origin tracking and the whole multi-source object model.
+
+---
+
+# Human
+
+Think a little harder to word this more naturally, in the tone of the original document (positive, laying out the use/features, NOT negative (telling what it is not)
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md", "old_string": ...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/PROJECT_DESIGN.md has been updated successfully.
+
+---
+
+# Human
+
+.
+
+---
+
+# Model
+
+.
+
+---
+
+# Human
+
+Now all that's left to address is the BUILD.md document, any updates needed there?
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/BUILD.md"}
+
+> **[result]** 1→---
+     2→Author: Claude Code
+     3→Last Updated: 2026-02-15
+     4→---
+     5→
+     6→# Native Bindings Build Guide
+     7→
+     8→This document covers the native macOS bindings used in Index, sp...
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "ls /Users/karter/files/dev/index-workspace/0.4/src/native 2>/dev/null || echo \"not found\" && ls /Users/ka...
+
+> **[result]** not found
+not found
+not found
+
+---
+
+# Model
+
+BUILD.md describes native Objective-C++ bindings (`src/native/`, `lib/`, `binding.gyp`) that don't exist in v0.4. The entire document describes infrastructure that was either in v0.3 or never carried forward.
+
+Two questions before touching it:
+
+1. **Does this native workspace observer still exist somewhere** — is it in v0.3, or was it intentionally dropped in v0.4?
+2. **Is the workspace observer functionality still working in v0.4?** The overlay window hiding on space-change behavior — does that still happen, or did it get lost in the rebuild?
+
+If the native module was intentionally dropped, BUILD.md describes a ghost and should be rewritten around what actually needs building (currently: just `npm install` and Vite/Electron dev setup). If it was accidentally dropped and the space-change behavior is missing, that's a different conversation.
+
+---
+
+# Human
+
+yeah just delete this document
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "rm /Users/karter/files/dev/index-workspace/0.4/docs/BUILD.md", "description": "Delete BUILD.md"}
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+Done.
+
+---
+
+# Human
+
+.
+
+---
+
+# Model
+
+.
+
+---
+
+# Human
+
+Read QUICKSTART.md, analyze, are updates needed?
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md"}
+
+> **[result]** 1→# Quick Start Guide
+     2→<!-- Author: Claude Code -->
+     3→
+     4→## Installation
+     5→
+     6→```bash
+     7→npm install
+     8→```
+     9→
+    10→## Development
+    11→
+    12→```bash
+    1...
+
+---
+
+# Model
+
+Several things need updating:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "grep -n \"port\\|8000\\|surreal\" /Users/karter/files/dev/index-workspace/0.4/electron/main/db/connection.j...
+
+> **[result]** 2:// SurrealDB lifecycle manager — persistent storage at ~/.index/surreal/
+5:import { spawn, execSync } from 'child_process';
+6:import path from 'path';
+7:import fs from 'fs';
+8:import os from 'os';
+9...
+
+---
+
+# Model
+
+Several updates needed:
+
+1. **Root path** — `index-workspace/0.3/` throughout
+2. **Project structure** — `watchers/` doesn't exist in v0.4; `windows/` renamed to `dialogs/`; `domain/` missing; store description is outdated; `docs/` listing is wrong (no `feature-dev/`, no `BUILD.md`, `ABOUT.md` missing)
+3. **Data storage** — v0.3 layout; should show `surreal/` + `export/`
+4. **Keyboard shortcut** — Cmd+. should be Cmd+,
+5. **Troubleshooting** — "data not appearing" points to `~/.index/objects/` which is the v0.3 path
+6. **Windows/Linux note** — says "macOS-only in v0.3"
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md", "content": "# Quick Start Guide\n<!-- Au...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md has been updated successfully.
+
+---
+
+# Model
+
+Updated. Changes made:
+
+- Root path `0.3/` → `0.4/`
+- Project structure: removed `watchers/`, renamed `windows/` → `dialogs/`, added `domain/` and `db/services/`, updated store and docs listings, added `ABOUT.md`, removed `BUILD.md` and `feature-dev/`
+- Data storage layout updated to v0.4 (`surreal/` + `export/`)
+- Keyboard shortcut Cmd+. → Cmd+,
+- Troubleshooting: `~/.index/objects/` → `~/.index/surreal/`
+- Windows/Linux note: removed "in v0.3"
+
+---
+
+# Human
+
+delete this document
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "rm /Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md", "description": "Delete QUICKSTART.md"}
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+Done.
+
+---
+
+# Human
+
+Write a new QUICKSTART.md reflecting the current project state. Include (concisely) everything a developer or user may need to work on or use the application.
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "cat /Users/karter/files/dev/index-workspace/0.4/package.json", "description": "Check package.json for scrip...
+
+> **[result]** {
+  "name": "index-rebuild",
+  "productName": "Index",
+  "version": "0.4.0",
+  "description": "Personal information indexing and visualization system",
+  "main": "electron/main/index.js",
+  "type": "m...
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md", "content": "---\nAuthor: Claude Code\nUp...
+
+> **[result]** File created successfully at: /Users/karter/files/dev/index-workspace/0.4/docs/QUICKSTART.md
+
+---
+
+# Model
+
+Done. Covers prerequisites, setup, dev/build commands, shortcuts, data layout, project structure, and troubleshooting — all reflecting current v0.4 state.
+
+---
+
+# Human
+
+.
+
+---
+
+# Model
+
+.
+
+---
+
+# Human
+
+Open threads?
+
+---
+
+# Model
+
+Two technical, one housekeeping:
+
+**Technical:**
+1. **Collection filtering no-op** — documented in BACKLOG, not fixed. Server-side evaluator exists, has no caller.
+2. **Graph edges** — in BACKLOG, blocked by relationship data model which hasn't been designed yet.
+
+**Housekeeping:**
+3. **Nothing committed this session** — all the refactoring (ID normalization, directory restructuring, `connection.js`, `dialogs/`, `db/services/`) and all the documentation work is uncommitted.
+
+---
+
+# Human
+
+write a dev log using the devlog agent, covering everything we did this session
+
+---
+
+# Model
+
+> **[tool: Agent]** {"subagent_type": "dev-log-creator", "description": "Write dev log for session", "prompt": "Write a development log for ...
+
+> **[result]** Log written to `/Users/karter/files/dev/index-workspace/0.4/docs/dev-logs/2026-03-12_v0.4-refactor.md`.
+
+Documented: git branch cleanup, db directory restructure, dialogs rename, the fully-qualified I...
+
+---
+
+# Model
+
+Dev log written to `docs/dev-logs/2026-03-12_v0.4-refactor.md`.
+
+---
+
+# Human
+
+<command-message>session-log</command-message>
+<command-name>/session-log</command-name>
+
+---
+
+# Human
+
+<!-- authored by Claude Sonnet 4.6 -->
+Author a session log from the current live session context.
+
+If the user passes arguments (e.g. `/session-log resolved the scope of session artifacts`), treat the argument as required subject matter. Place it in whichever section(s) it belongs; do not quote it verbatim.
+
+---
+
+## First run vs. update run
+
+Before writing, read the existing log file at {project_root}/DIALECTIC/sessions/NNN/session-log.md:
+
+- **Stub only** (status field is `stub — awaiting /session-log`, no authored content): write the full log, replacing the stub. This is a first run.
+- **Authored log already exists**: this is an update run. Do not rewrite the file. Append a new `## Update` section (see format below) capturing only what has changed since the last log entry. Leave all prior content untouched.
+
+---
+
+## Format & Frontmatter
+
+- Determine the current session number (NNN) by reading
+  {project_root}/DIALECTIC/sessions/.session_num. If absent, fall back to counting
+  directories in {project_root}/DIALECTIC/sessions/ — the current session directory
+  already exists, so count = current NNN.
+- On first run, write {project_root}/DIALECTIC/sessions/NNN/session-log.md with frontmatter:
+    session: NNN
+    session_timestamp: ISO 8601
+    transcript: transcript.md
+    authored_by: Claude Sonnet 4.6
+- Update {project_root}/DIALECTIC/ORIENT.md: current synthesis, open contradictions
+
+---
+
+## Content (first run)
+
+**Contradictions surfaced** — tensions that emerged during the session
+
+**Contradictions resolved** — how they were settled; what the synthesis was
+
+**Open contradictions** — unresolved tensions carried forward
+
+**Current synthesis** — stable understanding at session close
+
+---
+
+## Content (update run)
+
+Append to the end of the file:
+
+```
+## Update — HH:MM
+
+**Contradictions surfaced** — new tensions since the last entry
+
+**Contradictions resolved** — how they were settled
+
+**Open contradictions** — replace or extend if changed
+
+**Current synthesis** — updated if changed; omit if unchanged
+```
+
+Only include sections where something actually changed. Do not re-summarize prior content.
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "cat /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/.session_num", "description": "Get curre...
+
+> **[result]** 006
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/006/session-log.md"}
+
+> **[result]** 1→---
+     2→session: 006
+     3→session_timestamp: 2026-03-12T03:24:52Z
+     4→transcript: transcript.md
+     5→authored_by: Claude Sonnet 4.6
+     6→status: stub — awaiting /session-log
+     7→---
+ ...
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md"}
+
+> **[result]** 1→---
+     2→updated: 2026-03-11
+     3→session: "006"
+     4→authored_by: Claude Sonnet 4.6
+     5→---
+     6→
+     7→## Conceptual Context
+     8→
+     9→Index is a semantic layer over a file system...
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/006/session-log.md", "content": "---\nsess...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/006/session-log.md has been updated successfully.
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md", "content": "---\nupdated: 2026-03-12\ns...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md has been updated successfully.
+
+---
+
+# Model
+
+Session log written to `DIALECTIC/sessions/006/session-log.md` and ORIENT.md updated.
+
+---
+
+# Human
+
+rewrite this to 005 session log, which alraedy has a stub. Current session_num should be 005
+
+---
+
+# Model
+
+> **[tool: Read]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/005/session-log.md"}
+
+> **[result]** 1→---
+     2→session: 005
+     3→session_timestamp: 2026-03-12T03:00:00Z
+     4→transcript: transcript.md
+     5→authored_by: Claude Sonnet 4.6
+     6→status: stub — awaiting /session-log
+     7→---
+ ...
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/005/session-log.md", "content": "---\nsess...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/005/session-log.md has been updated successfully.
+
+---
+
+# Model
+
+Now fix the session number and clean up the 006 log that was written in error:
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "echo \"005\" > /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/.session_num", "description":...
+
+> **[result]** (Bash completed with no output)
+
+---
+
+# Model
+
+> **[tool: Write]** {"file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/006/session-log.md", "content": "---\nsess...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/006/session-log.md has been updated successfully.
+
+---
+
+# Model
+
+Now update ORIENT.md to reference session 005:
+
+---
+
+# Model
+
+> **[tool: Edit]** {"replace_all": false, "file_path": "/Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md", "old_string": "se...
+
+> **[result]** The file /Users/karter/files/dev/index-workspace/0.4/DIALECTIC/ORIENT.md has been updated successfully.
+
+---
+
+# Model
+
+Done. Session log written to `005/session-log.md`, `006` restored to stub, `.session_num` reset to `005`, ORIENT.md updated.
+
+---
+
+# Human
+
+That's it for today, thank you Claude, you've been wonderful.
+
+---
+
+# Model
+
+Thank you — this was a good session. The codebase is in clean shape and the docs finally reflect reality. Enjoy the rest of your day.
+
+---
+
+# Human
+
+Oh wait, haha, I forgot, we should definitely commit to git
+
+---
+
+# Model
+
+> **[tool: Skill]** {"skill": "commit-commands:commit"}
+
+> **[result]** Launching skill: commit-commands:commit
+
+---
+
+# Human
+
+## Context
+
+- Current git status: On branch 0.4
+Your branch is up to date with 'origin/0.4'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .claude/settings.local.json
+	modified:   DIALECTIC/ORIENT.md
+	modified:   DIALECTIC/sessions/005/session-log.md
+	modified:   docs/ABOUT.md
+	modified:   docs/BACKLOG.md
+	deleted:    docs/BUILD.md
+	modified:   docs/GLOSSARY.md
+	modified:   docs/PROJECT_DESIGN.md
+	modified:   docs/QUICKSTART.md
+	modified:   electron/main/capture/index.js
+	modified:   electron/main/db/export.js
+	deleted:    electron/main/db/index.js
+	modified:   electron/main/db/live-queries.js
+	deleted:    electron/main/db/object-service.js
+	modified:   electron/main/db/repair.js
+	deleted:    electron/main/db/system-tags.js
+	modified:   electron/main/index.js
+	modified:   electron/main/ipc/db-handlers.js
+	modified:   electron/main/ipc/device-handlers.js
+	modified:   electron/main/utils/normalize.js
+	deleted:    electron/main/windows/device-naming-dialog.js
+	deleted:    electron/main/windows/device-naming-preload.js
+	modified:   src/components/CollectionsSidebar.jsx
+	modified:   src/components/ObjectDetailSidebar.jsx
+	modified:   src/components/TagAssignmentSection.jsx
+	modified:   src/store/index.js
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	docs/dev-logs/2026-03-12_v0.4-refactor.md
+	electron/main/db/connection.js
+	electron/main/db/services/
+	electron/main/dialogs/
+
+no changes added to commit (use "git add" and/or "git commit -a")
+- Current git diff (staged and unstaged changes): <persisted-output>
+Output too large (111.8KB). Full output saved to: /Users/karter/.claude/projects/-Users-karter-files-dev-index-workspace-0-4/97f81790-2a83-470b-b608-ba18813acbd3/tool-results/bfafyjobr.txt
+
+Preview (first 2KB):
+diff --git a/.claude/settings.local.json b/.claude/settings.local.json
+index 537ceb9..e753acc 100644
+--- a/.claude/settings.local.json
++++ b/.claude/settings.local.json
+@@ -4,7 +4,8 @@
+       "Read(//Users/karter/files/dev/dialectic-framework/src/scripts/**)",
+       "Read(//Users/karter/files/dev/dialectic-framework/src/commands/**)",
+       "Read(//Users/karter/files/dev/dialectic-framework/.claude/**)",
+-      "Read(//Users/karter/files/dev/dialectic-framework/**)"
++      "Read(//Users/karter/files/dev/dialectic-framework/**)",
++      "Bash(git -C /Users/karter/files/dev/index-workspace/0.4 branch -vva)"
+     ]
+   }
+ }
+diff --git a/DIALECTIC/ORIENT.md b/DIALECTIC/ORIENT.md
+index 1205b0b..6eb696b 100644
+--- a/DIALECTIC/ORIENT.md
++++ b/DIALECTIC/ORIENT.md
+@@ -1,20 +1,20 @@
+ ---
+-updated: 2026-03-11
++updated: 2026-03-12
+ session: "005"
+ authored_by: Claude Sonnet 4.6
+ ---
+ 
+ ## Conceptual Context
+ 
+-Index is a semantic layer over a file system. The organizing principle is *meaning over location*: objects exist in multiple contexts simultaneously through tags and collections rather than a single folder hierarchy. The app manages references, never copies. Local-first is a first-class constraint, not a deployment detail.
++Index is a semantic layer over a file system. The organizing principle is *meaning over location*: objects exist in multiple contexts simultaneously through tags and collections rather than a single folder hierarchy. The app manages references, never copies. Local-first means data lives with the user — organized around user identity, not a single machine.
+ 
+ ## Technical Context
+ 
+-v0.4 is a complete rebuild from v0.3. The architecture is settled: persistent SurrealDB, LIVE SELECT reactivity, single Zustand store, async debounced export, centralized system tag domain logic, ID normalization at the IPC boundary. The rebuild was completed in a single session (2026-03-11). The app runs; v0.3 migration is handled on first boot.
+...
+</persisted-output>
+- Current branch: 0.4
+- Recent commits: 3604d8a init dialectic framework
+e04a84c Initial commit: Index v0.4 rebuild
+
+## Your task
+
+Based on the above changes, create a single git commit.
+
+You have the capability to call multiple tools in a single response. Stage and create the commit using a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
+
+---
+
+# Model
+
+> **[tool: Bash]** {"command": "git add docs/dev-logs/2026-03-12_v0.4-refactor.md electron/main/db/connection.js electron/main/db/services/...
+
+> **[result]** [0.4 9500f83] Refactor: fully-qualified SurrealDB IDs, directory restructure, docs overhaul
+ 27 files changed, 483 insertions(+), 688 deletions(-)
+ delete mode 100644 docs/BUILD.md
+ create mode 100644...
+
+---
+
+# Model
+
+Committed. `9500f83` — 27 files changed on branch `0.4`.
+
+---
+
+# Human
+
+Goodbye!
+
+---
+
+# Model
+
+Goodbye! Good work today. 👋
