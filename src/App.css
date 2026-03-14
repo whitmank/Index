@@ -51,6 +51,23 @@ body {
   pointer-events: auto;
 }
 
+.app-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-top: 32px;
+  overflow: hidden;
+}
+
+.app-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.88rem;
+}
+
 .loading,
 .empty-state {
   color: rgba(255, 255, 255, 0.6);
@@ -61,6 +78,7 @@ body {
   justify-content: center;
   flex: 1;
 }
+
 
 .drop-indicator {
   position: absolute;

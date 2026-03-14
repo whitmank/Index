@@ -103,7 +103,7 @@ async function connectToDatabase() {
 }
 
 async function initializeTables() {
-  const tables = ['objects', 'tag_definitions', 'tag_assignments', 'collections'];
+  const tables = ['objects', 'tag_definitions', 'tag_assignments', 'spaces'];
   for (const table of tables) {
     try {
       await db.query(`DEFINE TABLE ${table} SCHEMALESS;`);

@@ -26,6 +26,31 @@ const SHORTCUTS = {
     modifiers: ['metaKey', 'ctrlKey'],
     description: 'Undo last action',
   },
+  COMMAND_PALETTE: {
+    key: 'k',
+    modifiers: ['metaKey'],
+    description: 'Open command palette',
+  },
+  VIEW_SPACES: {
+    key: '1',
+    modifiers: ['metaKey'],
+    description: 'Go to Spaces',
+  },
+  VIEW_TAGS: {
+    key: '2',
+    modifiers: ['metaKey'],
+    description: 'Go to Tags',
+  },
+  VIEW_SETTINGS: {
+    key: '3',
+    modifiers: ['metaKey'],
+    description: 'Go to Settings',
+  },
+  VIEW_ALL: {
+    key: 'a',
+    modifiers: ['metaKey'],
+    description: 'Go to All space',
+  },
 };
 
 /**
@@ -81,6 +106,23 @@ export function useKeyboardShortcuts(actions, state) {
       ) {
         e.preventDefault();
         actions.onUndo?.();
+      }
+
+      // Cmd+K - command palette
+      if (
+        e.key === SHORTCUTS.COMMAND_PALETTE.key &&
+        SHORTCUTS.COMMAND_PALETTE.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onPalette?.();
+      }
+
+      // Cmd+1/2/3 - direct view navigation
+      if (e.metaKey) {
+        if (e.key === '1') { e.preventDefault(); actions.onViewSpaces?.(); }
+        if (e.key === '2') { e.preventDefault(); actions.onViewTags?.(); }
+        if (e.key === '3') { e.preventDefault(); actions.onViewSettings?.(); }
+        if (e.key === 'a') { e.preventDefault(); actions.onViewAll?.(); }
       }
     }
 

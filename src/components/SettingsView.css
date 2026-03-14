@@ -1,0 +1,170 @@
+/* Author: Claude Code */
+/* SettingsView — page-level settings layout */
+
+.settings-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+
+.settings-view-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+}
+
+.settings-view-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #999;
+  cursor: pointer;
+  letter-spacing: 0.2px;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.settings-view-tab:hover {
+  color: #555;
+}
+
+.settings-view-tab.active {
+  color: #333;
+  border-bottom-color: #333;
+}
+
+/* ── Content ────────────────────────────────────────────────────────────── */
+
+.settings-view-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-section-title {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settings-item {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #bbb;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settings-value {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #333;
+  word-break: break-word;
+}
+
+.settings-value.settings-secondary {
+  color: #999;
+  font-size: 0.78rem;
+}
+
+/* ── Window Profile Options ─────────────────────────────────────────────── */
+
+.window-profile-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.window-profile-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.window-profile-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+.window-profile-option.active {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.window-profile-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.window-profile-option-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2a2a2a;
+}
+
+.window-profile-option.active .window-profile-option-label::after {
+  content: ' ✓';
+  font-weight: 400;
+  color: #888;
+}
+
+.window-profile-option-desc {
+  font-size: 0.78rem;
+  color: #888;
+  line-height: 1.4;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+
+.settings-view::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-view::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}

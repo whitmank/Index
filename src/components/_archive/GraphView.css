@@ -116,7 +116,7 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
     return () => {
       stopSimulation(simulation);
     };
-  }, [objects, dimensions.width, dimensions.height]);
+  }, [objects]);
 
   // Update selected node styling without restarting simulation
   useEffect(() => {
@@ -125,15 +125,17 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
     nodeGroups.classed('selected', (d) => d.id === selectedNodeId);
   }, [selectedNodeId]);
 
-  // Observe SVG element size — more reliable than window resize in Electron
+  // Handle window resize
   useEffect(() => {
-    if (!svgRef.current) return;
-    const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setDimensions({ width, height });
-    });
-    ro.observe(svgRef.current);
-    return () => ro.disconnect();
+    const handleResize = () => {
+      if (svgRef.current) {
+        const rect = svgRef.current.getBoundingClientRect();
+        setDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   return <svg ref={svgRef} className="graph-view" />;

@@ -27,8 +27,8 @@ export async function startLiveQueries(db, mainWindow) {
     send('live:tagAssignments', { action, result: normalizeRecord(result) });
   });
 
-  await db.live('collections', ({ action, result }) => {
-    send('live:collections', { action, result: normalizeRecord(result) });
+  await db.live('spaces', ({ action, result }) => {
+    send('live:spaces', { action, result: normalizeRecord(result) });
   });
 
   console.log('[LiveQueries] LIVE SELECT subscriptions active');

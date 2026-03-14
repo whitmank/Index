@@ -1,0 +1,104 @@
+/* Author: Claude Code */
+/* ObjectListView — flat list of index objects */
+
+.object-list-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  box-sizing: border-box;
+}
+
+.object-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Row ────────────────────────────────────────────────────────────────── */
+
+.object-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  cursor: default;
+  transition: background 100ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.object-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Type badge */
+.object-row-type {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: rgba(80, 110, 160, 0.6);
+  width: 44px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Name + URI */
+.object-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.object-row-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.object-row-uri {
+  font-size: 0.73rem;
+  color: rgba(0, 0, 0, 0.38);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Date */
+.object-row-date {
+  flex-shrink: 0;
+  font-size: 0.73rem;
+  color: rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+
+.object-list-empty {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 0.83rem;
+  color: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+
+.object-list-view::-webkit-scrollbar {
+  width: 6px;
+}
+
+.object-list-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.object-list-view::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}

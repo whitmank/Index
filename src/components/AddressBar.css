@@ -1,0 +1,121 @@
+/* Author: Claude Code */
+/* AddressBar — persistent navigation strip */
+
+.address-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  gap: 6px;
+}
+
+/* ── Back slot ───────────────────────────────────────────────────────── */
+
+.address-bar-back-slot {
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.address-bar-back {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  color: #555;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.address-bar-back:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #222;
+}
+
+.address-bar-back:disabled {
+  color: #ccc;
+  border-color: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.3);
+  cursor: default;
+}
+
+/* ── Pill ────────────────────────────────────────────────────────────── */
+
+.address-bar-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 6px;
+  padding: 4px 12px;
+  min-height: 26px;
+}
+
+.address-bar-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+/* ── Right slot / view switcher ──────────────────────────────────────── */
+
+.address-bar-right-slot {
+  width: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.address-bar-views {
+  display: flex;
+  gap: 2px;
+}
+
+.view-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  color: #777;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.view-btn:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #333;
+}
+
+.view-btn.active {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #222;
+}

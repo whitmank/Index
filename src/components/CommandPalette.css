@@ -1,0 +1,71 @@
+/* Author: Claude Code */
+/* CommandPalette — floating overlay styles */
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  z-index: 1000;
+}
+
+.command-palette-card {
+  width: 460px;
+  background: rgba(248, 247, 245, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.command-palette-input {
+  width: 100%;
+  padding: 13px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: #333;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.command-palette-input::placeholder {
+  color: #bbb;
+}
+
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 16px;
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.08s;
+}
+
+.command-palette-item.active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.command-palette-label {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.command-palette-desc {
+  color: #aaa;
+  font-size: 0.75rem;
+}
