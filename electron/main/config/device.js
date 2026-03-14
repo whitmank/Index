@@ -8,6 +8,8 @@ import { v4 as uuid } from 'uuid';
 
 const DEVICE_ID_FILE = path.join(os.homedir(), '.index', '.device-id');
 
+let _deviceCache = null;
+
 /**
  * Initialize or load device identity
  * On first run: creates new device ID, name is null (user must provide via dialog)
@@ -15,6 +17,8 @@ const DEVICE_ID_FILE = path.join(os.homedir(), '.index', '.device-id');
  * @returns {Promise<{id: string, name: string|null, created_at: string, last_seen: string}>}
  */
 export async function initializeDeviceId() {
+  if (_deviceCache) return _deviceCache;
+
   if (fs.existsSync(DEVICE_ID_FILE)) {
     // Load existing device
     const device = JSON.parse(fs.readFileSync(DEVICE_ID_FILE, 'utf-8'));
@@ -24,6 +28,7 @@ export async function initializeDeviceId() {
     fs.writeFileSync(DEVICE_ID_FILE, JSON.stringify(device, null, 2));
 
     console.log(`[Device] Loaded device: ${device.name || '(unnamed)'} (${device.id})`);
+    _deviceCache = device;
     return device;
   }
 
@@ -43,6 +48,7 @@ export async function initializeDeviceId() {
 
   fs.writeFileSync(DEVICE_ID_FILE, JSON.stringify(newDevice, null, 2));
   console.log(`[Device] Created new device: ${newDevice.id}`);
+  _deviceCache = newDevice;
   return newDevice;
 }
 
@@ -82,6 +88,7 @@ export async function setDeviceName(name) {
 
   fs.writeFileSync(DEVICE_ID_FILE, JSON.stringify(device, null, 2));
   console.log(`[Device] Device named: ${device.name}`);
+  _deviceCache = device;
   return device;
 }
 

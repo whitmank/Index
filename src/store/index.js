@@ -2,7 +2,8 @@
 // useIndexStore — unified data store for v0.4.
 // Replaces useObjectsStore, useCollectionsStore, useTagsStore.
 // LIVE SELECT subscriptions wire once on app mount via subscribeToLive().
-// filteredObjects is a derived selector — computed from objects + active collection on read.
+// Space model: objects satisfy tag conditions; entering a space filters by server-side evaluation.
+// activeView: 'list' | 'calendar' | 'graph' — set on enterSpace from space.default_view.
 
 import { create } from 'zustand';
 
@@ -11,20 +12,25 @@ const SYSTEM_ALL_ID = '__system_all';
 export const useIndexStore = create((set, get) => ({
   // ── Data ──────────────────────────────────────────────────────────────────
   objects: [],
-  collections: [],
+  spaces: [],
   tags: [],
   tagTypes: {},        // System tag registry — fetched once on mount from db:getTagTypes
   objectTags: {},      // objectId → tag[] cache
-  activeCollectionId: null,
+  activeSpaceId: null,      // ID of current space; null = home grid
+  spaceObjects: null,       // Evaluated result of active space query; null = not in a space
+  activeCalendarDate: null, // 'YYYY-MM-DD'; set when drilling into a calendar day
+  activeView: 'list',       // 'list' | 'calendar' | 'graph'
+  _calendarBase: null,      // spaceObjects snapshot before entering a calendar day
   loading: false,
   error: null,
 
-  // ── System collection ─────────────────────────────────────────────────────
+  // ── System spaces ─────────────────────────────────────────────────────────
   systemAll: {
     id: SYSTEM_ALL_ID,
-    name: 'ALL',
+    name: 'All',
     system: true,
     pinned: true,
+    default_view: 'list',
   },
 
   // ── Initial load ──────────────────────────────────────────────────────────
@@ -36,22 +42,20 @@ export const useIndexStore = create((set, get) => ({
   loadAll: async () => {
     set({ loading: true, error: null });
     try {
-      const [objectsResult, collectionsResult, tagsResult, tagTypesResult] = await Promise.all([
+      const [objectsResult, spacesResult, tagsResult, tagTypesResult] = await Promise.all([
         window.electronAPI.db.getAll('objects'),
-        window.electronAPI.db.getAll('collections'),
+        window.electronAPI.db.getAll('spaces'),
         window.electronAPI.db.getAll('tag_definitions'),
         window.electronAPI.db.getTagTypes(),
       ]);
 
       const objects = objectsResult.success ? (objectsResult.data || []) : [];
-
-      let collections = collectionsResult.success ? (collectionsResult.data || []) : [];
-      collections = collections.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-
+      let spaces = spacesResult.success ? (spacesResult.data || []) : [];
+      spaces = spaces.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       const tags = tagsResult.success ? (tagsResult.data || []) : [];
       const tagTypes = tagTypesResult.success ? (tagTypesResult.data || {}) : {};
 
-      set({ objects, collections, tags, tagTypes });
+      set({ objects, spaces, tags, tagTypes });
     } catch (error) {
       set({ error: error.message });
     } finally {
@@ -76,37 +80,38 @@ export const useIndexStore = create((set, get) => ({
       } else if (action === 'DELETE') {
         set({ objects: objects.filter(o => o.id !== id) });
       }
+
+      get()._reevaluateActiveSpace();
     });
 
     window.electronAPI.onTagAssignmentsLive(({ action, result }) => {
-      // Tag assignment changes — clear the affected object's tag cache so
-      // the next getTagsForObject call returns fresh data.
+      // Tag assignment changes — clear the affected object's tag cache.
       const { objectTags } = get();
       const objectId = result.object_id;
       if (objectId && objectTags[objectId]) {
         const { [objectId]: _, ...rest } = objectTags;
         set({ objectTags: rest });
       }
+
+      get()._reevaluateActiveSpace();
     });
 
-    window.electronAPI.onCollectionsLive(({ action, result }) => {
-      const { collections } = get();
+    window.electronAPI.onSpacesLive(({ action, result }) => {
+      const { spaces } = get();
       const id = result.id;
 
       if (action === 'CREATE') {
-        const sorted = [...collections, result].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-        set({ collections: sorted });
+        const sorted = [...spaces, result].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+        set({ spaces: sorted });
       } else if (action === 'UPDATE') {
-        set({ collections: collections.map(c => c.id === id ? result : c) });
+        set({ spaces: spaces.map(s => s.id === id ? result : s) });
+        // Re-evaluate if the active space's definition changed
+        const { activeSpaceId } = get();
+        if (activeSpaceId === id) get()._reevaluateActiveSpace();
       } else if (action === 'DELETE') {
-        const newCollections = collections.filter(c => c.id !== id);
-        set({ collections: newCollections });
-
-        // Clear active collection if deleted
-        const { activeCollectionId } = get();
-        if (activeCollectionId === id) {
-          set({ activeCollectionId: null });
-        }
+        set({ spaces: spaces.filter(s => s.id !== id) });
+        const { activeSpaceId } = get();
+        if (activeSpaceId === id) get().exitSpace();
       }
     });
   },
@@ -114,39 +119,188 @@ export const useIndexStore = create((set, get) => ({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   /**
-   * Returns display objects — filtered by active collection, or all objects.
-   * Collection evaluation is client-side using the cached tag assignments.
+   * Returns spaceObjects if in a space, else all objects.
    */
   getDisplayObjects: () => {
-    const { objects, activeCollectionId, collections } = get();
-    if (!activeCollectionId || activeCollectionId === SYSTEM_ALL_ID) return objects;
-
-    const collection = collections.find(c => c.id === activeCollectionId);
-    if (!collection) return objects;
-
-    return get()._evaluateCollectionLocally(collection.query, objects);
+    const { spaceObjects, objects } = get();
+    return spaceObjects !== null ? spaceObjects : objects;
   },
 
   /**
-   * Evaluate a collection query against objects using the live tag assignment cache.
-   * Falls back to IPC if the cache is cold.
+   * All spaces including system ALL — sorted by order.
+   */
+  getAllSpaces: () => {
+    const { systemAll, spaces } = get();
+    const sorted = [...spaces].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+    return [systemAll, ...sorted];
+  },
+
+  /**
+   * Dates that have at least one object (space-aware).
+   * When drilling into a calendar day, uses the pre-day snapshot so the grid stays accurate.
+   */
+  getDatesWithObjects: () => {
+    const { spaceObjects, objects, _calendarBase, activeCalendarDate } = get();
+    const source = activeCalendarDate ? (_calendarBase ?? objects) : (spaceObjects ?? objects);
+    return new Set(source.map(o => o.created_at?.slice(0, 10)).filter(Boolean));
+  },
+
+  // ── View management ───────────────────────────────────────────────────────
+
+  setView: (viewType) => set({ activeView: viewType }),
+
+  // ── Space navigation ──────────────────────────────────────────────────────
+
+  /**
+   * Enter a space — evaluate its query and store results in spaceObjects.
+   * SYSTEM_ALL_ID navigates into the "all objects" view (spaceObjects stays null).
+   * Passing null exits to the home grid.
+   */
+  enterSpace: async (spaceId) => {
+    if (!spaceId) {
+      get().exitSpace();
+      return;
+    }
+
+    if (spaceId === SYSTEM_ALL_ID) {
+      set({ activeSpaceId: SYSTEM_ALL_ID, spaceObjects: null, activeView: 'list' });
+      return;
+    }
+
+    const { spaces } = get();
+    const space = spaces.find(s => s.id === spaceId);
+    set({ activeSpaceId: spaceId, activeView: space?.default_view ?? 'list' });
+
+    const result = await window.electronAPI.db.evaluateSpace(spaceId);
+    if (result.success) {
+      set({ spaceObjects: result.data || [] });
+    } else {
+      console.error('[Store] evaluateSpace failed:', result.error);
+    }
+  },
+
+  enterCalendarDay: (dateStr) => {
+    const { spaceObjects, objects } = get();
+    const base = spaceObjects ?? objects;
+    const dayObjects = base.filter(o => o.created_at?.slice(0, 10) === dateStr);
+    set({ activeCalendarDate: dateStr, _calendarBase: spaceObjects, spaceObjects: dayObjects });
+  },
+
+  exitCalendarDay: () => {
+    const { _calendarBase } = get();
+    set({ activeCalendarDate: null, spaceObjects: _calendarBase, _calendarBase: null });
+  },
+
+  /**
+   * Return to home grid.
+   */
+  exitSpace: () => set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null }),
+
+  /**
+   * Toggle: exit if already in this space, enter otherwise.
+   */
+  toggleSpace: async (spaceId) => {
+    const { activeSpaceId } = get();
+    if (activeSpaceId === spaceId) {
+      get().exitSpace();
+    } else {
+      await get().enterSpace(spaceId);
+    }
+  },
+
+  /**
+   * Re-run the active space query after objects or tag assignments change.
+   * No-op if no space is active.
    * @private
    */
-  _evaluateCollectionLocally: (query, objects) => {
-    // We use objectTags cache which is populated lazily.
-    // For collection filtering we use the server-side evaluation to ensure accuracy.
-    // This is called only when an active collection is set; the result is used as displayObjects.
-    // Return all objects as a safe fallback — the collection activation via IPC sets filteredObjects.
-    return objects;
+  _reevaluateActiveSpace: async () => {
+    const { activeSpaceId, activeCalendarDate } = get();
+    if (!activeSpaceId) return;
+    if (activeSpaceId === SYSTEM_ALL_ID) return;
+
+    // Re-filter calendar day if one is open
+    if (activeCalendarDate) {
+      const { _calendarBase, objects } = get();
+      const base = _calendarBase ?? objects;
+      const dayObjects = base.filter(o => o.created_at?.slice(0, 10) === activeCalendarDate);
+      set({ spaceObjects: dayObjects });
+      return;
+    }
+
+    const result = await window.electronAPI.db.evaluateSpace(activeSpaceId);
+    if (result.success) {
+      set({ spaceObjects: result.data || [] });
+    }
   },
 
+  // ── Space management ──────────────────────────────────────────────────────
+
+  createSpace: async (spaceData) => {
+    const spaces = get().spaces;
+    const maxOrder = Math.max(...spaces.map(s => s.order ?? -1), -1);
+    const dataWithOrder = { ...spaceData, order: maxOrder + 1 };
+
+    const result = await window.electronAPI.db.createSpace(dataWithOrder);
+    if (!result.success) throw new Error(result.error);
+    return { success: true, data: result.data, warnings: result.warnings };
+    // LIVE SELECT adds it to spaces automatically
+  },
+
+  updateSpace: async (spaceId, updates) => {
+    const result = await window.electronAPI.db.updateSpace(spaceId, updates);
+    if (!result.success) throw new Error(result.error);
+
+    const { activeSpaceId } = get();
+    if (activeSpaceId === spaceId) await get()._reevaluateActiveSpace();
+
+    return { success: true, data: result.data };
+  },
+
+  deleteSpace: async (spaceId) => {
+    const result = await window.electronAPI.db.deleteSpace(spaceId);
+    if (!result.success) throw new Error(result.error);
+
+    const { activeSpaceId } = get();
+    if (activeSpaceId === spaceId) get().exitSpace();
+
+    return { success: true };
+    // LIVE SELECT removes it automatically
+  },
+
+  reorderSpaces: async (reorderedSpaces) => {
+    set({ spaces: reorderedSpaces });
+    await Promise.all(
+      reorderedSpaces.map((space, index) =>
+        window.electronAPI.db.updateSpace(space.id, { order: index })
+      )
+    );
+  },
+
+  // ── Write semantics ───────────────────────────────────────────────────────
+
   /**
-   * All collections including system ALL — sorted by order.
+   * Place an object in a space by assigning all of the space's query.all tags.
+   * query.any and query.none are intentionally excluded.
    */
-  getAllCollections: () => {
-    const { systemAll, collections } = get();
-    const sorted = [...collections].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    return [systemAll, ...sorted];
+  addObjectToSpace: async (objectId, spaceId) => {
+    const { spaces } = get();
+    const space = spaces.find(s => s.id === spaceId);
+    if (!space) throw new Error(`Space ${spaceId} not found`);
+
+    const requiredTags = space.query?.all || [];
+    if (requiredTags.length === 0) return;
+
+    // Load current tags for object if not cached
+    const { objectTags } = get();
+    let currentTags = objectTags[objectId];
+    if (!currentTags) {
+      currentTags = await get().loadTagsForObject(objectId);
+    }
+
+    const currentTagIds = new Set(currentTags.map(t => t.id));
+    const missingTags = requiredTags.filter(tagId => !currentTagIds.has(tagId));
+
+    await Promise.all(missingTags.map(tagId => get().assignTag(objectId, tagId)));
   },
 
   // ── Object actions ────────────────────────────────────────────────────────
@@ -170,60 +324,6 @@ export const useIndexStore = create((set, get) => ({
     if (!result.success) throw new Error(result.error);
     // LIVE SELECT removes the object automatically
     return true;
-  },
-
-  // ── Collection actions ────────────────────────────────────────────────────
-
-  activateCollection: async (collectionId) => {
-    if (collectionId === SYSTEM_ALL_ID) {
-      set({ activeCollectionId: null });
-      return;
-    }
-    set({ activeCollectionId: collectionId });
-  },
-
-  deactivateCollection: () => set({ activeCollectionId: null }),
-
-  toggleCollection: async (collectionId) => {
-    const { activeCollectionId } = get();
-    if (collectionId === SYSTEM_ALL_ID || activeCollectionId === collectionId) {
-      get().deactivateCollection();
-    } else {
-      await get().activateCollection(collectionId);
-    }
-  },
-
-  createCollection: async (collectionData) => {
-    const collections = get().collections;
-    const maxOrder = Math.max(...collections.map(c => c.order ?? -1), -1);
-    const dataWithOrder = { ...collectionData, order: maxOrder + 1 };
-
-    const result = await window.electronAPI.db.createCollection(dataWithOrder);
-    if (!result.success) throw new Error(result.error);
-    return { success: true, data: result.data, warnings: result.warnings };
-    // LIVE SELECT adds it to collections automatically
-  },
-
-  updateCollection: async (collectionId, updates) => {
-    const result = await window.electronAPI.db.updateCollection(collectionId, updates);
-    if (!result.success) throw new Error(result.error);
-    return { success: true, data: result.data, warnings: result.warnings };
-  },
-
-  deleteCollection: async (collectionId) => {
-    const result = await window.electronAPI.db.deleteCollection(collectionId);
-    if (!result.success) throw new Error(result.error);
-    return { success: true };
-    // LIVE SELECT removes it and clears activeCollectionId if needed
-  },
-
-  reorderCollections: async (reorderedCollections) => {
-    set({ collections: reorderedCollections });
-    await Promise.all(
-      reorderedCollections.map((col, index) =>
-        window.electronAPI.db.updateCollection(col.id, { order: index })
-      )
-    );
   },
 
   // ── Tag actions ───────────────────────────────────────────────────────────
@@ -256,6 +356,18 @@ export const useIndexStore = create((set, get) => ({
       return { objectTags: rest };
     });
     return result.data;
+  },
+
+  deleteTag: async (tagId) => {
+    const result = await window.electronAPI.db.deleteTag(tagId);
+    if (!result.success) throw new Error(result.error);
+    set(state => ({ tags: state.tags.filter(t => t.id !== tagId) }));
+  },
+
+  updateTag: async (tagId, updates) => {
+    const result = await window.electronAPI.db.updateTag(tagId, updates);
+    if (!result.success) throw new Error(result.error);
+    set(state => ({ tags: state.tags.map(t => t.id === tagId ? { ...t, ...updates } : t) }));
   },
 
   unassignTag: async (objectId, tagId) => {

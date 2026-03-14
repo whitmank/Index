@@ -39,7 +39,7 @@ export async function exportToJson(db) {
     await Promise.all([
       exportTable(db, 'objects', path.join(EXPORT_DIR, 'objects')),
       exportTable(db, 'tag_definitions', path.join(EXPORT_DIR, 'tag_definitions')),
-      exportTable(db, 'collections', path.join(EXPORT_DIR, 'collections')),
+      exportTable(db, 'spaces', path.join(EXPORT_DIR, 'spaces')),
       exportTableToSingleFile(db, 'tag_assignments', path.join(EXPORT_DIR, 'tag_assignments.json')),
     ]);
 
@@ -54,7 +54,7 @@ function ensureExportStructure() {
     EXPORT_DIR,
     path.join(EXPORT_DIR, 'objects'),
     path.join(EXPORT_DIR, 'tag_definitions'),
-    path.join(EXPORT_DIR, 'collections'),
+    path.join(EXPORT_DIR, 'spaces'),
   ].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });

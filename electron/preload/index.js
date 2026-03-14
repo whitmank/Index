@@ -1,6 +1,6 @@
 // Author: Claude Code
 // Preload — v0.4.
-// Added: onObjectsLive, onTagAssignmentsLive, onCollectionsLive for LIVE SELECT reactivity.
+// Added: onObjectsLive, onTagAssignmentsLive, onSpacesLive for LIVE SELECT reactivity.
 // Added: db.getTagTypes to fetch system tag registry once on mount.
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
@@ -29,10 +29,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getObjectsForTag: (tagId) => ipcRenderer.invoke('db:getObjectsForTag', tagId),
     updateTag: (id, data) => ipcRenderer.invoke('db:updateTag', id, data),
     deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
-    createCollection: (data) => ipcRenderer.invoke('db:createCollection', data),
-    updateCollection: (id, data) => ipcRenderer.invoke('db:updateCollection', id, data),
-    deleteCollection: (id) => ipcRenderer.invoke('db:deleteCollection', id),
-    evaluateCollection: (id) => ipcRenderer.invoke('db:evaluateCollection', id),
+    createSpace: (data) => ipcRenderer.invoke('db:createSpace', data),
+    updateSpace: (id, data) => ipcRenderer.invoke('db:updateSpace', id, data),
+    deleteSpace: (id) => ipcRenderer.invoke('db:deleteSpace', id),
+    evaluateSpace: (id) => ipcRenderer.invoke('db:evaluateSpace', id),
     findOrCreateSystemTag: (type, name) => ipcRenderer.invoke('db:findOrCreateSystemTag', type, name),
   },
 
@@ -51,9 +51,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('live:tagAssignments');
     ipcRenderer.on('live:tagAssignments', (_e, data) => callback(data));
   },
-  onCollectionsLive: (callback) => {
-    ipcRenderer.removeAllListeners('live:collections');
-    ipcRenderer.on('live:collections', (_e, data) => callback(data));
+  onSpacesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:spaces');
+    ipcRenderer.on('live:spaces', (_e, data) => callback(data));
   },
 
   // Capture: select a specific object in the UI

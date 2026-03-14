@@ -1,203 +1,111 @@
 // Author: Claude Code
-// App root — v0.4.
-// Changes from v0.3:
-//   - Uses useIndexStore (replaces three separate stores)
-//   - subscribeToLive() wired on mount — LIVE SELECT drives all state updates
-//   - onObjectsChanged file watcher listener removed (no longer needed)
-//   - loadAll() on mount instead of loadObjects()
+// App root — v0.4 frontend rebuild.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIndexStore } from './store/index';
-import { useHistoryStore } from './store/history';
+import { useAppearance } from './hooks/useAppearance';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import SettingsView from './components/SettingsView';
+import SpacesView from './components/SpacesView';
+import TagsView from './components/TagsView';
+import CalendarView from './components/CalendarView';
+import DayView from './components/DayView';
+import ObjectListView from './components/ObjectListView';
 import GraphView from './components/GraphView';
-import ObjectDetailSidebar from './components/ObjectDetailSidebar';
-import SettingsModal from './components/SettingsModal';
-import CollectionsSidebar from './components/CollectionsSidebar';
-import UndoToast from './components/UndoToast';
+import CreateSpaceModal from './components/CreateSpaceModal';
+import CommandPalette from './components/CommandPalette';
+import AddressBar from './components/AddressBar';
 import './App.css';
 
-function getNameFromSource(source) {
-  if (source.includes('/') || source.includes('\\')) {
-    const filename = source.split(/[\\/]/).pop();
-    return filename.replace(/\.[^.]*$/, '') || filename;
-  }
-  try {
-    const url = new URL(source);
-    const pathname = url.pathname.split('/').filter(Boolean).pop();
-    return pathname || url.hostname;
-  } catch {
-    return source.split('/').pop() || source;
-  }
+function formatDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export default function App() {
-  const objects = useIndexStore(state => state.objects);
-  const loading = useIndexStore(state => state.loading);
-  const loadAll = useIndexStore(state => state.loadAll);
-  const subscribeToLive = useIndexStore(state => state.subscribeToLive);
-  const addObject = useIndexStore(state => state.addObject);
-  const activeCollectionId = useIndexStore(state => state.activeCollectionId);
-  const getDisplayObjects = useIndexStore(state => state.getDisplayObjects);
+  useAppearance();
 
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const lastSelectedNodeIdRef = useRef(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [deviceOrigin, setDeviceOrigin] = useState(null);
+  const loadAll             = useIndexStore(s => s.loadAll);
+  const subscribeToLive     = useIndexStore(s => s.subscribeToLive);
+  const activeSpaceId       = useIndexStore(s => s.activeSpaceId);
+  const spaces              = useIndexStore(s => s.spaces);
+  const systemAll           = useIndexStore(s => s.systemAll);
+  const exitSpace           = useIndexStore(s => s.exitSpace);
+  const spaceObjects        = useIndexStore(s => s.spaceObjects);
+  const objects             = useIndexStore(s => s.objects);
+  const activeCalendarDate  = useIndexStore(s => s.activeCalendarDate);
+  const exitCalendarDay     = useIndexStore(s => s.exitCalendarDay);
+  const activeView          = useIndexStore(s => s.activeView);
+  const setView             = useIndexStore(s => s.setView);
 
-  const displayObjects = getDisplayObjects();
+  const activeSpace = spaces.find(s => s.id === activeSpaceId)
+    ?? (activeSpaceId === systemAll.id ? systemAll : null);
 
-  useEffect(() => {
-    window.electronAPI?.device?.getOrigin().then(origin => {
-      setDeviceOrigin(origin || 'unknown');
-    });
-  }, []);
+  const displayObjects = spaceObjects !== null ? spaceObjects : objects;
 
-  useEffect(() => {
-    if (selectedNodeId !== null) {
-      lastSelectedNodeIdRef.current = selectedNodeId;
+  const [showCreateSpace, setShowCreateSpace] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [activeTopLevelView, setActiveTopLevelView] = useState('spaces');
+
+  function navigateTo(id) {
+    if (id === 'spaces' || id === 'tags' || id === 'settings') {
+      if (activeSpaceId) exitSpace();
+      setActiveTopLevelView(id);
     }
-  }, [selectedNodeId]);
+    setShowCommandPalette(false);
+  }
 
-  const undo = useHistoryStore(state => state.undo);
-  useKeyboardShortcuts({
-    onSettings: () => setShowSettings(v => !v),
-    onDetail: () => {
-      if (selectedNodeId !== null) {
-        setSelectedNodeId(null);
-      } else {
-        const target = lastSelectedNodeIdRef.current ?? displayObjects[0]?.id ?? null;
-        setSelectedNodeId(target);
-      }
-    },
-    onUndo: undo,
-  });
+  const label = activeCalendarDate                       ? formatDate(activeCalendarDate)
+    : activeSpaceId                                      ? (activeSpace?.name ?? '…')
+    : activeTopLevelView === 'tags'                      ? 'Tags'
+    : activeTopLevelView === 'settings'                  ? 'Settings'
+    : 'Spaces';
 
-  // On mount: load initial state and wire LIVE SELECT
+  const onBack = activeCalendarDate                      ? exitCalendarDay
+    : activeSpaceId                                      ? exitSpace
+    : activeTopLevelView !== 'spaces'                    ? () => setActiveTopLevelView('spaces')
+    : null;
+
   useEffect(() => {
     loadAll();
     subscribeToLive();
-
-    // Capture-triggered selection (Cmd+I from another app)
-    window.electronAPI?.onSelectObject((id) => {
-      setSelectedNodeId(id);
-    });
   }, []);
 
-  const handleDragEnter = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.target.closest('.object-detail-sidebar')) return;
-    setIsDragging(true);
-  };
+  const enterSpace = useIndexStore(s => s.enterSpace);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.target.closest('.object-detail-sidebar')) return;
-    if (e.target === e.currentTarget) setIsDragging(false);
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      try {
-        const file = files[0];
-        const filePath = window.electronAPI.fs.getPathForFile(file);
-        const uri = `file://${filePath}`;
-        const name = getNameFromSource(filePath);
-        await addObject({ name, sources: [{ uri, origin: deviceOrigin || 'unknown' }] });
-      } catch (error) {
-        console.error('Error creating object from dropped file:', error);
-      }
-    }
-  };
-
-  const handlePaste = async (e) => {
-    if (e.clipboardData.files.length > 0) {
-      e.preventDefault();
-      try {
-        const file = e.clipboardData.files[0];
-        const filePath = window.electronAPI.fs.getPathForFile(file);
-        const uri = `file://${filePath}`;
-        const name = getNameFromSource(filePath);
-        await addObject({ name, sources: [{ uri, origin: deviceOrigin || 'unknown' }] });
-      } catch (error) {
-        console.error('Error creating object from pasted file:', error);
-      }
-      return;
-    }
-
-    const text = e.clipboardData.getData('text');
-    if (text && (text.startsWith('http') || text.includes('/'))) {
-      e.preventDefault();
-      try {
-        const name = getNameFromSource(text);
-        const isUrl = text.startsWith('http://') || text.startsWith('https://');
-        const sources = isUrl
-          ? [{ uri: text, origin: 'Web' }]
-          : [{ uri: `file://${text}`, origin: deviceOrigin || 'unknown' }];
-        await addObject({ name, sources });
-      } catch (error) {
-        console.error('Error creating object from pasted text:', error);
-      }
-    }
-  };
+  useKeyboardShortcuts({
+    onSettings:      () => navigateTo('settings'),
+    onPalette:       () => setShowCommandPalette(v => !v),
+    onViewSpaces:    () => navigateTo('spaces'),
+    onViewTags:      () => navigateTo('tags'),
+    onViewSettings:  () => navigateTo('settings'),
+    onViewAll:       () => { setActiveTopLevelView('spaces'); enterSpace(systemAll.id); },
+  });
 
   return (
-    <div
-      className="app"
-      tabIndex={0}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onPaste={handlePaste}
-    >
+    <div className="app">
       <div className="title-bar" />
-      <CollectionsSidebar />
-      {isDragging && (
-        <div className="drop-indicator">
-          <div className="drop-indicator-content">
-            Drop file or URL to create object
-          </div>
-        </div>
-      )}
-      {loading && objects.length === 0 ? (
-        <div className="loading">Loading...</div>
-      ) : objects.length === 0 ? (
-        <div className="empty-state">No objects yet</div>
-      ) : displayObjects.length === 0 ? (
-        <div className="empty-state">No matching objects</div>
-      ) : (
-        <>
-          <GraphView
-            objects={displayObjects}
-            onNodeClick={setSelectedNodeId}
-            selectedNodeId={selectedNodeId}
-          />
-          {lastSelectedNodeIdRef.current !== null && (
-            <ObjectDetailSidebar
-              key={`sidebar-${selectedNodeId ?? lastSelectedNodeIdRef.current}`}
-              objectId={selectedNodeId ?? lastSelectedNodeIdRef.current}
-              isOpen={selectedNodeId !== null}
-              onClose={() => setSelectedNodeId(null)}
-            />
-          )}
-        </>
-      )}
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-      <UndoToast />
+      <div className="app-content">
+        <AddressBar
+          label={label}
+          onBack={onBack}
+          activeView={activeSpaceId ? activeView : null}
+          setView={setView}
+        />
+        {!activeSpaceId && activeTopLevelView === 'spaces'                    && <SpacesView onNewSpace={() => setShowCreateSpace(true)} />}
+        {!activeSpaceId && activeTopLevelView === 'tags'                       && <TagsView />}
+        {!activeSpaceId && activeTopLevelView === 'settings'                   && <SettingsView />}
+        {activeSpaceId && activeView === 'list'                                && <ObjectListView objects={displayObjects} />}
+        {activeSpaceId && activeView === 'calendar' && !activeCalendarDate     && <CalendarView />}
+        {activeSpaceId && activeView === 'calendar' && activeCalendarDate      && <DayView />}
+        {activeSpaceId && activeView === 'graph'                               && <GraphView objects={displayObjects} />}
+      </div>
+      <CreateSpaceModal isOpen={showCreateSpace} onClose={() => setShowCreateSpace(false)} />
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        onNavigate={navigateTo}
+      />
     </div>
   );
 }

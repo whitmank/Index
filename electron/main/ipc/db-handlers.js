@@ -32,7 +32,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'collections'];
+      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'spaces'];
       if (!validTables.includes(table)) throw new Error(`Invalid table: ${table}`);
 
       const result = await db.query(`SELECT * FROM ${table}`);
@@ -329,21 +329,21 @@ export function registerDbHandlers() {
     }
   });
 
-  // ── CREATE COLLECTION ──────────────────────────────────────────────────────
+  // ── CREATE SPACE ───────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:createCollection', async (event, collectionData) => {
+  ipcMain.handle('db:createSpace', async (event, spaceData) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const { name, query } = collectionData;
+      const { name, query } = spaceData;
 
       if (
         (!query.all || query.all.length === 0) &&
         (!query.any || query.any.length === 0) &&
         (!query.none || query.none.length === 0)
       ) {
-        throw new Error('Collection must have at least one rule (all, any, or none)');
+        throw new Error('Space must have at least one rule (all, any, or none)');
       }
 
       const now = new Date().toISOString();
@@ -355,19 +355,20 @@ export function registerDbHandlers() {
 
       const warnings = allTagIds.filter(tagId => !existingTagIds.has(tagId)).map(tagId => `Tag '${tagId}' not found`);
 
-      const collectionRecord = {
+      const spaceRecord = {
         name,
         query: {
           all: query.all || [],
           any: query.any || [],
           none: query.none || [],
         },
+        default_view: spaceData.default_view ?? 'list',
         pinned: false,
         created_at: now,
         updated_at: now,
       };
 
-      const result = await db.query(`CREATE collections CONTENT ${JSON.stringify(collectionRecord)}`);
+      const result = await db.query(`CREATE spaces CONTENT ${JSON.stringify(spaceRecord)}`);
       scheduleExport(db);
 
       const created = result[0]?.[0] || result[0];
@@ -377,14 +378,14 @@ export function registerDbHandlers() {
         warnings: warnings.length > 0 ? warnings : undefined,
       };
     } catch (error) {
-      console.error('[IPC] Create collection error:', error);
+      console.error('[IPC] Create space error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── UPDATE COLLECTION ──────────────────────────────────────────────────────
+  // ── UPDATE SPACE ───────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:updateCollection', async (event, collectionId, updates) => {
+  ipcMain.handle('db:updateSpace', async (event, spaceId, updates) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
@@ -392,7 +393,7 @@ export function registerDbHandlers() {
       const { query, name, order } = updates;
 
       if (query && (!query.all?.length && !query.any?.length && !query.none?.length)) {
-        throw new Error('Collection must have at least one rule (all, any, or none)');
+        throw new Error('Space must have at least one rule (all, any, or none)');
       }
 
       const updateObj = { updated_at: new Date().toISOString() };
@@ -406,51 +407,51 @@ export function registerDbHandlers() {
       }
       if (order !== undefined) updateObj.order = order;
 
-      const result = await db.query(`UPDATE ${collectionId} MERGE ${JSON.stringify(updateObj)}`);
+      const result = await db.query(`UPDATE ${spaceId} MERGE ${JSON.stringify(updateObj)}`);
       scheduleExport(db);
 
       return { success: true, data: result };
     } catch (error) {
-      console.error('[IPC] Update collection error:', error);
+      console.error('[IPC] Update space error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── DELETE COLLECTION ──────────────────────────────────────────────────────
+  // ── DELETE SPACE ───────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:deleteCollection', async (event, collectionId) => {
+  ipcMain.handle('db:deleteSpace', async (event, spaceId) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      await db.query(`DELETE ${collectionId}`);
+      await db.query(`DELETE ${spaceId}`);
       scheduleExport(db);
 
       return { success: true };
     } catch (error) {
-      console.error('[IPC] Delete collection error:', error);
+      console.error('[IPC] Delete space error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── EVALUATE COLLECTION ────────────────────────────────────────────────────
+  // ── EVALUATE SPACE ─────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:evaluateCollection', async (event, collectionId) => {
+  ipcMain.handle('db:evaluateSpace', async (event, spaceId) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      let collectionResult = await db.query(`SELECT * FROM ${collectionId}`);
-      let collection = collectionResult;
-      if (Array.isArray(collection) && collection.length > 0) collection = collection[0];
-      if (Array.isArray(collection) && collection.length > 0) collection = collection[0];
+      let spaceResult = await db.query(`SELECT * FROM ${spaceId}`);
+      let space = spaceResult;
+      if (Array.isArray(space) && space.length > 0) space = space[0];
+      if (Array.isArray(space) && space.length > 0) space = space[0];
 
-      if (!collection) throw new Error(`Collection ${collectionId} not found`);
+      if (!space) throw new Error(`Space ${spaceId} not found`);
 
       const query = {
-        all: collection.query?.all || [],
-        any: collection.query?.any || [],
-        none: collection.query?.none || [],
+        all: space.query?.all || [],
+        any: space.query?.any || [],
+        none: space.query?.none || [],
       };
 
       const objectsResult = await db.query('SELECT * FROM objects');
@@ -479,7 +480,7 @@ export function registerDbHandlers() {
 
       return { success: true, data: normalizeRecords(matchingObjects) };
     } catch (error) {
-      console.error('[IPC] Evaluate collection error:', error);
+      console.error('[IPC] Evaluate space error:', error);
       return { success: false, error: error.message };
     }
   });
