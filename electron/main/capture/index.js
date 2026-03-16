@@ -17,11 +17,13 @@ const HANDLERS = [safariHandler, defaultHandler];
 /**
  * Called when the user presses Cmd+I.
  * Detects the frontmost app, captures context, deduplicates, creates/focuses object.
+ * If targetSpaceId is provided, the object is explicitly added to that space.
  *
  * @param {object} db - SurrealDB instance
  * @param {import('electron').BrowserWindow} mainWindow
+ * @param {string|null} targetSpaceId - Active space to receive the captured object
  */
-export async function handleCaptureShortcut(db, mainWindow) {
+export async function handleCaptureShortcut(db, mainWindow, targetSpaceId = null) {
   if (!db) {
     console.warn('[Capture] Database not ready');
     showWindow(mainWindow);
@@ -39,7 +41,7 @@ export async function handleCaptureShortcut(db, mainWindow) {
     console.warn('[Capture] Could not detect frontmost app:', err.message);
   }
 
-  console.log(`[Capture] Frontmost app: ${appName}`);
+  console.log(`[Capture] Frontmost app: ${appName} | targetSpace: ${targetSpaceId ?? 'none'}`);
 
   // Find the first handler that can handle this app
   const handler = HANDLERS.find(h => h.canHandle(appName));
@@ -73,6 +75,24 @@ export async function handleCaptureShortcut(db, mainWindow) {
         console.log(`[Capture] Created new object: ${objectId} — "${name}"`);
       } catch (err) {
         console.error('[Capture] Failed to create object:', err.message);
+      }
+    }
+
+    // Add object to the active space if one is targeted
+    if (objectId && targetSpaceId) {
+      try {
+        await db.query(
+          `DELETE FROM space_objects WHERE space_id = '${targetSpaceId}' AND object_id = '${objectId}'`
+        );
+        await db.create('space_objects', {
+          space_id: targetSpaceId,
+          object_id: objectId,
+          type: 'include',
+          created_at: new Date().toISOString(),
+        });
+        console.log(`[Capture] Added object ${objectId} to space ${targetSpaceId}`);
+      } catch (err) {
+        console.error('[Capture] Failed to add object to space:', err.message);
       }
     }
   }

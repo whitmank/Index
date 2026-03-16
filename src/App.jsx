@@ -14,7 +14,9 @@ import ObjectListView from './components/ObjectListView';
 import GraphView from './components/GraphView';
 import CreateSpaceModal from './components/CreateSpaceModal';
 import CommandPalette from './components/CommandPalette';
+import SpaceNavigator from './components/SpaceNavigator';
 import AddressBar from './components/AddressBar';
+import QuickSpaceView from './components/QuickSpaceView';
 import './App.css';
 
 function formatDate(dateStr) {
@@ -22,7 +24,7 @@ function formatDate(dateStr) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-export default function App() {
+function MainApp() {
   useAppearance();
 
   const loadAll             = useIndexStore(s => s.loadAll);
@@ -37,14 +39,19 @@ export default function App() {
   const exitCalendarDay     = useIndexStore(s => s.exitCalendarDay);
   const activeView          = useIndexStore(s => s.activeView);
   const setView             = useIndexStore(s => s.setView);
+  const enterSpace          = useIndexStore(s => s.enterSpace);
+
+  const navBack     = useIndexStore(s => s.navBack);
+  const navForward  = useIndexStore(s => s.navForward);
 
   const activeSpace = spaces.find(s => s.id === activeSpaceId)
     ?? (activeSpaceId === systemAll.id ? systemAll : null);
 
   const displayObjects = spaceObjects !== null ? spaceObjects : objects;
 
-  const [showCreateSpace, setShowCreateSpace] = useState(false);
+  const [showCreateSpace, setShowCreateSpace]       = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showSpaceNavigator, setShowSpaceNavigator] = useState(false);
   const [activeTopLevelView, setActiveTopLevelView] = useState('spaces');
 
   function navigateTo(id) {
@@ -71,15 +78,15 @@ export default function App() {
     subscribeToLive();
   }, []);
 
-  const enterSpace = useIndexStore(s => s.enterSpace);
-
   useKeyboardShortcuts({
-    onSettings:      () => navigateTo('settings'),
-    onPalette:       () => setShowCommandPalette(v => !v),
-    onViewSpaces:    () => navigateTo('spaces'),
-    onViewTags:      () => navigateTo('tags'),
-    onViewSettings:  () => navigateTo('settings'),
-    onViewAll:       () => { setActiveTopLevelView('spaces'); enterSpace(systemAll.id); },
+    onSettings:       () => navigateTo('settings'),
+    onPalette:        () => setShowCommandPalette(v => !v),
+    onSpaceNavigator: () => setShowSpaceNavigator(v => !v),
+    onViewSpaces:     () => navigateTo('spaces'),
+    onViewTags:       () => navigateTo('tags'),
+    onViewSettings:   () => navigateTo('settings'),
+    onNavBack:        () => navBack(),
+    onNavForward:     () => navForward(),
   });
 
   return (
@@ -104,8 +111,20 @@ export default function App() {
       <CommandPalette
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
-        onNavigate={navigateTo}
+      />
+      <SpaceNavigator
+        isOpen={showSpaceNavigator}
+        onClose={() => setShowSpaceNavigator(false)}
+        onEnterSpace={(id) => { setActiveTopLevelView('spaces'); enterSpace(id); setShowSpaceNavigator(false); }}
       />
     </div>
   );
+}
+
+export default function App() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('mode') === 'quick') {
+    return <QuickSpaceView />;
+  }
+  return <MainApp />;
 }

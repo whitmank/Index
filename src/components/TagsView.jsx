@@ -33,7 +33,12 @@ export default function TagsView() {
         onUpdateTag={updateTag}
         onDeleteTag={deleteTag}
       />
-      <SystemTagsSection groupedTags={systemByType} tagTypes={tagTypes} />
+      <SystemTagsSection
+        groupedTags={systemByType}
+        tagTypes={tagTypes}
+        onCreateTag={createTag}
+        onDeleteTag={deleteTag}
+      />
     </div>
   );
 }
@@ -150,34 +155,72 @@ function NewTagRow({ onSave, onCancel }) {
 
 // ── System Tags ───────────────────────────────────────────────────────────────
 
-function SystemTagsSection({ groupedTags, tagTypes }) {
+function SystemTagsSection({ groupedTags, tagTypes, onCreateTag, onDeleteTag }) {
   const typeKeys = Object.keys(groupedTags).sort();
+  const anyEditable = typeKeys.some(k => tagTypes[k]?.editable);
 
   return (
     <section className="tags-section">
       <div className="tags-section-header">
         <h2>System Tags</h2>
-        <span className="tags-readonly-badge">read-only</span>
+        {!anyEditable && <span className="tags-readonly-badge">read-only</span>}
       </div>
 
-      {typeKeys.map(typeKey => (
-        <div key={typeKey} className="system-tags-group">
-          <div className="system-tags-group-label">
-            {tagTypes[typeKey]?.label ?? typeKey}
-          </div>
-          <ul className="tags-list">
-            {groupedTags[typeKey].map(tag => (
-              <li key={tag.id} className="tag-row system">
-                <span
-                  className="tag-color-swatch"
-                  style={{ background: tag.color || 'var(--text-tertiary)' }}
-                />
-                <span className="tag-name">{tag.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {typeKeys.map(typeKey => {
+        const typeDef = tagTypes[typeKey];
+        const editable = typeDef?.editable ?? false;
+        const deletable = typeDef?.deletable ?? false;
+        return (
+          <SystemTagGroup
+            key={typeKey}
+            typeKey={typeKey}
+            label={typeDef?.label ?? typeKey}
+            tags={groupedTags[typeKey]}
+            editable={editable}
+            deletable={deletable}
+            onCreateTag={onCreateTag}
+            onDeleteTag={onDeleteTag}
+          />
+        );
+      })}
     </section>
+  );
+}
+
+function SystemTagGroup({ typeKey, label, tags, editable, deletable, onCreateTag, onDeleteTag }) {
+  const [addingNew, setAddingNew] = useState(false);
+
+  return (
+    <div className="system-tags-group">
+      <div className="system-tags-group-label">
+        {label}
+        {editable && !addingNew && (
+          <button className="tags-new-btn inline" onClick={() => setAddingNew(true)}>+</button>
+        )}
+      </div>
+      <ul className="tags-list">
+        {tags.map(tag => (
+          <li key={tag.id} className="tag-row system">
+            <span
+              className="tag-color-swatch"
+              style={{ background: tag.color || 'var(--text-tertiary)' }}
+            />
+            <span className="tag-name">{tag.name}</span>
+            {deletable && (
+              <button className="tag-delete-btn" onClick={() => onDeleteTag(tag.id)} title="Delete">×</button>
+            )}
+          </li>
+        ))}
+        {addingNew && (
+          <NewTagRow
+            onSave={async (data) => {
+              await onCreateTag({ ...data, system: true, type: typeKey });
+              setAddingNew(false);
+            }}
+            onCancel={() => setAddingNew(false)}
+          />
+        )}
+      </ul>
+    </div>
   );
 }

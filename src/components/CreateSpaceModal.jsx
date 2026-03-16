@@ -69,7 +69,7 @@ export default function CreateSpaceModal({ isOpen, onClose, space }) {
   const poolTags = sortedTags.filter(t => !assignedIds.has(t.id));
 
   const hasQuery = query.all.length + query.any.length + query.none.length > 0;
-  const canSubmit = name.trim().length > 0 && hasQuery && !saving;
+  const canSubmit = name.trim().length > 0 && !saving;
 
   // ── Mutations ────────────────────────────────────────────────────────────
 

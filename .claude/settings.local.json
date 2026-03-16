@@ -9,7 +9,10 @@
       "Bash(for i:*)",
       "Bash(do echo:*)",
       "Read(//Users/karter/files/dev/index-workspace/0.4/DIALECTIC/sessions/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python3:*)",
+      "Bash(grep:*)",
+      "Skill(commit-commands:commit)"
     ]
   }
 }

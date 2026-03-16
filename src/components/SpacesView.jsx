@@ -6,7 +6,7 @@ import { useIndexStore } from '../store/index';
 import CreateSpaceModal from './CreateSpaceModal';
 import './SpacesView.css';
 
-function SpaceCard({ space, tags, onEnter, onEdit }) {
+function SpaceCard({ space, tags, onEnter, onEdit, onDelete }) {
   const isSystem = space.system === true;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -19,13 +19,6 @@ function SpaceCard({ space, tags, onEnter, onEdit }) {
   const anyTags  = (space.query?.any  || []).map(id => ({ id, name: tagIndex[id]?.name ?? id, kind: 'any' }));
   const noneTags = (space.query?.none || []).map(id => ({ id, name: tagIndex[id]?.name ?? id, kind: 'none' }));
   const pills = [...allTags, ...anyTags, ...noneTags].slice(0, 5);
-
-  // Human-readable rule summary
-  const parts = [];
-  if (allTags.length)  parts.push(`all of ${allTags.map(t => t.name).join(', ')}`);
-  if (anyTags.length)  parts.push(`any of ${anyTags.map(t => t.name).join(', ')}`);
-  if (noneTags.length) parts.push(`none of ${noneTags.map(t => t.name).join(', ')}`);
-  const ruleSummary = parts.join(' · ') || null;
 
   // Close menu on outside click
   useEffect(() => {
@@ -46,30 +39,19 @@ function SpaceCard({ space, tags, onEnter, onEdit }) {
         tabIndex={0}
         onKeyDown={e => e.key === 'Enter' && onEnter(space.id)}
       >
-        <div className="space-card-preview">
-          <span className="space-card-initial">{initial}</span>
-          {pills.length > 0 && (
-            <div className="space-card-tag-cluster">
-              {pills.map(p => (
-                <span key={p.id} className={`space-card-tag-pill${p.kind === 'none' ? ' none' : ''}`}>
-                  {p.kind === 'none' ? '–' : ''}{p.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="space-card-body">
-          <p className="space-card-name">{space.name}</p>
-          {ruleSummary ? (
-            <p className="space-card-rule-summary">{ruleSummary}</p>
-          ) : (
-            <div className="space-card-meta">
-              <div className="space-card-meta-line" />
-              <div className="space-card-meta-line" />
-            </div>
-          )}
-        </div>
+        <span className="space-card-initial-bg">{initial}</span>
+        <p className="space-card-name">{space.name}</p>
+        {pills.length > 0 ? (
+          <div className="space-card-tag-cluster">
+            {pills.map(p => (
+              <span key={p.id} className={`space-card-tag-pill${p.kind === 'none' ? ' none' : ''}`}>
+                {p.kind === 'none' ? '–' : ''}{p.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="space-card-no-rules" />
+        )}
       </div>
 
       {!isSystem && (
@@ -89,6 +71,12 @@ function SpaceCard({ space, tags, onEnter, onEdit }) {
               >
                 Edit
               </button>
+              <button
+                className="space-card-menu-item delete"
+                onClick={e => { e.stopPropagation(); setMenuOpen(false); onDelete(space); }}
+              >
+                Delete
+              </button>
             </div>
           )}
         </div>
@@ -98,21 +86,27 @@ function SpaceCard({ space, tags, onEnter, onEdit }) {
 }
 
 export default function SpacesView({ onNewSpace }) {
-  const getAllSpaces = useIndexStore(s => s.getAllSpaces);
-  const enterSpace   = useIndexStore(s => s.enterSpace);
-  const tags         = useIndexStore(s => s.tags);
+  const spaces      = useIndexStore(s => s.spaces);
+  const enterSpace  = useIndexStore(s => s.enterSpace);
+  const deleteSpace = useIndexStore(s => s.deleteSpace);
+  const tags        = useIndexStore(s => s.tags);
 
   const [editingSpace, setEditingSpace] = useState(null);
 
-  const all        = getAllSpaces();
-  const userSpaces = all.filter(s => !s.system);
+  const userSpaces = [...spaces].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+
+  function handleDelete(space) {
+    if (window.confirm(`Delete "${space.name}"?`)) {
+      deleteSpace(space.id).catch(err => console.error('[SpacesView] Delete failed:', err));
+    }
+  }
 
   return (
     <div className="spaces-view">
       <div className="spaces-section">
         <div className="spaces-grid">
           {userSpaces.map(space => (
-            <SpaceCard key={space.id} space={space} tags={tags} onEnter={enterSpace} onEdit={setEditingSpace} />
+            <SpaceCard key={space.id} space={space} tags={tags} onEnter={enterSpace} onEdit={setEditingSpace} onDelete={handleDelete} />
           ))}
           {onNewSpace && (
             <div

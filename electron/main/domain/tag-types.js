@@ -14,7 +14,7 @@ export const SYSTEM_TAG_TYPES = {
     scope: 'object',    // Assigned once per object (from first source)
     display: true,      // Shown in tag UI
     editable: true,     // Value can be changed by user
-    deletable: false,
+    deletable: true,    // User can add/remove values
     order: 0,
   },
   file_type: {

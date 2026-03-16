@@ -31,6 +31,11 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Open command palette',
   },
+  SPACE_NAVIGATOR: {
+    key: 'l',
+    modifiers: ['metaKey'],
+    description: 'Open space navigator',
+  },
   VIEW_SPACES: {
     key: '1',
     modifiers: ['metaKey'],
@@ -46,10 +51,15 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Go to Settings',
   },
-  VIEW_ALL: {
+  NAV_BACK: {
     key: 'a',
     modifiers: ['metaKey'],
-    description: 'Go to All space',
+    description: 'Navigate back',
+  },
+  NAV_FORWARD: {
+    key: 'd',
+    modifiers: ['metaKey'],
+    description: 'Navigate forward',
   },
 };
 
@@ -117,12 +127,28 @@ export function useKeyboardShortcuts(actions, state) {
         actions.onPalette?.();
       }
 
+      // Cmd+L - space navigator
+      if (
+        e.key === SHORTCUTS.SPACE_NAVIGATOR.key &&
+        SHORTCUTS.SPACE_NAVIGATOR.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onSpaceNavigator?.();
+      }
+
       // Cmd+1/2/3 - direct view navigation
       if (e.metaKey) {
         if (e.key === '1') { e.preventDefault(); actions.onViewSpaces?.(); }
         if (e.key === '2') { e.preventDefault(); actions.onViewTags?.(); }
         if (e.key === '3') { e.preventDefault(); actions.onViewSettings?.(); }
-        if (e.key === 'a') { e.preventDefault(); actions.onViewAll?.(); }
+        if (e.key === 'a') { e.preventDefault(); actions.onNavBack?.(); }
+        if (e.key === 'd') { e.preventDefault(); actions.onNavForward?.(); }
+      }
+
+      // Cmd+Left/Right — back/forward (not in inputs)
+      if (e.metaKey && document.activeElement?.tagName !== 'INPUT') {
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); actions.onNavBack?.(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); actions.onNavForward?.(); }
       }
     }
 

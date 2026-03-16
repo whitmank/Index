@@ -24,6 +24,10 @@ export const useIndexStore = create((set, get) => ({
   loading: false,
   error: null,
 
+  // ── Navigation history ────────────────────────────────────────────────────
+  navHistory: [null],  // array of spaceId | null (null = home grid)
+  navCursor: 0,        // current position in navHistory
+
   // ── System spaces ─────────────────────────────────────────────────────────
   systemAll: {
     id: SYSTEM_ALL_ID,
@@ -114,6 +118,15 @@ export const useIndexStore = create((set, get) => ({
         if (activeSpaceId === id) get().exitSpace();
       }
     });
+
+    window.electronAPI.onSpaceObjectsLive(({ action, result }) => {
+      // An override changed — re-evaluate if the affected space is active.
+      const { activeSpaceId } = get();
+      const spaceId = result.space_id?.toString?.() ?? result.space_id;
+      if (activeSpaceId && activeSpaceId === spaceId) {
+        get()._reevaluateActiveSpace();
+      }
+    });
   },
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -152,7 +165,45 @@ export const useIndexStore = create((set, get) => ({
   // ── Space navigation ──────────────────────────────────────────────────────
 
   /**
-   * Enter a space — evaluate its query and store results in spaceObjects.
+   * Internal: activate a space without touching navigation history.
+   * Used by navBack/navForward.
+   * @private
+   */
+  _activateSpace: async (spaceId) => {
+    if (!spaceId) {
+      set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null });
+      window.electronAPI?.app?.setActiveSpace(null);
+      return;
+    }
+    if (spaceId === SYSTEM_ALL_ID) {
+      set({ activeSpaceId: SYSTEM_ALL_ID, spaceObjects: null, activeView: 'list' });
+      window.electronAPI?.app?.setActiveSpace(null);
+      return;
+    }
+    const { spaces } = get();
+    const space = spaces.find(s => s.id === spaceId);
+    set({ activeSpaceId: spaceId, activeView: space?.default_view ?? 'list', spaceObjects: [] });
+    window.electronAPI?.app?.setActiveSpace(spaceId);
+    const result = await window.electronAPI.db.evaluateSpace(spaceId);
+    if (result.success) {
+      set({ spaceObjects: result.data || [] });
+    } else {
+      console.error('[Store] evaluateSpace failed:', result.error);
+    }
+  },
+
+  /**
+   * Internal: push a position to navigation history, truncating any forward history.
+   * @private
+   */
+  _navPush: (spaceId) => {
+    const { navHistory, navCursor } = get();
+    const next = [...navHistory.slice(0, navCursor + 1), spaceId];
+    set({ navHistory: next, navCursor: next.length - 1 });
+  },
+
+  /**
+   * Enter a space — evaluate its query and push to navigation history.
    * SYSTEM_ALL_ID navigates into the "all objects" view (spaceObjects stays null).
    * Passing null exits to the home grid.
    */
@@ -161,22 +212,8 @@ export const useIndexStore = create((set, get) => ({
       get().exitSpace();
       return;
     }
-
-    if (spaceId === SYSTEM_ALL_ID) {
-      set({ activeSpaceId: SYSTEM_ALL_ID, spaceObjects: null, activeView: 'list' });
-      return;
-    }
-
-    const { spaces } = get();
-    const space = spaces.find(s => s.id === spaceId);
-    set({ activeSpaceId: spaceId, activeView: space?.default_view ?? 'list' });
-
-    const result = await window.electronAPI.db.evaluateSpace(spaceId);
-    if (result.success) {
-      set({ spaceObjects: result.data || [] });
-    } else {
-      console.error('[Store] evaluateSpace failed:', result.error);
-    }
+    await get()._activateSpace(spaceId);
+    get()._navPush(spaceId);
   },
 
   enterCalendarDay: (dateStr) => {
@@ -192,9 +229,34 @@ export const useIndexStore = create((set, get) => ({
   },
 
   /**
-   * Return to home grid.
+   * Return to home grid, pushing null onto navigation history.
    */
-  exitSpace: () => set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null }),
+  exitSpace: () => {
+    set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null });
+    window.electronAPI?.app?.setActiveSpace(null);
+    get()._navPush(null);
+  },
+
+  /** Navigate back one step in history. */
+  navBack: async () => {
+    const { navCursor, navHistory } = get();
+    if (navCursor <= 0) return;
+    const newCursor = navCursor - 1;
+    set({ navCursor: newCursor });
+    await get()._activateSpace(navHistory[newCursor]);
+  },
+
+  /** Navigate forward one step in history. */
+  navForward: async () => {
+    const { navCursor, navHistory } = get();
+    if (navCursor >= navHistory.length - 1) return;
+    const newCursor = navCursor + 1;
+    set({ navCursor: newCursor });
+    await get()._activateSpace(navHistory[newCursor]);
+  },
+
+  canNavBack:    () => get().navCursor > 0,
+  canNavForward: () => get().navCursor < get().navHistory.length - 1,
 
   /**
    * Toggle: exit if already in this space, enter otherwise.
@@ -276,31 +338,33 @@ export const useIndexStore = create((set, get) => ({
     );
   },
 
-  // ── Write semantics ───────────────────────────────────────────────────────
+  // ── Space override actions ────────────────────────────────────────────────
 
   /**
-   * Place an object in a space by assigning all of the space's query.all tags.
-   * query.any and query.none are intentionally excluded.
+   * Explicitly include an object in a space regardless of query rules.
+   * Also clears any existing exclude override for this pair.
    */
   addObjectToSpace: async (objectId, spaceId) => {
-    const { spaces } = get();
-    const space = spaces.find(s => s.id === spaceId);
-    if (!space) throw new Error(`Space ${spaceId} not found`);
+    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, 'include');
+    if (!result.success) throw new Error(result.error);
+  },
 
-    const requiredTags = space.query?.all || [];
-    if (requiredTags.length === 0) return;
+  /**
+   * Explicitly exclude an object from a space regardless of query rules.
+   * Also clears any existing include override for this pair.
+   */
+  excludeObjectFromSpace: async (objectId, spaceId) => {
+    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, 'exclude');
+    if (!result.success) throw new Error(result.error);
+  },
 
-    // Load current tags for object if not cached
-    const { objectTags } = get();
-    let currentTags = objectTags[objectId];
-    if (!currentTags) {
-      currentTags = await get().loadTagsForObject(objectId);
-    }
-
-    const currentTagIds = new Set(currentTags.map(t => t.id));
-    const missingTags = requiredTags.filter(tagId => !currentTagIds.has(tagId));
-
-    await Promise.all(missingTags.map(tagId => get().assignTag(objectId, tagId)));
+  /**
+   * Remove any explicit override for this object+space pair.
+   * The object falls back to query-rule membership.
+   */
+  removeSpaceOverride: async (objectId, spaceId) => {
+    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, null);
+    if (!result.success) throw new Error(result.error);
   },
 
   // ── Object actions ────────────────────────────────────────────────────────

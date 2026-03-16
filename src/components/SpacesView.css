@@ -29,14 +29,20 @@
 /* ── Card ──────────────────────────────────────────────────────────────── */
 
 .space-card {
+  position: relative;
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
+  padding: 14px 14px 12px;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
   -webkit-app-region: no-drag;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .space-card:hover {
@@ -55,56 +61,62 @@
   border-color: rgba(0, 0, 0, 0.12);
 }
 
-/* ── Card preview area ─────────────────────────────────────────────────── */
-
-.space-card-preview {
-  height: 110px;
-  background: rgba(180, 200, 220, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.space-card.system .space-card-preview {
-  background: rgba(180, 180, 180, 0.18);
-}
-
-.space-card-initial {
-  font-size: 2.4rem;
-  font-weight: 700;
-  color: rgba(80, 110, 160, 0.35);
-  letter-spacing: -0.02em;
+/* Large initial letter as background watermark */
+.space-card-initial-bg {
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  font-size: 3.8rem;
+  font-weight: 800;
+  color: rgba(80, 110, 160, 0.08);
+  letter-spacing: -0.04em;
   user-select: none;
   line-height: 1;
+  pointer-events: none;
 }
 
-.space-card.system .space-card-initial {
-  color: rgba(100, 100, 100, 0.3);
+.space-card.system .space-card-initial-bg {
+  color: rgba(0, 0, 0, 0.05);
 }
 
-/* Tag pill cluster in preview */
+/* ── Card name ─────────────────────────────────────────────────────────── */
+
+.space-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #2a2a2a;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+  position: relative;
+}
+
+.space-card.system .space-card-name {
+  color: #555;
+  font-weight: 500;
+}
+
+/* ── Tag pills ─────────────────────────────────────────────────────────── */
+
 .space-card-tag-cluster {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  position: relative;
 }
 
 .space-card-tag-pill {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.3px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 20px;
-  background: rgba(80, 120, 200, 0.15);
-  color: rgba(50, 80, 160, 0.75);
+  background: rgba(80, 120, 200, 0.12);
+  color: rgba(50, 80, 160, 0.7);
   white-space: nowrap;
-  max-width: 80px;
+  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -114,54 +126,11 @@
   color: rgba(160, 60, 60, 0.65);
 }
 
-/* ── Card body ─────────────────────────────────────────────────────────── */
-
-.space-card-body {
-  padding: 12px 14px 14px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.space-card-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #2a2a2a;
-  margin: 0 0 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.01em;
-}
-
-.space-card.system .space-card-name {
-  color: #555;
-  font-weight: 500;
-}
-
-.space-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.space-card-meta-line {
+.space-card-no-rules {
   height: 6px;
+  width: 40%;
   border-radius: 3px;
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.space-card-meta-line:first-child {
-  width: 70%;
-}
-
-.space-card-meta-line:last-child {
-  width: 45%;
-}
-
-.space-card-rule-summary {
-  font-size: 0.75rem;
-  color: #888;
-  line-height: 1.4;
-  margin: 0;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* ── Card ··· menu ─────────────────────────────────────────────────────── */
@@ -231,6 +200,14 @@
   background: #f5f3f0;
 }
 
+.space-card-menu-item.delete {
+  color: #c0392b;
+}
+
+.space-card-menu-item.delete:hover {
+  background: #fff0ee;
+}
+
 /* ── Empty / new space ─────────────────────────────────────────────────── */
 
 .space-card-new {
@@ -238,12 +215,12 @@
   border: 1.5px dashed rgba(0, 0, 0, 0.15);
   border-radius: 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 7px;
   cursor: pointer;
-  min-height: 180px;
+  min-height: 72px;
+  padding: 14px 14px 12px;
   transition: background 120ms ease, border-color 120ms ease;
   -webkit-app-region: no-drag;
 }
@@ -254,16 +231,16 @@
 }
 
 .space-card-new-icon {
-  font-size: 1.4rem;
-  color: rgba(0, 0, 0, 0.25);
+  font-size: 0.95rem;
+  color: rgba(0, 0, 0, 0.22);
   line-height: 1;
 }
 
 .space-card-new-label {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.35);
-  letter-spacing: 0.2px;
+  color: rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.1px;
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */

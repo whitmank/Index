@@ -41,6 +41,7 @@ export async function exportToJson(db) {
       exportTable(db, 'tag_definitions', path.join(EXPORT_DIR, 'tag_definitions')),
       exportTable(db, 'spaces', path.join(EXPORT_DIR, 'spaces')),
       exportTableToSingleFile(db, 'tag_assignments', path.join(EXPORT_DIR, 'tag_assignments.json')),
+      exportTableToSingleFile(db, 'space_objects', path.join(EXPORT_DIR, 'space_objects.json')),
     ]);
 
     console.log('[Export] Export complete');

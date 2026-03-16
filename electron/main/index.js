@@ -5,7 +5,7 @@
 //   - exportToJson() called on before-quit (not persistToIndex)
 //   - startLiveQueries() wires LIVE SELECT after DB + window ready
 
-import { app, globalShortcut } from 'electron';
+import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
 import WindowManagerFactory from './window-manager/index.js';
 import { startDatabase, stopDatabase, getDatabase } from './db/connection.js';
 import { exportToJson } from './db/export.js';
@@ -23,12 +23,28 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let mainWindow;
+let quickWindow = null;
 let windowManager;
 let dbStarted = false;
 let windowConfig;
 
-const toggleHotkey = process.platform === 'darwin' ? 'cmd+`' : 'ctrl+`';
-const captureHotkey = process.platform === 'darwin' ? 'cmd+i' : 'ctrl+i';
+// Active space registry — updated by each window via app:setActiveSpace
+const activeSpaceRegistry = { main: null, overlay: null };
+
+/**
+ * Returns the space ID that should receive the next capture.
+ * Overlay takes priority when it is visible and has an active space.
+ */
+function getTargetSpaceId() {
+  if (quickWindow && !quickWindow.isDestroyed() && quickWindow.isVisible() && activeSpaceRegistry.overlay) {
+    return activeSpaceRegistry.overlay;
+  }
+  return activeSpaceRegistry.main;
+}
+
+const toggleHotkey     = process.platform === 'darwin' ? 'cmd+shift+`' : 'ctrl+shift+`';
+const captureHotkey    = process.platform === 'darwin' ? 'cmd+i'       : 'ctrl+i';
+const quickSpaceHotkey = process.platform === 'darwin' ? 'cmd+`'       : 'ctrl+`';
 
 function applyDockVisibility(profile) {
   if (process.platform === 'darwin' && app.dock) {
@@ -57,7 +73,55 @@ function registerCaptureShortcut() {
   globalShortcut.unregister(captureHotkey);
   globalShortcut.register(captureHotkey, () => {
     const db = getDatabase();
-    handleCaptureShortcut(db, mainWindow);
+    handleCaptureShortcut(db, mainWindow, getTargetSpaceId());
+  });
+}
+
+function createQuickSpaceWindow() {
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const prodPath = path.join(__dirname, '../../dist/index.html');
+  const preloadPath = path.join(__dirname, '../preload/index.js');
+
+  quickWindow = new BrowserWindow({
+    width: 520,
+    height: 520,
+    alwaysOnTop: true,
+    frame: false,
+    transparent: true,
+    ...(process.platform === 'darwin' ? {
+      type: 'panel',
+      visibleOnAllWorkspaces: true,
+    } : {}),
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  const query = `?mode=quick`;
+  if (devServerUrl) {
+    quickWindow.loadURL(devServerUrl + query);
+  } else {
+    quickWindow.loadFile(prodPath, { query: { mode: 'quick' } });
+  }
+
+  quickWindow.on('closed', () => { quickWindow = null; });
+}
+
+function registerQuickSpaceShortcut() {
+  globalShortcut.unregister(quickSpaceHotkey);
+  globalShortcut.register(quickSpaceHotkey, () => {
+    if (!quickWindow || quickWindow.isDestroyed()) {
+      createQuickSpaceWindow();
+      return;
+    }
+    if (quickWindow.isVisible()) {
+      quickWindow.hide();
+    } else {
+      quickWindow.show();
+      quickWindow.focus();
+    }
   });
 }
 
@@ -75,6 +139,7 @@ function createWindow(profile) {
 
   registerToggleShortcut();
   registerCaptureShortcut();
+  registerQuickSpaceShortcut();
 }
 
 async function recreateWindow(profile) {
@@ -82,6 +147,7 @@ async function recreateWindow(profile) {
 
   globalShortcut.unregister(toggleHotkey);
   globalShortcut.unregister(captureHotkey);
+  globalShortcut.unregister(quickSpaceHotkey);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.destroy();
@@ -95,7 +161,7 @@ async function recreateWindow(profile) {
   // Re-wire live queries to new window
   const db = getDatabase();
   if (db) {
-    await startLiveQueries(db, mainWindow);
+    await startLiveQueries(db);
   }
 
   mainWindow.show();
@@ -127,12 +193,23 @@ app.on('ready', async () => {
     registerWindowHandlers();
     setProfileChangeCallback(recreateWindow);
 
+    // Track active space per window for capture targeting
+    ipcMain.on('app:setActiveSpace', (event, spaceId) => {
+      const sender = event.sender;
+      const isOverlay = quickWindow && !quickWindow.isDestroyed() && sender === quickWindow.webContents;
+      if (isOverlay) {
+        activeSpaceRegistry.overlay = spaceId;
+      } else {
+        activeSpaceRegistry.main = spaceId;
+      }
+    });
+
     createWindow(profile);
     setMainWindow(mainWindow);
 
     // Wire LIVE SELECT subscriptions
     const db = getDatabase();
-    await startLiveQueries(db, mainWindow);
+    await startLiveQueries(db);
 
     console.log('[App] Application ready');
   } catch (error) {

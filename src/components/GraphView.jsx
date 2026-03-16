@@ -17,9 +17,14 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
 
   // Initialize force simulation and render loop
   useEffect(() => {
-    if (!objects || objects.length === 0 || !svgRef.current) return;
+    if (!svgRef.current) return;
 
     const svg = select(svgRef.current);
+
+    if (!objects || objects.length === 0) {
+      svg.selectAll('*').remove();
+      return;
+    }
     const rect = svgRef.current.getBoundingClientRect();
     const width = rect.width || 800;
     const height = rect.height || 600;

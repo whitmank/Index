@@ -73,7 +73,7 @@
   transition: background 0.1s;
 }
 
-.tag-row:not(.system):hover {
+.tag-row:hover {
   background: rgba(0, 0, 0, 0.04);
 }
 
@@ -165,6 +165,23 @@
   color: #bbb;
   padding: 0 8px;
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tags-new-btn.inline {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #ccc;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.1s;
+}
+
+.tags-new-btn.inline:hover {
+  color: #555;
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */

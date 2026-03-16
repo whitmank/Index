@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateSpace: (id, data) => ipcRenderer.invoke('db:updateSpace', id, data),
     deleteSpace: (id) => ipcRenderer.invoke('db:deleteSpace', id),
     evaluateSpace: (id) => ipcRenderer.invoke('db:evaluateSpace', id),
+    setSpaceOverride: (spaceId, objectId, type) => ipcRenderer.invoke('db:setSpaceOverride', spaceId, objectId, type),
     findOrCreateSystemTag: (type, name) => ipcRenderer.invoke('db:findOrCreateSystemTag', type, name),
   },
 
@@ -55,11 +56,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('live:spaces');
     ipcRenderer.on('live:spaces', (_e, data) => callback(data));
   },
+  onSpaceObjectsLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:spaceObjects');
+    ipcRenderer.on('live:spaceObjects', (_e, data) => callback(data));
+  },
 
   // Capture: select a specific object in the UI
   onSelectObject: (callback) => {
     ipcRenderer.removeAllListeners('objects:selectObject');
     ipcRenderer.on('objects:selectObject', (_event, id) => callback(id));
+  },
+
+  // Active space reporting — called by the store whenever the active space changes
+  app: {
+    setActiveSpace: (spaceId) => ipcRenderer.send('app:setActiveSpace', spaceId),
   },
 
   // Open file or URL

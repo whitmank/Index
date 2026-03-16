@@ -102,3 +102,27 @@
   background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
+
+/* ── Selection ──────────────────────────────────────────────────────────── */
+
+.object-list-view:focus {
+  outline: none;
+}
+
+.object-row.selected {
+  background: #0061d9;
+}
+
+.object-row.selected:hover {
+  background: #0061d9;
+}
+
+.object-row.selected .object-row-name {
+  color: #fff;
+}
+
+.object-row.selected .object-row-uri,
+.object-row.selected .object-row-date,
+.object-row.selected .object-row-type {
+  color: rgba(255, 255, 255, 0.65);
+}

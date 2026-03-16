@@ -32,7 +32,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'spaces'];
+      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'spaces', 'space_objects'];
       if (!validTables.includes(table)) throw new Error(`Invalid table: ${table}`);
 
       const result = await db.query(`SELECT * FROM ${table}`);
@@ -338,14 +338,6 @@ export function registerDbHandlers() {
 
       const { name, query } = spaceData;
 
-      if (
-        (!query.all || query.all.length === 0) &&
-        (!query.any || query.any.length === 0) &&
-        (!query.none || query.none.length === 0)
-      ) {
-        throw new Error('Space must have at least one rule (all, any, or none)');
-      }
-
       const now = new Date().toISOString();
       const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
 
@@ -435,6 +427,8 @@ export function registerDbHandlers() {
   });
 
   // ── EVALUATE SPACE ─────────────────────────────────────────────────────────
+  // Final set = (rule-matched UNION explicit includes) MINUS explicit excludes.
+  // A manual space (empty query) is the degenerate case: rule-matched is empty.
 
   ipcMain.handle('db:evaluateSpace', async (event, spaceId) => {
     try {
@@ -457,6 +451,9 @@ export function registerDbHandlers() {
       const objectsResult = await db.query('SELECT * FROM objects');
       const allObjects = (Array.isArray(objectsResult) && objectsResult.length > 0) ? objectsResult[0] : [];
 
+      const objectMap = new Map(allObjects.map(o => [o.id?.toString?.() ?? o.id, o]));
+
+      // Build object → tags map
       const tagsResult = await db.query('SELECT * FROM tag_assignments');
       const allTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
 
@@ -467,20 +464,79 @@ export function registerDbHandlers() {
         objectTagMap.get(objId).add(assignment.tag_id);
       });
 
-      const matchingObjects = allObjects.filter(obj => {
-        const objId = obj.id?.toString?.() ?? obj.id;
-        const tags = objectTagMap.get(objId) || new Set();
+      // Evaluate query rules
+      const hasRules = query.all.length > 0 || query.any.length > 0 || query.none.length > 0;
+      const ruleMatched = new Set();
 
-        if (query.all.length > 0 && !query.all.every(t => tags.has(t))) return false;
-        if (query.any.length > 0 && !query.any.some(t => tags.has(t))) return false;
-        if (query.none.length > 0 && query.none.some(t => tags.has(t))) return false;
+      if (hasRules) {
+        allObjects.forEach(obj => {
+          const objId = obj.id?.toString?.() ?? obj.id;
+          const tags = objectTagMap.get(objId) || new Set();
 
-        return true;
+          if (query.all.length > 0 && !query.all.every(t => tags.has(t))) return;
+          if (query.any.length > 0 && !query.any.some(t => tags.has(t))) return;
+          if (query.none.length > 0 && query.none.some(t => tags.has(t))) return;
+
+          ruleMatched.add(objId);
+        });
+      }
+
+      // Fetch explicit overrides for this space
+      const overridesResult = await db.query(
+        `SELECT * FROM space_objects WHERE space_id = '${spaceId}'`
+      );
+      const overrides = (Array.isArray(overridesResult) && overridesResult.length > 0) ? overridesResult[0] : [];
+
+      const explicitIncludes = new Set();
+      const explicitExcludes = new Set();
+      overrides.forEach(row => {
+        const objId = row.object_id?.toString?.() ?? row.object_id;
+        if (row.type === 'include') explicitIncludes.add(objId);
+        if (row.type === 'exclude') explicitExcludes.add(objId);
       });
+
+      // Final set: (rule-matched UNION includes) MINUS excludes
+      const finalIds = new Set([...ruleMatched, ...explicitIncludes]);
+      explicitExcludes.forEach(id => finalIds.delete(id));
+
+      const matchingObjects = [...finalIds]
+        .map(id => objectMap.get(id))
+        .filter(Boolean);
 
       return { success: true, data: normalizeRecords(matchingObjects) };
     } catch (error) {
       console.error('[IPC] Evaluate space error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── SET SPACE OVERRIDE ─────────────────────────────────────────────────────
+  // type: 'include' | 'exclude' — explicitly places or excludes an object.
+  // type: null — removes any existing override for this space+object pair.
+
+  ipcMain.handle('db:setSpaceOverride', async (event, spaceId, objectId, type) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+
+      // Remove any existing override for this pair first
+      await db.query(
+        `DELETE FROM space_objects WHERE space_id = '${spaceId}' AND object_id = '${objectId}'`
+      );
+
+      if (type === 'include' || type === 'exclude') {
+        await db.create('space_objects', {
+          space_id: spaceId,
+          object_id: objectId,
+          type,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      scheduleExport(db);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Set space override error:', error);
       return { success: false, error: error.message };
     }
   });
