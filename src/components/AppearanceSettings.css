@@ -1,0 +1,62 @@
+/* Author: Claude Code (Anthropic) */
+
+.appearance-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.appearance-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.appearance-slider-row:last-child {
+  border-bottom: none;
+}
+
+.appearance-slider-label {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+  width: 68px;
+  flex-shrink: 0;
+}
+
+.appearance-slider-value {
+  font-size: 0.75rem;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.appearance-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--track-bg, rgba(0, 0, 0, 0.12));
+  outline: none;
+  cursor: pointer;
+}
+
+.appearance-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #333;
+  cursor: pointer;
+  border: none;
+}
+
+.appearance-slider::-webkit-slider-thumb:hover {
+  background: #111;
+}

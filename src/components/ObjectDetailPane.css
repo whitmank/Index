@@ -1,0 +1,359 @@
+/**
+ * ObjectDetailPane Styles
+ *
+ * Author: Claude Sonnet 4.6
+ * Adapted from _archive/ObjectDetailSidebar.css.
+ * Overlay/fixed positioning removed; pane is an inline flex child.
+ */
+
+.object-detail-pane {
+  flex-shrink: 0;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+}
+
+/* Header — type badge, name, subtitle */
+.detail-pane-header {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.detail-pane-pin-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: rgba(0, 0, 0, 0.2);
+  line-height: 1;
+  padding: 2px;
+  transition: color 150ms ease;
+}
+
+.detail-pane-pin-btn:hover {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.detail-pane-pin-btn.pinned {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.detail-pane-type-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  line-height: 0;
+  color: rgba(0, 0, 0, 0.75);
+  margin-bottom: 4px;
+}
+
+.detail-pane-type-badge.is-space {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.detail-pane-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333333;
+  word-break: break-word;
+  line-height: 1.4;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 3px;
+  transition: background 150ms ease;
+}
+
+.detail-pane-title:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.detail-pane-title-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #333333;
+  background: #ffffff;
+  border: 1px solid #999999;
+  border-radius: 3px;
+  outline: none;
+  text-align: center;
+}
+
+.detail-pane-subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: #999;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+/* Scrollable content */
+.detail-pane-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.detail-pane-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detail-pane-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-pane-content::-webkit-scrollbar-thumb {
+  background: #d0ccc8;
+  border-radius: 3px;
+}
+
+.detail-pane-content::-webkit-scrollbar-thumb:hover {
+  background: #c0bbb8;
+}
+
+/* Section label */
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Information grid (Created / Modified rows) */
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0;
+}
+
+.detail-info-label {
+  font-size: 0.78rem;
+  color: #999999;
+  padding: 5px 12px 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.detail-info-label:last-of-type,
+.detail-info-value:last-of-type {
+  border-bottom: none;
+}
+
+.detail-info-value {
+  font-size: 0.78rem;
+  color: #333333;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  text-align: right;
+  word-break: break-word;
+}
+
+/* Sources */
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-item-wrapper {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  cursor: grab;
+}
+
+.source-item-wrapper.dragging {
+  opacity: 0.4;
+}
+
+.source-item-wrapper.drag-over {
+  outline: 1px solid rgba(0, 97, 217, 0.4);
+  border-radius: 5px;
+}
+
+.source-drag-handle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.source-drag-handle:hover {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.source-item {
+  flex: 1;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.72rem;
+  color: #666666;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #333333;
+}
+
+.source-item-delete {
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 1rem;
+  color: #aaaaaa;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.source-item-delete:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #d9534f;
+}
+
+.source-add-btn {
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.8rem;
+  color: #aaaaaa;
+  text-align: left;
+}
+
+.source-add-btn:hover {
+  border-color: rgba(0, 0, 0, 0.25);
+  color: #666666;
+}
+
+.source-add-card {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.source-add-card:focus {
+  outline: none;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.source-add-card.dragging {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+.source-add-placeholder {
+  font-size: 0.75rem;
+  color: #aaaaaa;
+  text-align: center;
+}
+
+.source-add-browse-btn {
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #555555;
+  transition: all 0.15s ease;
+}
+
+.source-add-browse-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* ── Space detail ────────────────────────────────────────────────────────── */
+
+.space-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.space-rule-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.78rem;
+}
+
+.space-rule-label {
+  flex-shrink: 0;
+  color: #999;
+  width: 48px;
+}
+
+.space-rule-tags {
+  color: #333;
+  word-break: break-word;
+}
+
+.space-rules-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #aaa;
+  font-style: italic;
+}

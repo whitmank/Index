@@ -1,0 +1,335 @@
+/**
+ * TagAssignmentSection Styles
+ *
+ * Author: Claude Sonnet 4.6
+ * Resurrected from _archive/TagAssignmentSection.css
+ */
+
+.tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  align-content: flex-start;
+}
+
+/* Container for system tag groups (horizontal layout) */
+.system-tag-groups-container {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* System tag group (header + values) */
+.system-tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.system-tag-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #555555;
+  margin-bottom: 4px;
+}
+
+.system-tag-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.system-tag-value {
+  display: inline-flex;
+}
+
+/* User tags header (separator between system and user tags) */
+.tags-user-header {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e0dcd8;
+}
+
+.tags-empty {
+  font-size: 0.8rem;
+  color: #cccccc;
+  margin: 0;
+  padding: 6px 0;
+}
+
+/* Tag badge */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #faf8f5 !important;
+  max-width: 100%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 150ms ease;
+}
+
+.tag-badge:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.tag-badge-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  letter-spacing: 0.3px;
+  color: #faf8f5 !important;
+}
+
+/* System tag value is clickable/editable */
+.system-tag-editable {
+  cursor: pointer;
+  position: relative;
+  transition: all 150ms ease;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin: 0 -6px;
+  color: #faf8f5 !important;
+}
+
+.system-tag-editable:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  text-decoration: underline;
+  color: #faf8f5 !important;
+}
+
+.system-tag-editable:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 1px;
+  color: #faf8f5 !important;
+}
+
+/* System tag inline edit form */
+.system-tag-edit-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #ffffff;
+  border: 1px solid #d8d4cf;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.system-tag-edit-input {
+  flex: 1;
+  min-width: 80px;
+  max-width: 150px;
+  padding: 4px 8px;
+  border: none;
+  outline: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #333333;
+  background-color: transparent;
+}
+
+.system-tag-edit-input::placeholder {
+  color: #cccccc;
+}
+
+.system-tag-edit-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.system-tag-edit-save,
+.system-tag-edit-cancel {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #333333;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: all 100ms ease;
+}
+
+.system-tag-edit-save:hover {
+  background-color: #c8e6c9;
+  color: #2e7d32;
+}
+
+.system-tag-edit-cancel:hover {
+  background-color: #ffcdd2;
+  color: #c62828;
+}
+
+.tag-badge-remove {
+  background: none;
+  border: none;
+  color: #faf8f5 !important;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  line-height: 1;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tag-badge-remove:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #faf8f5 !important;
+}
+
+/* Add tag button */
+.tag-input-container {
+  position: relative;
+}
+
+.tag-add-btn {
+  background: none;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: #999999;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+}
+
+.tag-add-btn:hover {
+  border-color: #333333;
+  color: #333333;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.tag-add-btn:active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Create tag form */
+.tag-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.tag-create-inputs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-create-input {
+  flex: 1;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #333333;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.tag-create-input:focus {
+  border-color: #999999;
+}
+
+.tag-create-input::placeholder {
+  color: #cccccc;
+}
+
+.tag-create-type-input {
+  width: 90px;
+  flex-shrink: 0;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #333333;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.tag-create-type-input:focus {
+  border-color: #999999;
+}
+
+.tag-create-type-input::placeholder {
+  color: #cccccc;
+}
+
+.tag-color-picker {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 2px;
+}
+
+.tag-create-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.tag-create-submit,
+.tag-create-cancel {
+  background: none;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 400;
+  color: #333333;
+}
+
+.tag-create-submit:hover {
+  border-color: #333333;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tag-create-cancel:hover {
+  border-color: #999999;
+  color: #999999;
+}

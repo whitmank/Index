@@ -1,0 +1,109 @@
+/* Author: Claude Code */
+/* CommandPalette — floating overlay styles + compact overlay variant */
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  z-index: 1000;
+}
+
+.command-palette-card {
+  width: 460px;
+  background: rgba(248, 247, 245, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.command-palette-input {
+  width: 100%;
+  padding: 13px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  color: #333;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.command-palette-input::placeholder {
+  color: #bbb;
+}
+
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 16px;
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.08s;
+}
+
+.command-palette-item.active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.command-palette-label {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.command-palette-desc {
+  color: #aaa;
+  font-size: 0.75rem;
+}
+
+.command-palette-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: rgba(50, 80, 160, 0.6);
+  background: rgba(80, 120, 200, 0.1);
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+/* Compact variant — inset top-bar for the overlay window */
+
+.command-palette-overlay--compact {
+  position: absolute;
+  top: 40px;
+  left: 12px;
+  right: 12px;
+  z-index: 1000;
+}
+
+.command-palette-overlay--compact .command-palette-card {
+  width: 100%;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14), 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.command-palette-overlay--compact .command-palette-input {
+  padding: 10px 13px;
+  font-size: 0.85rem;
+}
+
+.command-palette-overlay--compact .command-palette-item {
+  padding: 7px 13px;
+}
+
+.command-palette-overlay--compact .command-palette-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
