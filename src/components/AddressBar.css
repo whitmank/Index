@@ -1,0 +1,274 @@
+/* Author: Claude Code */
+/* AddressBar — browser-style navigation strip */
+
+.address-bar {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  gap: 6px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  -webkit-app-region: drag;
+}
+
+/* ── Back button ─────────────────────────────────────────────────────── */
+
+.address-bar-back-slot {
+  width: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.address-bar-back {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  color: #555;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 100ms, color 100ms;
+}
+
+.address-bar-back:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+}
+
+.address-bar-back:disabled {
+  color: #bbb;
+  border-color: rgba(0, 0, 0, 0.06);
+  background: transparent;
+  cursor: default;
+}
+
+/* ── Address field ───────────────────────────────────────────────────── */
+
+.address-bar-field {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 5px;
+  padding: 3px 10px;
+  min-height: 24px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: text;
+  -webkit-app-region: no-drag;
+}
+
+.address-bar-field.editing {
+  border-color: #0061d9;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 2px rgba(0, 97, 217, 0.2);
+}
+
+.address-bar-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #333;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  user-select: none;
+}
+
+.address-bar-input {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #222;
+  letter-spacing: 0.01em;
+  padding: 0;
+  margin: 0;
+}
+
+.address-bar-input::placeholder {
+  color: #aaa;
+  font-weight: 400;
+}
+
+/* ── Dropdown ────────────────────────────────────────────────────────── */
+
+.address-bar-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  background: rgba(245, 245, 245, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.13);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 3px;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.address-bar-dropdown-item {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.address-bar-dropdown-item.active {
+  background: rgba(0, 0, 0, 0.07);
+  color: #111;
+}
+
+/* ── Right slot / view switcher ──────────────────────────────────────── */
+
+.address-bar-right-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.view-toggle-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  color: #777;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 100ms, color 100ms;
+  -webkit-app-region: no-drag;
+}
+
+.view-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+}
+
+/* ── Create object button ─────────────────────────────────────────────── */
+
+.address-bar-create-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  transition: background 100ms;
+  flex-shrink: 0;
+}
+
+/* Horizontal bar of the plus */
+.address-bar-create-btn::before,
+.address-bar-create-btn::after {
+  content: '';
+  position: absolute;
+  background: #555;
+  border-radius: 1px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: background 100ms;
+}
+
+.address-bar-create-btn::before {
+  width: 9px;
+  height: 1.5px;
+}
+
+.address-bar-create-btn::after {
+  width: 1.5px;
+  height: 9px;
+}
+
+.address-bar-create-btn:hover::before,
+.address-bar-create-btn:hover::after {
+  background: #111;
+}
+
+.address-bar-create-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.address-bar-create-btn.active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.address-bar-create-btn:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.address-bar-create-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.address-bar-create-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: rgba(245, 244, 242, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+  z-index: 200;
+}
+
+.create-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  color: #222;
+  cursor: pointer;
+  text-align: left;
+  transition: background 80ms;
+  -webkit-app-region: no-drag;
+}
+
+.create-menu-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.create-menu-icon {
+  font-size: 0.5rem;
+  color: rgba(0, 0, 0, 0.7);
+  line-height: 0;
+  flex-shrink: 0;
+}

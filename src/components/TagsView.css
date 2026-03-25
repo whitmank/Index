@@ -1,0 +1,277 @@
+/* Author: Claude Code */
+/* TagsView — two-panel: nav column + content panel */
+
+.tags-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  overflow: hidden;
+}
+
+/* ── Left nav column ────────────────────────────────────────────────────── */
+
+.tags-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px;
+  gap: 1px;
+  border-right: 1px solid rgba(0, 0, 0, 0.07);
+  overflow-y: auto;
+}
+
+.tags-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.tags-nav-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tags-nav-item.active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.tags-nav-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #444;
+}
+
+.tags-nav-item.active .tags-nav-label {
+  color: #111;
+}
+
+.tags-nav-count {
+  font-size: 0.72rem;
+  color: #bbb;
+}
+
+/* ── Right content panel ────────────────────────────────────────────────── */
+
+.tags-panel {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+/* ── Type description ───────────────────────────────────────────────────── */
+
+.tags-type-description {
+  margin: 0 0 16px;
+  font-size: 0.78rem;
+  color: #999;
+  line-height: 1.55;
+}
+
+/* ── Section ────────────────────────────────────────────────────────────── */
+
+.tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Tag list ───────────────────────────────────────────────────────────── */
+
+.tags-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.tag-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.tag-color-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tag-name {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.tag-row.system .tag-name {
+  cursor: default;
+  color: #555;
+}
+
+.tag-inline-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  color: #333;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  padding: 1px 0;
+}
+
+.tag-delete-btn {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.tag-row:hover .tag-delete-btn {
+  opacity: 1;
+}
+
+.tag-delete-btn:hover {
+  color: #c0392b;
+}
+
+/* ── New tag button ─────────────────────────────────────────────────────── */
+
+.tags-new-btn {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
+  color: #999;
+  font-size: 0.78rem;
+  font-family: inherit;
+  padding: 5px 12px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.tags-new-btn:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #555;
+}
+
+/* ── Nav divider + section label ────────────────────────────────────────── */
+
+.tags-nav-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 4px;
+}
+
+.tags-nav-divider + .tags-nav-item {
+  margin-top: 0;
+}
+
+.tags-nav-divider::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tags-nav-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tags-nav-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+.tags-nav-label--untyped {
+  color: #ccc;
+  letter-spacing: 0.05em;
+}
+
+/* ── Add type affordance ────────────────────────────────────────────────── */
+
+.tags-nav-add-type {
+  margin-top: 4px;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.1s, background 0.1s;
+}
+
+.tags-nav-add-type:hover {
+  color: #777;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.tags-nav-new-type {
+  margin-top: 4px;
+  padding: 4px 10px;
+}
+
+.tags-nav-type-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  color: #333;
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  padding: 2px 0;
+  box-sizing: border-box;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+
+.tags-nav::-webkit-scrollbar,
+.tags-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tags-nav::-webkit-scrollbar-track,
+.tags-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tags-nav::-webkit-scrollbar-thumb,
+.tags-panel::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
