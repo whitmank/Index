@@ -89,6 +89,7 @@ export default class MacOSWindowManager {
         contextIsolation: true,
         enableRemoteModule: false,
         enableFocusRing: false,
+        webviewTag: true,
       },
     });
 

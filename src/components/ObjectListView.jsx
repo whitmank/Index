@@ -4,7 +4,7 @@
 // Store's deleteObject is called directly on Delete key.
 // Accepts file and URL drops via onDrop prop; renders a drop overlay on dragenter.
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { useIndexStore } from '../store/index';
 import { ObjectIcon, SpaceIcon, MonadIcon } from '../icons/index';
 import './ObjectListView.css';
@@ -70,7 +70,7 @@ function ObjectRow({ object, isSelected, onClick, onDoubleClick }) {
   );
 }
 
-export default function ObjectListView({
+const ObjectListView = forwardRef(function ObjectListView({
   objects = [],
   onEnterSpace,
   onObjectSelect,
@@ -82,7 +82,7 @@ export default function ObjectListView({
   initialSortField      = 'created',
   initialSortDir        = 'desc',
   onPrefsChange,
-}) {
+}, ref) {
   const deleteObject = useIndexStore(s => s.deleteObject);
 
   const [anchorId, setAnchorId] = useState(null);
@@ -93,6 +93,15 @@ export default function ObjectListView({
   const [filterCombined, setFilterCombined] = useState(initialFilterCombined);
   const [isDragOver, setIsDragOver]   = useState(false);
   const dragCounter                   = useRef(0);
+
+  // Sync anchor/cursor when selection is set externally (e.g. restored after nav back/forward)
+  useEffect(() => {
+    if (selectedIds.size === 1) {
+      const id = [...selectedIds][0];
+      setAnchorId(id);
+      cursorId.current = id;
+    }
+  }, [selectedIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     onPrefsChange?.({ filterSide, filterCombined, sortField, sortDir });
@@ -148,6 +157,17 @@ const filteredObjects = filterCombined        ? objects
     const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
     return sortDir === 'desc' ? tb - ta : ta - tb;
   });
+
+  useImperativeHandle(ref, () => ({
+    selectFirst() {
+      if (sortedObjects.length === 0) return;
+      const id = sortedObjects[0].id;
+      cursorId.current = id;
+      setAnchorId(id);
+      onSelectionChange(new Set([id]));
+      onObjectSelect?.(id);
+    },
+  }));
 
   const handleSortClick = (field) => {
     if (sortField === field) {
@@ -410,4 +430,6 @@ const filteredObjects = filterCombined        ? objects
       </div>
     </div>
   );
-}
+});
+
+export default ObjectListView;

@@ -3,7 +3,7 @@
 // Startup sequence: device init → SurrealDB → window → LIVE SELECT subscriptions.
 // Exports JSON to ~/.index/export/ on quit.
 
-import { app, globalShortcut, BrowserWindow, ipcMain } from 'electron';
+import { app, globalShortcut, BrowserWindow, ipcMain, protocol } from 'electron';
 import WindowManagerFactory from './window-manager/index.js';
 import { startDatabase, stopDatabase, getDatabase } from './db/connection.js';
 import { exportToJson } from './db/export.js';
@@ -33,6 +33,12 @@ let pendingImportPath = null;
 
 // Register the index:// URL scheme before ready so macOS routes it to this app.
 app.setAsDefaultProtocolClient('index');
+
+// Register local-file:// as a privileged scheme before app.ready.
+// Used by ObjectSourceView to display local files in iframes from the dev server origin.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 async function triggerImport(importPath) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -230,6 +236,13 @@ app.on('ready', async () => {
     registerWindowHandlers();
     registerFsHandlers();
     setProfileChangeCallback(recreateWindow);
+
+    // Serve local files via local-file:// so iframes in the renderer can display them
+    // regardless of whether the app is loaded from a dev server or file origin.
+    protocol.registerFileProtocol('local-file', (request, callback) => {
+      const filePath = decodeURIComponent(request.url.replace('local-file://', ''));
+      callback({ path: filePath });
+    });
 
     // Track active space per window for capture targeting
     ipcMain.on('app:setActiveSpace', (event, spaceId) => {
