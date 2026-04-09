@@ -1,13 +1,13 @@
 // Author: Claude Code
 // Metadata extraction from source URIs.
-// Derives system tag values: kind (object-level), file (per-source), origin (per-source).
+// Derives system tag values: type (object-level), file (per-source), origin (per-source).
 
 /**
- * Extract signal format from URI for use as a kind system tag.
+ * Extract signal format from URI for use as the type system tag.
  * Determined from the first source only; applies to the whole object.
  * @param {string} uri - Source URI (file://, https://, etc.)
  * @param {string|null} [mediaTypeHint] - Optional override (e.g. og:type). Used verbatim when provided.
- * @returns {string|null} - Kind value (e.g. 'document', 'image', 'video'), or null
+ * @returns {string|null} - Type value (e.g. 'document', 'image', 'video'), or null
  */
 export function extractMediaTypeFromSource(uri, mediaTypeHint = null) {
   if (mediaTypeHint) return mediaTypeHint;

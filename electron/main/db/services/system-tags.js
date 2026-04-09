@@ -13,7 +13,11 @@
 export async function findOrCreateSystemTag(db, type, name) {
   try {
     const typeId = `tag_types:${type}`;
-    const nameClause = name === null ? 'name IS NULL' : `name = '${name}'`;
+    const trimmedName = name === null ? null : name.trim();
+    const nameClause = trimmedName === null
+      ? 'name IS NULL'
+      : `string::lowercase(name) = string::lowercase('${trimmedName.replace(/'/g, "\\'")}')`;
+
 
     // Find existing system tag of this type via typed edge
     const result = await db.query(
@@ -28,7 +32,7 @@ export async function findOrCreateSystemTag(db, type, name) {
 
     // Create new system tag (no type field — type is expressed via edge)
     const newTag = await db.create('tag_definitions', {
-      name,
+      name: trimmedName,
       system: true,
       created_at: new Date().toISOString(),
     });

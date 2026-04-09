@@ -1,6 +1,6 @@
 ---
-author: Claude Code
-date: 2026-03-17
+author: Claude Sonnet 4.6
+date: 2026-03-26
 ---
 
 # Index — Quick Start
@@ -51,19 +51,18 @@ Produces a distributable in `dist-electron/`.
 
 | Shortcut | Action |
 |---|---|
-| Cmd+` | Toggle overlay window |
-| Cmd+Shift+` | Toggle main window visibility |
+| Cmd+Shift+Space | Toggle main window visibility |
+| Cmd+\` | Navigate to `~` (home) |
+| Cmd+/ | Navigate to `/` (all objects) |
 | Cmd+I | Capture frontmost browser tab |
 | Cmd+K | Open command palette |
-| Cmd+L | Focus address bar / navigate to space |
+| Cmd+L | Focus address bar / space navigator |
 | Cmd+, | Open settings |
-| Cmd+. | Toggle detail panel |
-| Cmd+/ | Navigate to root |
-| Cmd+O | Create new object |
+| V | Toggle list / graph view |
+| `` ` `` | Cycle list filter (hold 300 ms for combined) |
 | Cmd+A / Cmd+← | Navigate back |
 | Cmd+D / Cmd+→ | Navigate forward |
-| Cmd+Z | Undo last destructive action |
-| Escape | Close / cancel |
+| Escape | Close / restore prior context |
 
 **Cmd+I capture** requires Automation permission on macOS: System Settings → Privacy & Security → Automation.
 
@@ -105,13 +104,14 @@ electron/
     config/               # Device ID, window settings
     db/
       connection.js       # SurrealDB process management, table/edge init, system spaces
-      live-queries.js     # LIVE SELECT → renderer push (objects + 4 edge tables)
+      live-queries.js     # LIVE SELECT → renderer push (objects + 5 edge tables)
       export.js           # Async JSON export
       migration.js        # v0.3 → v0.4 one-time import
       repair.js           # System tag repair
       services/
-        object-service.js    # Object creation + system tag edge assignment
-        space-service.js     # Space membership evaluation
+        object-service.js    # Object creation + system tag edge + sourced_from assignment
+        space-service.js     # Space membership evaluation (tag + device rules)
+        device-service.js    # Device records + sourced_from edge management
         system-tags.js       # Find-or-create system tags
     dialogs/              # Device naming dialog (first run)
     domain/               # System tag type registry (SYSTEM_TAG_TYPES, seedTagTypes)
@@ -122,24 +122,28 @@ electron/
     index.js              # Context bridge — secure IPC surface
 
 src/
-  App.jsx                 # Root component, view routing
+  App.jsx                 # Root component, view routing, filter/sort pref persistence
+  icons/
+    index.jsx             # Shared icons: ObjectIcon (●), SpaceIcon (○), MonadIcon (◎)
   components/
-    ObjectListView.jsx    # List view — spaces and leaf objects
-    AddressBar.jsx        # Navigation strip + integrated CMD+L navigator
+    ObjectListView.jsx    # List view — two-bit filter, sort, per-space pref callbacks
+    ObjectDetailPane.jsx  # Detail sidebar — name, source, tags, rules, pin
+    TagAssignmentSection.jsx # Tag assignment with typedEdges pattern + TagAddInput
+    SpaceRulesSection.jsx # Inline space rule editor (tag + device groups)
+    AddressBar.jsx        # Navigation strip + integrated CMD+L navigator + create dropdown
     CommandPalette.jsx    # CMD+K command interface
     TagsView.jsx          # Tag management, grouped by type
-    QuickSpaceView.jsx    # Floating overlay window
-    GraphView.jsx         # D3 force-directed visualization
-    CreateSpaceModal.jsx  # Space creation/edit form
-    CalendarView.jsx      # Monthly calendar grid
-    DayView.jsx           # Object list for a selected calendar day
-    SettingsView.jsx      # Settings page
+    GraphView.jsx         # D3 force-directed graph — ●/○ nodes, click-to-select
+    SettingsView.jsx      # Settings — appearance, keybinds tab
     AppearanceSettings.jsx # HSLA appearance controls
+    CreateSpaceModal.jsx  # ORPHANED — replaced by SpaceRulesSection + inline create
+    CalendarView.jsx      # Archived — not active
+    DayView.jsx           # Archived — not active
   hooks/                  # useKeyboardShortcuts, useAppearance
   store/
     index.js              # useIndexStore — unified state + LIVE SELECT wiring
   lib/
-    forceSimulation.js    # D3 force simulation
+    forceSimulation.js    # D3 force simulation — getNodes accessor, update helpers
 
 docs/
   ABOUT.md                # Technical reference: architecture, flows, key files, roadmap

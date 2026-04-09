@@ -1,53 +1,38 @@
 // Author: Claude Sonnet 4.6
 // TagAssignmentSection — tag display and assignment for a single object.
-// Resurrected from _archive/TagAssignmentSection.jsx; undo support stripped (deferred).
+// Uses typedEdges from the store to resolve tag types, following the same
+// pattern as TagsView. createTag calls mirror TagsView's SystemTagGroup and
+// UserTagsSection to avoid duplicating the type/edge wiring logic.
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useIndexStore } from '../store/index';
+import TagAddInput from './TagAddInput';
 import './TagAssignmentSection.css';
 
-function toTitleCase(str) {
-  if (!str) return '';
-  return str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-}
+export default function TagAssignmentSection({ objectId, excludeTypeIds = [], defaultAdding = false }) {
+  const tags          = useIndexStore(s => s.tags);
+  const tagTypes      = useIndexStore(s => s.tagTypes);
+  const typedEdges    = useIndexStore(s => s.typedEdges);
+  const objectTags    = useIndexStore(s => s.objectTags);
+  const loadTagsForObject = useIndexStore(s => s.loadTagsForObject);
+  const createTag     = useIndexStore(s => s.createTag);
+  const createTagType = useIndexStore(s => s.createTagType);
+  const assignTag     = useIndexStore(s => s.assignTag);
+  const unassignTag   = useIndexStore(s => s.unassignTag);
 
-function formatTagDisplay(tag) {
-  if (tag.system === true && tag.type) {
-    return `${toTitleCase(tag.type)}: ${tag.name || '(empty)'}`;
-  }
-  if (tag.type) return `${tag.type}: ${tag.name}`;
-  return tag.name;
-}
-
-export default function TagAssignmentSection({ objectId }) {
-  const tags = useIndexStore(state => state.tags);
-  const tagTypes = useIndexStore(state => state.tagTypes);
-  const createTag = useIndexStore(state => state.createTag);
-  const assignTag = useIndexStore(state => state.assignTag);
-  const unassignTag = useIndexStore(state => state.unassignTag);
-
-  const [assignedTags, setAssignedTags] = useState([]);
-  const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const [newTagType, setNewTagType] = useState('');
-  const [newTagColor, setNewTagColor] = useState('#666666');
+  const assignedTags = objectTags[objectId] || [];
+  const [isAdding,     setIsAdding]     = useState(defaultAdding);
   const [editingTagId, setEditingTagId] = useState(null);
-  const [editingTagValue, setEditingTagValue] = useState('');
-  const [editingTagType, setEditingTagType] = useState('');
-  const nameInputRef = useRef(null);
+  const [editingValue, setEditingValue] = useState('');
+
   const editInputRef = useRef(null);
 
-  useEffect(() => {
-    const loadObjectTags = async () => {
-      const result = await window.electronAPI.db.getTagsForObject(objectId);
-      if (result.success) setAssignedTags(result.data || []);
-    };
-    loadObjectTags();
-  }, [objectId]);
+  const getTagTypeId = useCallback(
+    (tagId) => typedEdges.find(e => e.in === tagId)?.out ?? null,
+    [typedEdges]
+  );
 
-  useEffect(() => {
-    if (isCreatingTag && nameInputRef.current) nameInputRef.current.focus();
-  }, [isCreatingTag]);
+  useEffect(() => { loadTagsForObject(objectId); }, [objectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (editingTagId && editInputRef.current) {
@@ -56,250 +41,171 @@ export default function TagAssignmentSection({ objectId }) {
     }
   }, [editingTagId]);
 
-  const reloadTags = async () => {
-    const result = await window.electronAPI.db.getTagsForObject(objectId);
-    if (result.success) setAssignedTags(result.data || []);
-  };
-
-  const handleUnassignTag = async (tagId) => {
+  // Commit from TagAddInput: either assign an existing tag by ID, or
+  // find/create the type then create+assign a new tag
+  const handleCommit = async ({ existingId, name, typeName }) => {
     try {
-      const tag = assignedTags.find(t => t.id === tagId);
-      const isSystemTag = tag && tag.system === true && tag.type;
-
-      if (isSystemTag) {
-        const nullTagResult = await window.electronAPI.db.findOrCreateSystemTag(tag.type, null);
-        if (nullTagResult?.success && nullTagResult.data) {
-          await window.electronAPI.db.assignTag(objectId, nullTagResult.data);
-          await unassignTag(objectId, tagId);
+      if (existingId) {
+        await assignTag(objectId, existingId);
+      } else if (name) {
+        let typeId = null;
+        if (typeName) {
+          const lower = typeName.toLowerCase();
+          const found = tagTypes.find(t =>
+            (t.name ?? '').toLowerCase() === lower ||
+            (t.label ?? '').toLowerCase() === lower
+          );
+          if (found) {
+            typeId = found.id;
+          } else {
+            const newType = await createTagType({ name: typeName, label: typeName });
+            typeId = newType?.id ?? null;
+          }
         }
-      } else {
-        await unassignTag(objectId, tagId);
+        const tagData = typeId ? { name, system: true, typeId } : { name };
+        const newTag = await createTag(tagData);
+        if (newTag?.id) await assignTag(objectId, newTag.id);
       }
-
-      await reloadTags();
-    } catch (error) {
-      console.error('Error unassigning tag:', error);
+    } catch (err) {
+      console.error('[TagAssignmentSection] handleCommit:', err);
     }
+    setIsAdding(false);
+    await loadTagsForObject(objectId);
   };
 
-  const handleCreateTag = async (e) => {
-    e.preventDefault();
-    if (!newTagName.trim()) return;
-
+  // Unassign — system tags get replaced with a null-value placeholder so the
+  // type slot remains visible; user tags are removed outright
+  const handleUnassign = async (tagId) => {
     try {
-      const newTag = await createTag({
-        name: newTagName.trim(),
-        type: newTagType.trim() || null,
-        color: newTagColor,
-        system: false,
-      });
-
-      if (newTag) {
-        await assignTag(objectId, newTag.id);
+      const typeId = getTagTypeId(tagId);
+      if (typeId) {
+        const typeRecord = tagTypes.find(t => t.id === typeId);
+        if (typeRecord) {
+          const nullResult = await window.electronAPI.db.findOrCreateSystemTag(typeRecord.name, null);
+          if (nullResult.success) await assignTag(objectId, nullResult.data);
+        }
       }
-
-      setNewTagName('');
-      setNewTagType('');
-      setNewTagColor('#666666');
-      setIsCreatingTag(false);
-
-      await reloadTags();
-    } catch (error) {
-      console.error('Error creating tag:', error);
+      await unassignTag(objectId, tagId);
+    } catch (err) {
+      console.error('[TagAssignmentSection] handleUnassign:', err);
     }
+    await loadTagsForObject(objectId);
   };
 
-  const handleSaveSystemTag = async (e) => {
-    e?.preventDefault();
-    if (!editingTagValue.trim()) return;
-
+  const handleSaveEdit = async () => {
+    const name = editingValue.trim();
+    if (!name || !editingTagId) { cancelEdit(); return; }
     try {
-      const oldTag = assignedTags.find(t => t.id === editingTagId);
-      if (!oldTag) return;
-
-      const newTagName = editingTagValue.trim();
-      const tagType = oldTag.type;
-
-      let existingTag = tags.find(
-        t => t.system === true && t.type === tagType && (t.name || '').toLowerCase() === newTagName.toLowerCase()
-      );
-
-      let newTagId;
-      if (existingTag) {
-        newTagId = existingTag.id;
-      } else {
-        const newTag = await createTag({ name: newTagName, type: tagType, system: true, color: oldTag.color });
-        newTagId = newTag?.id;
-        if (!newTagId) throw new Error('Failed to create tag');
+      const typeId = getTagTypeId(editingTagId);
+      const typeRecord = tagTypes.find(t => t.id === typeId);
+      if (typeRecord) {
+        const result = await window.electronAPI.db.findOrCreateSystemTag(typeRecord.name, name);
+        if (result.success) {
+          await assignTag(objectId, result.data);
+          await unassignTag(objectId, editingTagId);
+        }
       }
-
-      await assignTag(objectId, newTagId);
-      await unassignTag(objectId, editingTagId);
-
-      await reloadTags();
-
-      setEditingTagId(null);
-      setEditingTagValue('');
-      setEditingTagType('');
-    } catch (error) {
-      console.error('Error saving system tag:', error);
+    } catch (err) {
+      console.error('[TagAssignmentSection] handleSaveEdit:', err);
     }
+    cancelEdit();
+    await loadTagsForObject(objectId);
   };
 
-  // Build display data driven by tagTypes registry (from backend domain)
-  const displayedSystemTypes = Object.entries(tagTypes)
-    .filter(([, meta]) => meta.display)
-    .sort(([, a], [, b]) => (a.order ?? 99) - (b.order ?? 99))
-    .map(([type, meta]) => ({ type, ...meta }));
+  const cancelEdit = () => { setEditingTagId(null); setEditingValue(''); };
 
-  const systemTagsByType = {};
-  const userTags = [];
-
-  assignedTags.forEach(tag => {
-    const typeConfig = tagTypes[tag.type];
-    if (tag.system === true && tag.type && typeConfig?.display) {
-      if (!systemTagsByType[tag.type]) systemTagsByType[tag.type] = [];
-      systemTagsByType[tag.type].push(tag);
-    } else if (tag.system !== true) {
-      userTags.push(tag);
+  // Derive display groups from assignedTags + typedEdges
+  const userTags = assignedTags.filter(t => !getTagTypeId(t.id));
+  const systemTagsByTypeId = assignedTags.reduce((acc, tag) => {
+    const typeId = getTagTypeId(tag.id);
+    if (typeId) {
+      if (!acc[typeId]) acc[typeId] = [];
+      acc[typeId].push(tag);
     }
-  });
+    return acc;
+  }, {});
+  const displayedTypes = [...tagTypes]
+    .filter(t => t.display && (t.name ?? '').toLowerCase() !== 'type' && !excludeTypeIds.includes(t.id))
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+
+  const hasAnyTags = assignedTags.length > 0;
 
   return (
-    <div className="sidebar-section tags-section">
-      <div className="tags-container">
-        {assignedTags.length === 0 ? (
-          <p className="tags-empty">No tags</p>
-        ) : (
-          <>
-            {displayedSystemTypes.length > 0 && Object.keys(systemTagsByType).length > 0 && (
-              <div className="system-tag-groups-container">
-                {displayedSystemTypes
-                  .filter(({ type }) => systemTagsByType[type])
-                  .map(({ type, label }) => (
-                    <div key={type} className="system-tag-group">
-                      <div className="system-tag-header">{label.toUpperCase()}</div>
-                      <div className="system-tag-values">
-                        {(systemTagsByType[type] || []).map(tag => {
-                          const tagId = tag.id;
-                          const isEditing = editingTagId === tagId;
-                          const isEditable = tagTypes[tag.type]?.editable ?? true;
+    <div className="tags-assignment">
+      {!hasAnyTags && !isAdding && <p className="tags-empty">No tags</p>}
 
-                          if (isEditing) {
-                            return (
-                              <form key={tagId} onSubmit={handleSaveSystemTag} className="system-tag-edit-form">
-                                <input
-                                  ref={editInputRef}
-                                  type="text"
-                                  value={editingTagValue}
-                                  onChange={e => setEditingTagValue(e.target.value)}
-                                  className="system-tag-edit-input"
-                                  onKeyDown={e => { if (e.key === 'Escape') { setEditingTagId(null); setEditingTagValue(''); } }}
-                                  placeholder="Enter value..."
-                                />
-                                <div className="system-tag-edit-buttons">
-                                  <button type="submit" className="system-tag-edit-save" title="Save">✓</button>
-                                  <button type="button" className="system-tag-edit-cancel" onClick={() => { setEditingTagId(null); setEditingTagValue(''); }} title="Cancel">✕</button>
-                                </div>
-                              </form>
-                            );
-                          }
+      {/* System type groups */}
+      {displayedTypes
+        .filter(tt => systemTagsByTypeId[tt.id])
+        .map(tt => (
+          <div key={tt.id} className="tag-group">
+            <div className="tag-group-label">{tt.label.toUpperCase()}</div>
+            <div className="tag-group-values">
+              {systemTagsByTypeId[tt.id].map(tag => {
+                const isEditable = tt.editable ?? true;
+                if (editingTagId === tag.id) {
+                  return (
+                    <form key={tag.id} className="system-tag-edit-form"
+                      onSubmit={e => { e.preventDefault(); handleSaveEdit(); }}>
+                      <input
+                        ref={editInputRef}
+                        className="system-tag-edit-input"
+                        value={editingValue}
+                        onChange={e => setEditingValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Escape') cancelEdit(); }}
+                        placeholder="Enter value…"
+                      />
+                      <button type="submit" className="system-tag-edit-save">✓</button>
+                      <button type="button" className="system-tag-edit-cancel" onClick={cancelEdit}>✕</button>
+                    </form>
+                  );
+                }
+                return (
+                  <div key={tag.id} className="tag-badge" style={{ backgroundColor: tag.color || '#666' }}>
+                    <span
+                      className={`tag-badge-name${isEditable ? ' editable' : ''}`}
+                      onClick={isEditable ? () => { setEditingTagId(tag.id); setEditingValue(tag.name || ''); } : undefined}
+                      role={isEditable ? 'button' : undefined}
+                      tabIndex={isEditable ? 0 : undefined}
+                    >
+                      {tag.name || '(empty)'}
+                    </span>
+                    <button className="tag-badge-remove" onClick={() => handleUnassign(tag.id)}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
-                          return (
-                            <div
-                              key={tagId}
-                              className="tag-badge system-tag-value"
-                              style={{ backgroundColor: tag.color || '#666666' }}
-                            >
-                              <span
-                                className={`tag-badge-name ${isEditable ? 'system-tag-editable' : ''}`}
-                                onClick={isEditable ? () => { setEditingTagId(tagId); setEditingTagValue(tag.name || ''); setEditingTagType(tag.type || ''); } : undefined}
-                                role={isEditable ? 'button' : undefined}
-                                tabIndex={isEditable ? 0 : undefined}
-                              >
-                                {tag.name || '(empty)'}
-                              </span>
-                              <button
-                                className="tag-badge-remove"
-                                onClick={() => handleUnassignTag(tagId)}
-                                aria-label={`Remove ${tag.name || 'empty'} tag`}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+      {/* User tags */}
+      {userTags.length > 0 && (
+        <div className="tag-group">
+          <div className="tag-group-values">
+            {userTags.map(tag => (
+              <div key={tag.id} className="tag-badge" style={{ backgroundColor: tag.color || '#666' }}>
+                <span className="tag-badge-name">{tag.name}</span>
+                <button className="tag-badge-remove" onClick={() => handleUnassign(tag.id)}>×</button>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+      )}
 
-            {userTags.length > 0 && (
-              <>
-                <p className="sidebar-section-title tags-user-header">Tags</p>
-                <div className="tags-list">
-                  {userTags.map(tag => {
-                    const tagId = tag.id;
-                    return (
-                      <div
-                        key={tagId}
-                        className="tag-badge"
-                        style={{ backgroundColor: tag.color || '#666666' }}
-                      >
-                        <span className="tag-badge-name">{formatTagDisplay(tag)}</span>
-                        <button
-                          className="tag-badge-remove"
-                          onClick={() => handleUnassignTag(tagId)}
-                          aria-label={`Remove ${tag.name} tag`}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="tag-input-container">
-        {isCreatingTag ? (
-          <form onSubmit={handleCreateTag} className="tag-create-form">
-            <div className="tag-create-inputs">
-              <input
-                ref={nameInputRef}
-                type="text"
-                placeholder="Tag name..."
-                value={newTagName}
-                onChange={e => setNewTagName(e.target.value)}
-                className="tag-create-input"
-              />
-              <input
-                type="text"
-                placeholder="Type (optional)..."
-                value={newTagType}
-                onChange={e => setNewTagType(e.target.value)}
-                className="tag-create-type-input"
-              />
-              <input
-                type="color"
-                value={newTagColor}
-                onChange={e => setNewTagColor(e.target.value)}
-                className="tag-color-picker"
-              />
-            </div>
-            <div className="tag-create-buttons">
-              <button type="submit" className="tag-create-submit">Create</button>
-              <button type="button" onClick={() => { setNewTagName(''); setNewTagType(''); setNewTagColor('#666666'); setIsCreatingTag(false); }} className="tag-create-cancel">Cancel</button>
-            </div>
-          </form>
-        ) : (
-          <button className="tag-add-btn" onClick={() => setIsCreatingTag(true)}>+ Add tag</button>
-        )}
-      </div>
+      {/* Add tag */}
+      {isAdding ? (
+        <TagAddInput
+          tags={tags}
+          tagTypes={tagTypes}
+          typedEdges={typedEdges}
+          onCommit={handleCommit}
+          onCancel={() => setIsAdding(false)}
+        />
+      ) : (
+        <button className="tag-add-btn" onClick={() => setIsAdding(true)}>+ Add tag</button>
+      )}
     </div>
   );
 }
+
+

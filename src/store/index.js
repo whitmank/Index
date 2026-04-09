@@ -17,6 +17,7 @@ export const useIndexStore = create((set, get) => ({
   tags: [],
   tagTypes: [],         // tag_types records array, sorted by order
   typedEdges: [],       // typed edge records: { id, in, out }
+  devices: [],          // devices table records: { id, name, created_at }
   objectTags: {},       // objectId → tag[] cache
   activeSpaceId: HOME_SPACE_ID,  // ID of the active space; always set — home is the default
   activeSpaceObjects: [],        // Evaluated contents of the active space
@@ -39,19 +40,21 @@ export const useIndexStore = create((set, get) => ({
   loadAll: async () => {
     set({ loading: true, error: null });
     try {
-      const [objectsResult, tagsResult, tagTypesResult, typedResult] = await Promise.all([
+      const [objectsResult, tagsResult, tagTypesResult, typedResult, devicesResult] = await Promise.all([
         window.electronAPI.db.getAll('objects'),
         window.electronAPI.db.getAll('tag_definitions'),
         window.electronAPI.db.getTagTypes(),
         window.electronAPI.db.getAll('typed'),
+        window.electronAPI.db.getDevices(),
       ]);
 
       const objects     = objectsResult.success   ? (objectsResult.data   || []) : [];
       const tags        = tagsResult.success      ? (tagsResult.data      || []) : [];
       const tagTypes    = tagTypesResult.success  ? (tagTypesResult.data  || []) : [];
       const typedEdges  = typedResult.success     ? (typedResult.data     || []) : [];
+      const devices     = devicesResult.success   ? (devicesResult.data   || []) : [];
 
-      set({ objects, tags, tagTypes, typedEdges });
+      set({ objects, tags, tagTypes, typedEdges, devices });
       await get()._reevaluateActiveSpace();
     } catch (error) {
       set({ error: error.message });
@@ -135,6 +138,22 @@ export const useIndexStore = create((set, get) => ({
       } else if (action === 'DELETE') {
         set({ typedEdges: typedEdges.filter(e => e.id !== id) });
       }
+    });
+
+    window.electronAPI.onDevicesLive(({ action, result }) => {
+      const { devices } = get();
+      const id = result.id;
+      if (action === 'CREATE') {
+        set({ devices: [...devices, result] });
+      } else if (action === 'UPDATE') {
+        set({ devices: devices.map(d => d.id === id ? result : d) });
+      } else if (action === 'DELETE') {
+        set({ devices: devices.filter(d => d.id !== id) });
+      }
+    });
+
+    window.electronAPI.onSourcedFromLive(() => {
+      get()._reevaluateActiveSpace();
     });
   },
 
@@ -448,6 +467,14 @@ export const useIndexStore = create((set, get) => ({
       return { objectTags: rest };
     });
     return result.data;
+  },
+
+  batchAssignTag: async (objectIds, tagId) => {
+    await Promise.all(objectIds.map(id => get().assignTag(id, tagId)));
+  },
+
+  batchUnassignTag: async (objectIds, tagId) => {
+    await Promise.all(objectIds.map(id => get().unassignTag(id, tagId)));
   },
 
   clearError: () => set({ error: null }),

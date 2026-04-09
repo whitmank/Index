@@ -5,6 +5,7 @@
 
 import { scheduleExport } from '../export.js';
 import { findOrCreateSystemTag } from './system-tags.js';
+import { syncSourcedFromEdges } from './device-service.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../../config/device.js';
 
@@ -50,9 +51,10 @@ export async function createObjectCore(db, objectData) {
   const newObject = Array.isArray(result) ? result[0] : result;
   const objectId = newObject.id?.toString?.() ?? newObject.id;
 
-  // Only assign system tags for non-space objects with sources
+  // Only assign system tags and device edges for non-space objects with sources
   if (!objectData.space && sources.length > 0) {
     await assignSystemTagsFromSources(db, objectId, sources, objectData.mediaTypeHint || null);
+    await syncSourcedFromEdges(db, objectId, sources);
   }
   scheduleExport(db);
 
@@ -82,7 +84,7 @@ export async function findObjectByUri(db, uri) {
 /**
  * Assign system tags derived from a sources array.
  * Tags are RELATE edges on the tagged table.
- * - kind: object-level signal format, from first source (or mediaTypeHint if provided)
+ * - type: object type derived from first source (or mediaTypeHint if provided)
  * - file: per-source, unique extensions
  * - origin: per-source, unique device origins
  *
@@ -95,9 +97,9 @@ export async function assignSystemTagsFromSources(db, objectId, sources, mediaTy
   try {
     if (!sources || sources.length === 0) return;
 
-    // 1. kind — signal format derived from URI or OG type hint (medium detection not yet implemented)
+    // 1. type — object type derived from URI or OG type hint (medium detection not yet implemented)
     const mediaType = mediaTypeHint || extractMediaTypeFromSource(sources[0].uri);
-    const mediaTypeTagId = await findOrCreateSystemTag(db, 'kind', mediaType);
+    const mediaTypeTagId = await findOrCreateSystemTag(db, 'type', mediaType);
     if (mediaTypeTagId) {
       const existing = await db.query(
         `SELECT * FROM tagged WHERE in = ${objectId} AND out = ${mediaTypeTagId}`

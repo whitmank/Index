@@ -4,10 +4,19 @@
 // resize handle, open/close animation, graph label field, delete button, and undo.
 // Parent mounts/unmounts this component by controlling objectId.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useIndexStore, HOME_SPACE_ID } from '../store/index';
 import TagAssignmentSection from './TagAssignmentSection';
+import SpaceRulesSection from './SpaceRulesSection';
+import TypeSchemaSection from './TypeSchemaSection';
 import './ObjectDetailPane.css';
+
+const IMAGE_TYPES = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'ico', 'pdf']);
+
+function filePathFromUri(uri) {
+  if (!uri || !uri.startsWith('file://')) return null;
+  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
+}
 
 function formatFullDate(iso) {
   if (!iso) return '—';
@@ -39,7 +48,11 @@ function getSourceSubtitle(object) {
 }
 
 export default function ObjectDetailPane({ objectId, editNameOnMount = false }) {
-  const objects = useIndexStore(state => state.objects);
+  const objects       = useIndexStore(s => s.objects);
+  const tagTypes      = useIndexStore(s => s.tagTypes);
+  const typedEdges    = useIndexStore(s => s.typedEdges);
+  const objectTags    = useIndexStore(s => s.objectTags);
+  const loadTagsForObject = useIndexStore(s => s.loadTagsForObject);
   const foundObject = objects.find(obj => obj.id === objectId);
 
   // Cache last found object so pane doesn't blank on transient re-renders
@@ -59,6 +72,7 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
   const [dragIndex, setDragIndex] = useState(null);
   const [overIndex, setOverIndex] = useState(null);
   const [isPinned, setIsPinned] = useState(false);
+  const [thumb, setThumb] = useState(null);
 
   // Sync sources when object changes; enter edit mode if requested
   useEffect(() => {
@@ -69,6 +83,24 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
       setIsAddingSource(false);
     }
   }, [object?.id]);
+
+  // Load thumbnail for local image objects
+  useEffect(() => {
+    setThumb(null);
+    const source = object?.sources?.[0];
+    if (!source) return;
+    const fileType = source.fileType ?? null;
+    if (!IMAGE_TYPES.has(fileType)) return;
+    const filePath = filePathFromUri(source.uri);
+    if (!filePath) return;
+    window.electronAPI?.fs?.thumbnail(filePath, 144).then(dataUrl => {
+      if (dataUrl) setThumb(dataUrl);
+    });
+  }, [object?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (object?.id && !object.system) loadTagsForObject(object.id);
+  }, [object?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check pin state whenever the object changes
   useEffect(() => {
@@ -228,7 +260,6 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
   if (!object) return null;
 
   const isSpace = object.space === true;
-  const subtitle = isSpace ? null : getSourceSubtitle(object);
   const typeBadge = isSpace ? '○' : '●';
 
   const sharedHeader = (
@@ -242,8 +273,11 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
           ◈
         </button>
       )}
-      <div className={`detail-pane-type-badge${isSpace ? ' is-space' : ''}`}>
-        {typeBadge}
+      <div className={`detail-pane-type-badge${isSpace ? ' is-space' : ''}${thumb ? ' has-thumb' : ''}`}>
+        {thumb
+          ? <img className="detail-pane-thumb" src={thumb} alt="" />
+          : typeBadge
+        }
       </div>
       {isEditingTitle ? (
         <input
@@ -260,26 +294,29 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
           {object.name || 'Untitled'}
         </h2>
       )}
-      {subtitle && <p className="detail-pane-subtitle">{subtitle}</p>}
     </div>
   );
 
+  const typeType   = tagTypes.find(t => (t.name ?? '').toLowerCase() === 'type');
+  const objectTagList = objectTags[objectId] || [];
+  const typeTag    = typeType
+    ? objectTagList.find(tag => tag.name && typedEdges.some(e => e.in === tag.id && e.out === typeType.id))
+    : null;
+
   const sharedInfo = object.system ? null : (
-    <div className="sidebar-section">
-      <div className="sidebar-section-title">Information</div>
-      <div className="detail-info-grid">
-        <span className="detail-info-label">Created</span>
-        <span className="detail-info-value">{formatFullDate(object.created_at)}</span>
-        <span className="detail-info-label">Modified</span>
-        <span className="detail-info-value">{formatFullDate(object.updated_at)}</span>
+    <div className="detail-info-block">
+      <div className="detail-added-row">
+        <span className="detail-added-label">Type</span>
+        <TypeField objectId={object.id} />
+      </div>
+      <div className="detail-added-row">
+        <span className="detail-added-label">Added</span>
+        <span className="detail-added-value">{formatFullDate(object.created_at)}</span>
       </div>
     </div>
   );
 
   if (isSpace) {
-    const query = object.query || {};
-    const hasRules = query.all?.length || query.any?.length || query.none?.length;
-
     return (
       <aside className="object-detail-pane">
         {sharedHeader}
@@ -287,15 +324,7 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
           {sharedInfo}
           <div className="sidebar-section">
             <div className="sidebar-section-title">Rules</div>
-            {hasRules ? (
-              <div className="space-rules">
-                {query.all?.length > 0 && <div className="space-rule-row"><span className="space-rule-label">All of</span><span className="space-rule-tags">{query.all.join(', ')}</span></div>}
-                {query.any?.length > 0 && <div className="space-rule-row"><span className="space-rule-label">Any of</span><span className="space-rule-tags">{query.any.join(', ')}</span></div>}
-                {query.none?.length > 0 && <div className="space-rule-row"><span className="space-rule-label">None of</span><span className="space-rule-tags">{query.none.join(', ')}</span></div>}
-              </div>
-            ) : (
-              <p className="space-rules-empty">No rules defined. Objects are added manually.</p>
-            )}
+            <SpaceRulesSection spaceId={object.id} query={object.query || {}} />
           </div>
         </div>
       </aside>
@@ -308,9 +337,24 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
       <div className="detail-pane-content">
         {sharedInfo}
 
+        {typeTag?.schema?.length > 0 && (
+          <TypeSchemaSection objectId={objectId} typeTag={typeTag} />
+        )}
+
         {/* Sources section */}
         <div className="sidebar-section">
-          <div className="sidebar-section-title">Sources</div>
+          <div className="sidebar-section-title">
+            Sources
+            {!isAddingSource && (
+              <button className="sidebar-section-add-btn" onClick={() => setIsAddingSource(true)} title="Add source">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor"/>
+                  <line x1="8" y1="4.5" x2="8" y2="11.5" stroke="currentColor" strokeLinecap="round"/>
+                  <line x1="4.5" y1="8" x2="11.5" y2="8" stroke="currentColor" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
           <div className="sources-list">
             {sources.map((source, index) => (
               <div
@@ -325,9 +369,18 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
                 <button
                   className="source-item"
                   onClick={() => source.uri && window.electronAPI?.openSource?.(source.uri)}
-                  title={source.uri}
                 >
-                  {source.uri}
+                  {source.uri && (() => {
+                    try {
+                      const label = source.uri.startsWith('file://')
+                        ? source.uri.split('/').pop()
+                        : new URL(source.uri).hostname.replace(/^www\./, '');
+                      return <>
+                        <span className="source-item-uri source-item-uri-short">{label}</span>
+                        <span className="source-item-uri source-item-uri-full">{source.uri}</span>
+                      </>;
+                    } catch { return null; }
+                  })()}
                 </button>
                 <button
                   className="source-item-delete"
@@ -352,20 +405,109 @@ export default function ObjectDetailPane({ objectId, editNameOnMount = false }) 
               </div>
             )}
 
-            {!isAddingSource && (
-              <button className="source-add-btn" onClick={() => setIsAddingSource(true)}>
-                + Add source
-              </button>
-            )}
           </div>
         </div>
 
         {/* Tags section */}
         <div className="sidebar-section">
           <div className="sidebar-section-title">Tags</div>
-          <TagAssignmentSection objectId={object.id} />
+          <TagAssignmentSection objectId={object.id} excludeTypeIds={typeTag?.schema || []} />
         </div>
       </div>
     </aside>
+  );
+}
+
+// ── TypeField ─────────────────────────────────────────────────────────────────
+// Renders the TYPE system tag for an object using the exact same badge + edit
+// form pattern as TagAssignmentSection's system tag groups.
+
+function TypeField({ objectId }) {
+  const tagTypes      = useIndexStore(s => s.tagTypes);
+  const typedEdges    = useIndexStore(s => s.typedEdges);
+  const objectTags    = useIndexStore(s => s.objectTags);
+  const loadTagsForObject = useIndexStore(s => s.loadTagsForObject);
+  const createTag     = useIndexStore(s => s.createTag);
+  const assignTag     = useIndexStore(s => s.assignTag);
+  const unassignTag   = useIndexStore(s => s.unassignTag);
+
+  const [editing, setEditing]   = useState(false);
+  const [draft,   setDraft]     = useState('');
+  const inputRef                = useRef(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const typeType     = tagTypes.find(t => (t.name ?? '').toLowerCase() === 'type');
+  const assignedTags = objectTags[objectId] || [];
+  const typeTag      = typeType
+    ? assignedTags.find(tag => tag.name && typedEdges.some(e => e.in === tag.id && e.out === typeType.id))
+    : null;
+
+  const cancelEdit = () => { setEditing(false); setDraft(''); };
+
+  const handleSave = async () => {
+    const name = draft.trim();
+    cancelEdit();
+    if (!name || name === typeTag?.name) return;
+    try {
+      const newTag = await createTag({ name, system: true, typeId: typeType?.id });
+      if (!newTag?.id) return;
+      await assignTag(objectId, newTag.id);
+      if (typeTag) await unassignTag(objectId, typeTag.id);
+      await loadTagsForObject(objectId);
+    } catch (err) {
+      console.error('[TypeField] save failed:', err);
+    }
+  };
+
+  const handleUnassign = async () => {
+    if (!typeTag) return;
+    try {
+      await unassignTag(objectId, typeTag.id);
+      await loadTagsForObject(objectId);
+    } catch (err) {
+      console.error('[TypeField] unassign failed:', err);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form className="system-tag-edit-form" onSubmit={e => { e.preventDefault(); handleSave(); }}>
+        <input
+          ref={inputRef}
+          className="system-tag-edit-input"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') cancelEdit(); }}
+          placeholder="Enter value…"
+        />
+        <button type="submit" className="system-tag-edit-save">✓</button>
+        <button type="button" className="system-tag-edit-cancel" onClick={cancelEdit}>✕</button>
+      </form>
+    );
+  }
+
+  if (typeTag) {
+    return (
+      <div className="tag-badge" style={{ backgroundColor: typeTag.color || '#666' }}>
+        <span
+          className="tag-badge-name editable"
+          onClick={() => { setDraft(typeTag.name || ''); setEditing(true); }}
+        >
+          {typeTag.name || '(empty)'}
+        </span>
+        <button className="tag-badge-remove" onClick={handleUnassign}>×</button>
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className="detail-added-value"
+      style={{ cursor: 'text', fontStyle: 'italic' }}
+      onClick={() => { setDraft(''); setEditing(true); }}
+    >
+      —
+    </span>
   );
 }

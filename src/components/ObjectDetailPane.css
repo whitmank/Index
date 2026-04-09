@@ -71,6 +71,20 @@
   border-color: rgba(0, 0, 0, 0.12);
 }
 
+.detail-pane-type-badge.has-thumb {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 0;
+}
+
+.detail-pane-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .detail-pane-title {
   margin: 0;
   font-size: 13px;
@@ -152,34 +166,50 @@
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Information grid (Created / Modified rows) */
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0;
+.sidebar-section-add-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  transition: color 0.1s;
 }
 
-.detail-info-label {
-  font-size: 0.78rem;
+.sidebar-section-add-btn:hover {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.detail-info-block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Added date row */
+.detail-added-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 0 10px;
+}
+
+.detail-added-label {
+  font-size: 0.72rem;
+  color: #aaaaaa;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+}
+
+.detail-added-value {
+  font-size: 0.72rem;
   color: #999999;
-  padding: 5px 12px 5px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.detail-info-label:last-of-type,
-.detail-info-value:last-of-type {
-  border-bottom: none;
-}
-
-.detail-info-value {
-  font-size: 0.78rem;
-  color: #333333;
-  padding: 5px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  text-align: right;
-  word-break: break-word;
 }
 
 /* Sources */
@@ -187,6 +217,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding-right: 12px;
 }
 
 .source-item-wrapper {
@@ -222,61 +253,68 @@
 
 .source-item {
   flex: 1;
-  padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-  font-size: 0.72rem;
-  color: #666666;
+  transition: background 0.1s ease;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+
+.source-item-origin {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #666666;
 }
 
 .source-item:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.15);
-  color: #333333;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.source-item-uri {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: #aaaaaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-item-uri-full {
+  display: none;
+}
+
+.source-item-wrapper:hover .source-item-uri-short {
+  display: none;
+}
+
+.source-item-wrapper:hover .source-item-uri-full {
+  display: inline;
 }
 
 .source-item-delete {
-  padding: 7px 9px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 1rem;
-  color: #aaaaaa;
+  transition: color 0.1s ease;
+  font-size: 0.85rem;
+  color: #cccccc;
   line-height: 1;
   flex-shrink: 0;
 }
 
 .source-item-delete:hover {
-  background: rgba(255, 255, 255, 0.9);
   color: #d9534f;
 }
 
-.source-add-btn {
-  padding: 7px 10px;
-  background: transparent;
-  border: 1px dashed rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.8rem;
-  color: #aaaaaa;
-  text-align: left;
-}
-
-.source-add-btn:hover {
-  border-color: rgba(0, 0, 0, 0.25);
-  color: #666666;
-}
 
 .source-add-card {
   padding: 12px;
@@ -356,4 +394,30 @@
   font-size: 0.78rem;
   color: #aaa;
   font-style: italic;
+}
+
+
+.object-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 12px;
+}
+
+.object-attribute-row {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.object-attribute-key {
+  flex-shrink: 0;
+  color: #999;
+  min-width: 80px;
+}
+
+.object-attribute-value {
+  color: #444;
+  word-break: break-all;
 }

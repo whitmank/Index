@@ -19,12 +19,12 @@ const SHORTCUTS = {
   },
   NAV_BACK: {
     key: 'a',
-    modifiers: ['metaKey'],
+    modifiers: [],
     description: 'Navigate back',
   },
   NAV_FORWARD: {
     key: 'd',
-    modifiers: ['metaKey'],
+    modifiers: [],
     description: 'Navigate forward',
   },
   NAV_ROOT: {
@@ -42,10 +42,36 @@ const SHORTCUTS = {
     modifiers: [],
     description: 'Toggle list/graph view',
   },
+  PASTE_RESOURCE: {
+    key: 'v',
+    modifiers: ['metaKey'],
+    description: 'Paste URL or file path as new object',
+  },
+  TAG_EDIT: {
+    key: 'e',
+    modifiers: ['metaKey'],
+    description: 'Edit tags for selection',
+  },
 };
 
 export function useKeyboardShortcuts(actions) {
   useEffect(() => {
+    function handlePaste(e) {
+      const active = document.activeElement;
+      const inInput = active?.tagName === 'INPUT'
+        || active?.tagName === 'TEXTAREA'
+        || active?.isContentEditable;
+      if (inInput) return;
+
+      const uriList = e.clipboardData?.getData('text/uri-list') || '';
+      const plain   = e.clipboardData?.getData('text/plain')    || '';
+      const text    = uriList.trim() || plain.trim();
+      if (!text) return;
+
+      e.preventDefault();
+      actions.onPaste?.(text);
+    }
+
     function handleKeyDown(e) {
       // Cmd+, - open settings
       if (
@@ -86,9 +112,14 @@ export function useKeyboardShortcuts(actions) {
         actions.onNavHome?.();
       }
 
-      if (e.metaKey) {
-        if (e.key === 'a') { e.preventDefault(); actions.onNavBack?.(); }
-        if (e.key === 'd') { e.preventDefault(); actions.onNavForward?.(); }
+
+      // Cmd+E - edit tags for selection
+      if (
+        e.key === SHORTCUTS.TAG_EDIT.key &&
+        SHORTCUTS.TAG_EDIT.modifiers.some((mod) => e[mod])
+      ) {
+        e.preventDefault();
+        actions.onTagEdit?.();
       }
 
       // V — toggle list/graph view (not in inputs)
@@ -102,15 +133,27 @@ export function useKeyboardShortcuts(actions) {
         actions.onToggleView?.();
       }
 
-      // Cmd+Left/Right — back/forward (not in inputs)
-      if (e.metaKey && document.activeElement?.tagName !== 'INPUT') {
-        if (e.key === 'ArrowLeft')  { e.preventDefault(); actions.onNavBack?.(); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); actions.onNavForward?.(); }
+      // ArrowLeft/Right and A/D — back/forward (not in inputs, no modifier required)
+      const inInput = document.activeElement?.tagName === 'INPUT'
+        || document.activeElement?.tagName === 'TEXTAREA'
+        || document.activeElement?.isContentEditable;
+      if (!inInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === 'ArrowLeft'  || e.key === 'a') { e.preventDefault(); actions.onNavBack?.(); }
+        if (e.key === 'ArrowRight' || e.key === 'd') { e.preventDefault(); actions.onNavForward?.(); }
+      }
+
+      // Escape — dismiss current overlay/view
+      if (e.key === 'Escape') {
+        actions.onEscape?.();
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste',   handlePaste);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste',   handlePaste);
+    };
   }, [actions]);
 }
 

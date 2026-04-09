@@ -1,7 +1,9 @@
-// Author: Claude Code
+// Author: Claude Sonnet 4.6
 // AddressBar — browser-style navigation strip.
-// Doubles as the space navigator: click the field (or CMD+L) to enter navigation mode.
-// The dropdown anchors below the field in-place; no overlay or modal.
+// Doubles as the general search bar: CMD+L to enter navigation mode.
+// Searches both spaces (○) and objects (●).
+// Space selection navigates to that space.
+// Object selection navigates to / in graph view and opens the detail pane.
 
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { useIndexStore, HOME_SPACE_ID } from '../store/index';
@@ -12,9 +14,14 @@ const VIEWS = [
   { type: 'graph', icon: '⬡' },
 ];
 
-const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, setView, onNavigate, onCreateObject, onCreateSpace }, ref) {
+const ROOT_ENTRY = { type: 'space', id: null, name: '~' };
+
+const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, setView, onNavigate, onSelectObject, onCreateObject, onCreateSpace }, ref) {
   const allSpaces = useIndexStore(s =>
     s.objects.filter(o => o.space && o.id !== HOME_SPACE_ID)
+  );
+  const allObjects = useIndexStore(s =>
+    s.objects.filter(o => !o.space && !o.system)
   );
 
   const [editing,       setEditing]       = useState(false);
@@ -26,13 +33,24 @@ const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, s
   const inputRef = useRef(null);
   const createMenuRef = useRef(null);
 
-  const ROOT_ENTRY = { id: null, name: '~' };
-
   const filtered = (() => {
     const q = query.trim().toLowerCase();
-    const spaces = q ? allSpaces.filter(s => s.name.toLowerCase().includes(q)) : allSpaces;
-    const includeRoot = !q || '~'.includes(q);
-    return includeRoot ? [ROOT_ENTRY, ...spaces] : spaces;
+    if (!q) {
+      // Empty query: spaces only (Tab to browse)
+      return [ROOT_ENTRY, ...allSpaces.map(s => ({ type: 'space', ...s }))];
+    }
+    const matchingSpaces = allSpaces
+      .filter(s => s.name.toLowerCase().includes(q))
+      .map(s => ({ type: 'space', ...s }));
+    const matchingObjects = allObjects
+      .filter(o => (o.name || '').toLowerCase().includes(q))
+      .map(o => ({ type: 'object', ...o }));
+    const includeRoot = '~'.includes(q);
+    return [
+      ...(includeRoot ? [ROOT_ENTRY] : []),
+      ...matchingSpaces,
+      ...matchingObjects,
+    ];
   })();
 
   // Expose startNavigation() so App.jsx can trigger it via CMD+L
@@ -66,8 +84,12 @@ const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, s
     setShowList(false);
   }
 
-  function execute(space) {
-    onNavigate(space.id);
+  function execute(item) {
+    if (item.type === 'object') {
+      onSelectObject?.(item.id);
+    } else {
+      onNavigate(item.id);
+    }
     stopEditing();
   }
 
@@ -142,15 +164,18 @@ const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, s
             />
             {showList && filtered.length > 0 && (
               <ul className="address-bar-dropdown">
-                {filtered.map((space, i) => (
+                {filtered.map((item, i) => (
                   <li
-                    key={space.id}
+                    key={item.id ?? '__root__'}
                     className={`address-bar-dropdown-item${i === selectedIndex ? ' active' : ''}`}
                     tabIndex={-1}
                     onMouseEnter={() => setSelectedIndex(i)}
-                    onMouseDown={e => { e.preventDefault(); execute(space); }}
+                    onMouseDown={e => { e.preventDefault(); execute(item); }}
                   >
-                    {space.name}
+                    <span className="address-bar-dropdown-icon">
+                      {item.type === 'object' ? '●' : '○'}
+                    </span>
+                    {item.name}
                   </li>
                 ))}
               </ul>
@@ -160,7 +185,7 @@ const AddressBar = forwardRef(function AddressBar({ label, onBack, activeView, s
           <span
             className="address-bar-label"
             onClick={() => setEditing(true)}
-            title="Navigate (CMD+L)"
+            title="Search (CMD+L)"
           >
             {label}
           </span>

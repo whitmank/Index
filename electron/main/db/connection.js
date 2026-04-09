@@ -9,6 +9,7 @@ import os from 'os';
 import Surreal from 'surrealdb';
 import { migrateFromV3IfNeeded } from './migration.js';
 import { seedTagTypes } from '../domain/tag-types.js';
+import { seedSystemDevices, backfillSourcedFromEdges } from './services/device-service.js';
 
 const DB_HOST = '127.0.0.1';
 const DB_PORT = 8000;
@@ -115,13 +116,20 @@ async function initializeTables() {
   }
 
   // Edge tables (TYPE RELATION)
-  const edgeTables = ['tagged', 'contains', 'excludes', 'typed'];
+  const edgeTables = ['tagged', 'contains', 'excludes', 'typed', 'sourced_from'];
   for (const table of edgeTables) {
     try {
       await db.query(`DEFINE TABLE ${table} SCHEMALESS TYPE RELATION;`);
     } catch (error) {
       if (!error.message?.includes('already exists')) throw error;
     }
+  }
+
+  // Device table
+  try {
+    await db.query(`DEFINE TABLE devices SCHEMALESS;`);
+  } catch (error) {
+    if (!error.message?.includes('already exists')) throw error;
   }
 
   await renameTagTypes();
@@ -131,6 +139,8 @@ async function initializeTables() {
   await db.query(`UPDATE objects UNSET container WHERE container = true`);
 
   await seedSystemSpaces();
+  await seedSystemDevices(db);
+  await backfillSourcedFromEdges(db);
 }
 
 // Fixed IDs for system spaces — stable across restarts.
@@ -143,9 +153,23 @@ async function renameTagTypes() {
   await db.query(`UPDATE tag_definitions SET type = 'kind' WHERE type = 'media_type'`);
   await db.query(`UPDATE tag_definitions SET type = 'kind' WHERE type = 'medium'`);
   await db.query(`UPDATE tag_definitions SET type = 'file' WHERE type = 'file_type'`);
+  // Rename kind → type (tag_definitions string field, caught before edge migration below)
+  await db.query(`UPDATE tag_definitions SET type = 'type' WHERE type = 'kind'`);
 
   // Step 2: seed tag_types records from domain registry
   await seedTagTypes(db);
+
+  // Step 2b: migrate typed edges pointing at tag_types:kind → tag_types:type
+  const kindEdges = await db.query(`SELECT id, in FROM typed WHERE out = tag_types:kind`);
+  for (const edge of (kindEdges[0] || [])) {
+    const tagId = edge.in?.toString?.() ?? edge.in;
+    const edgeExists = await db.query(`SELECT id FROM typed WHERE in = ${tagId} AND out = tag_types:type`);
+    if (!edgeExists[0] || edgeExists[0].length === 0) {
+      await db.query(`RELATE ${tagId}->typed->tag_types:type`);
+    }
+    await db.query(`DELETE ${edge.id}`);
+  }
+  await db.query(`DELETE tag_types:kind`);
 
   // Step 3: create typed edges for tag_definitions that still carry a type string
   const existing = await db.query(`SELECT id, type FROM tag_definitions WHERE type IS NOT NONE`);
@@ -161,6 +185,75 @@ async function renameTagTypes() {
 
   // Step 4: remove the now-redundant type field from all tag_definitions
   await db.query(`UPDATE tag_definitions UNSET type`);
+
+  // Step 5: seed standard type schemas
+  await seedTypeSchemas();
+}
+
+// Field tag type definitions for schema seeding.
+// display: false keeps these out of the general TagAssignmentSection.
+const FIELD_TAG_TYPES = [
+  { name: 'author',    label: 'Author'    },
+  { name: 'published', label: 'Published' },
+  { name: 'genre',     label: 'Genre'     },
+  { name: 'isbn',      label: 'ISBN'      },
+  { name: 'publisher', label: 'Publisher' },
+  { name: 'creator',   label: 'Creator'   },
+  { name: 'captured',  label: 'Captured'  },
+  { name: 'director',  label: 'Director'  },
+  { name: 'released',  label: 'Released'  },
+  { name: 'duration',  label: 'Duration'  },
+  { name: 'artist',    label: 'Artist'    },
+  { name: 'album',     label: 'Album'     },
+];
+
+// Schemas per object type value. Keys are the tag_definition name for each type.
+const TYPE_SCHEMAS = {
+  book:     ['author', 'published', 'genre', 'isbn'],
+  document: ['author', 'published', 'publisher'],
+  image:    ['creator', 'captured'],
+  video:    ['director', 'released', 'duration'],
+  audio:    ['artist', 'album', 'released'],
+};
+
+async function seedTypeSchemas() {
+  // Ensure field tag types exist, reusing any already created by the user (match by name).
+  const fieldTypeIds = {};
+  for (const { name, label } of FIELD_TAG_TYPES) {
+    const existing = await db.query(
+      `SELECT id FROM tag_types WHERE string::lowercase(name ?? '') = '${name.toLowerCase()}'`
+    );
+    if (existing[0]?.length > 0) {
+      fieldTypeIds[name] = existing[0][0].id?.toString?.() ?? existing[0][0].id;
+    } else {
+      const record = {
+        name, label, description: null, system: true,
+        display: false, editable: true, deletable: true, order: 99,
+      };
+      await db.query(`INSERT INTO tag_types ${JSON.stringify(record)}`);
+      const created = await db.query(
+        `SELECT id FROM tag_types WHERE string::lowercase(name ?? '') = '${name.toLowerCase()}'`
+      );
+      fieldTypeIds[name] = created[0]?.[0]?.id?.toString?.() ?? null;
+    }
+  }
+
+  // Write schema onto each type tag_definition record.
+  for (const [typeName, fieldNames] of Object.entries(TYPE_SCHEMAS)) {
+    const schema = fieldNames.map(n => fieldTypeIds[n]).filter(Boolean);
+    if (!schema.length) continue;
+
+    // Find the tag_definition for this type value (linked to tag_types:type).
+    const result = await db.query(
+      `SELECT id FROM tag_definitions
+       WHERE string::lowercase(name ?? '') = '${typeName.toLowerCase()}'
+       AND id INSIDE (SELECT VALUE in FROM typed WHERE out = tag_types:type)`
+    );
+    if (result[0]?.length > 0) {
+      const tagId = result[0][0].id?.toString?.() ?? result[0][0].id;
+      await db.query(`UPDATE ${tagId} SET schema = ${JSON.stringify(schema)}`);
+    }
+  }
 }
 
 async function seedSystemSpaces() {

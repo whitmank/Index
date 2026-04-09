@@ -99,6 +99,17 @@
   font-size: 0.78rem;
 }
 
+/* ── Devices ────────────────────────────────────────────────────────────── */
+
+.device-current-badge {
+  margin-left: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* ── Window Profile Options ─────────────────────────────────────────────── */
 
 .window-profile-options {
@@ -152,6 +163,60 @@
   font-size: 0.78rem;
   color: #888;
   line-height: 1.4;
+}
+
+/* ── Keybinds ───────────────────────────────────────────────────────────── */
+
+.keybind-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.keybind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.keybind-row:last-child {
+  border-bottom: none;
+}
+
+.keybind-description {
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.keybind-combos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keybind-keys {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.keybind-keys kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: #555;
+  line-height: 1.4;
+}
+
+.keybind-or {
+  font-size: 0.72rem;
+  color: #bbb;
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */

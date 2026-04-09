@@ -59,7 +59,14 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "entitlementsInherit": "electron/resources/entitlements.mac.inherit.plist",
+      "extraFiles": [
+        {
+          "from": "FinderSyncExtension/build/Build/Products/Release/FinderSyncExtension.appex",
+          "to": "Contents/PlugIns/FinderSyncExtension.appex"
+        }
+      ]
     }
   }
 }

@@ -1,7 +1,7 @@
 // Author: Claude Code
 // Preload — exposes window.electronAPI via contextBridge.
 // Covers: device identity, database CRUD + edge operations, LIVE SELECT channels,
-//         file system, window profile, and active space reporting.
+//         file system, window profile, appearance settings, and active space reporting.
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
@@ -44,12 +44,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createTagType: (data) => ipcRenderer.invoke('db:createTagType', data),
     updateTagType: (typeId, data) => ipcRenderer.invoke('db:updateTagType', typeId, data),
     deleteTagType: (typeId) => ipcRenderer.invoke('db:deleteTagType', typeId),
+    // Devices
+    getDevices: () => ipcRenderer.invoke('db:getDevices'),
   },
 
   // File system operations
   fs: {
     pickFile: () => ipcRenderer.invoke('fs:pickFile'),
     getPathForFile: (file) => webUtils.getPathForFile(file),
+    readFolder: (folderPath) => ipcRenderer.invoke('fs:readFolder', folderPath),
+    thumbnail: (filePath, size) => ipcRenderer.invoke('fs:thumbnail', filePath, size),
+  },
+
+  // Import folder — fired by main process when user selects "Add to Index" in Finder.
+  onImportFolder: (callback) => {
+    ipcRenderer.removeAllListeners('main:importFolder');
+    ipcRenderer.on('main:importFolder', (_e, tree) => callback(tree));
   },
 
   // LIVE SELECT channels — call once on mount; removeAllListeners prevents accumulation
@@ -77,6 +87,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('live:typed');
     ipcRenderer.on('live:typed', (_e, data) => callback(data));
   },
+  onDevicesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:devices');
+    ipcRenderer.on('live:devices', (_e, data) => callback(data));
+  },
+  onSourcedFromLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:sourced_from');
+    ipcRenderer.on('live:sourced_from', (_e, data) => callback(data));
+  },
 
   // Active space reporting — called by the store whenever the active space changes
   app: {
@@ -90,5 +108,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   window: {
     getProfile: () => ipcRenderer.invoke('window:getProfile'),
     setProfile: (profile) => ipcRenderer.invoke('window:setProfile', profile),
+  },
+
+  // Appearance settings — persisted to ~/.index/appearance.json via main process
+  appearance: {
+    get: () => ipcRenderer.invoke('appearance:get'),
+    set: (values) => ipcRenderer.send('appearance:set', values),
   },
 });

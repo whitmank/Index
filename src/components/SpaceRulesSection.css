@@ -1,0 +1,171 @@
+/**
+ * SpaceRulesSection Styles
+ * Author: Claude Sonnet 4.6
+ */
+
+.space-rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Rule group ──────────────────────────────────────────────────────────── */
+
+.srs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.srs-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #888888;
+  cursor: default;
+}
+
+.srs-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  min-height: 26px;
+}
+
+/* ── Tag pills ───────────────────────────────────────────────────────────── */
+
+.srs-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #faf8f5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.srs-pill--all       { background: #4a7c59; }
+.srs-pill--any       { background: #3b6fa0; }
+.srs-pill--none      { background: #8b3a3a; }
+.srs-pill--from_any  { background: #6b5fa0; }
+.srs-pill--from_none { background: #7a5c3a; }
+
+.srs-pill-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.srs-pill-remove {
+  background: none;
+  border: none;
+  color: #faf8f5;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 1px;
+  cursor: pointer;
+  opacity: 0.6;
+  border-radius: 2px;
+  transition: opacity 120ms ease, background 120ms ease;
+  flex-shrink: 0;
+}
+
+.srs-pill-remove:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Tag / device section divider ───────────────────────────────────────── */
+
+.srs-divider {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  margin: 4px 0;
+}
+
+/* ── Add button ──────────────────────────────────────────────────────────── */
+
+.srs-add-btn {
+  background: none;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  width: 22px;
+  height: 22px;
+  font-size: 0.85rem;
+  color: #aaaaaa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.srs-add-btn:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #555555;
+}
+
+/* ── Inline input + suggestions ──────────────────────────────────────────── */
+
+.srs-input-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.srs-input {
+  padding: 4px 8px;
+  border: 1px solid #d8d4cf;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: #333333;
+  background: #ffffff;
+  outline: none;
+  width: 110px;
+  transition: border-color 0.15s ease;
+}
+
+.srs-input:focus {
+  border-color: #999999;
+}
+
+.srs-input::placeholder {
+  color: #cccccc;
+}
+
+.srs-suggestions {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  min-width: 140px;
+  z-index: 200;
+  list-style: none;
+  margin: 0;
+  padding: 3px 0;
+  background: #ffffff;
+  border: 1px solid #d8d4cf;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.srs-suggestion {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  color: #333333;
+  cursor: pointer;
+  transition: background 80ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.srs-suggestion:hover,
+.srs-suggestion.highlighted {
+  background: rgba(0, 0, 0, 0.05);
+}

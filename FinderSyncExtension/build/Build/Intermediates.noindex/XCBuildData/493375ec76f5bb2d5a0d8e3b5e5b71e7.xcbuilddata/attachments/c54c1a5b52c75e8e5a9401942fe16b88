@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary.swiftconstvalues",
+    "dependencies" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary.d",
+    "diagnostics" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary.dia",
+    "emit-module-dependencies" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary-emit-module.dia",
+    "pch" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension-primary.swiftdeps"
+  },
+  "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/FinderSyncExtension/FinderSyncExtension.swift" : {
+    "index-unit-output-path" : "/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension.o",
+    "llvm-bc" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension.bc",
+    "object" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/FinderSyncExtension.build/Release/FinderSyncExtension.build/Objects-normal/arm64/FinderSyncExtension.o"
+  }
+}

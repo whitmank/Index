@@ -6,6 +6,30 @@
   overflow-y: auto;
   padding: 16px 24px;
   box-sizing: border-box;
+  position: relative;
+  user-select: none;
+}
+
+/* ── Drop overlay ───────────────────────────────────────────────────────── */
+
+.drop-overlay {
+  position: absolute;
+  inset: 8px;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(0, 97, 217, 0.45);
+  background: rgba(0, 97, 217, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.drop-overlay-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(0, 97, 217, 0.7);
+  letter-spacing: 0.2px;
 }
 
 .object-list {
@@ -147,6 +171,15 @@
   line-height: 0;
 }
 
+/* Thumbnail — replaces the type icon for local image objects */
+.object-row-thumb {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+
 /* Name + URI */
 .object-row-main {
   min-width: 0;
@@ -184,7 +217,8 @@
 
 
 .object-row.is-space .object-row-name {
-  font-weight: 600;
+  font-weight: 500;
+  font-style: italic;
 }
 
 .object-row.is-space:hover {

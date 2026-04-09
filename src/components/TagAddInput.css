@@ -1,0 +1,137 @@
+/**
+ * TagAddInput Styles — dual-field tag input with autocomplete dropdown.
+ * Used in TagAssignmentSection (detail pane) and TagEditModal (batch editor).
+ *
+ * Author: Claude Sonnet 4.6
+ */
+
+/* ── Wrapper ─────────────────────────────────────────────────────────────── */
+
+.tag-add-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.tag-add-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+
+.tag-field1,
+.tag-field2 {
+  padding: 5px 8px;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  color: #333333;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.15s ease, flex 0.12s ease, width 0.12s ease;
+}
+
+/* Single-field mode: field1 takes all available width */
+.tag-field1 {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Two-field mode: field1 is the type label — compact */
+.tag-field1.is-type {
+  flex: 0 0 72px;
+  width: 72px;
+  color: #666666;
+}
+
+/* Two-field mode: field2 is the value — takes remaining space */
+.tag-field2 {
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-field1:focus,
+.tag-field2:focus {
+  border-color: #999999;
+}
+
+.tag-field1::placeholder,
+.tag-field2::placeholder {
+  color: #cccccc;
+}
+
+/* ── Submit button ───────────────────────────────────────────────────────── */
+
+.tag-add-submit {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e0dcd8;
+  border-radius: 3px;
+  background: none;
+  font-size: 0.85rem;
+  color: #888888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.tag-add-submit:hover {
+  border-color: #999999;
+  color: #333333;
+}
+
+/* ── Suggestions dropdown ────────────────────────────────────────────────── */
+
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  list-style: none;
+  margin: 0;
+  padding: 3px 0;
+  background: #ffffff;
+  border: 1px solid #d8d4cf;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.tag-suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #333333;
+  transition: background 80ms ease;
+}
+
+.tag-suggestion:hover,
+.tag-suggestion.highlighted {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-type {
+  font-size: 0.7rem;
+  color: #888888;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.suggestion-name {
+  color: #333333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

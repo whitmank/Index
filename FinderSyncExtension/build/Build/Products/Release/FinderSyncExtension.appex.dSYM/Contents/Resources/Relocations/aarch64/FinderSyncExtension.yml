@@ -1,0 +1,20 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Products/Release/FinderSyncExtension.appex/Contents/MacOS/FinderSyncExtension'
+relocations:
+  - { offset: 0xB08B7, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAACABycfc', symObjAddr: 0x0, symBinAddr: 0x100001238, symSize: 0x15C }
+  - { offset: 0xB0B83, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAACMa', symObjAddr: 0x1C8, symBinAddr: 0x100001400, symSize: 0x20 }
+  - { offset: 0xB0BFA, size: 0x8, addend: 0x0, symName: '_$sSh21_nonEmptyArrayLiteralShyxGSayxG_tcfC10Foundation3URLV_Tt0g5Tf4g_n', symObjAddr: 0x1E8, symBinAddr: 0x100001420, symSize: 0x294 }
+  - { offset: 0xB0D33, size: 0x8, addend: 0x0, symName: ___swift_instantiateConcreteTypeFromMangledNameV2, symObjAddr: 0xA50, symBinAddr: 0x100001C88, symSize: 0x50 }
+  - { offset: 0xB0D47, size: 0x8, addend: 0x0, symName: '_$s10Foundation3URLVSgWOc', symObjAddr: 0xAA0, symBinAddr: 0x100001CD8, symSize: 0x50 }
+  - { offset: 0xB0D5B, size: 0x8, addend: 0x0, symName: '_$s10Foundation3URLVSgWOh', symObjAddr: 0xAF0, symBinAddr: 0x100001D28, symSize: 0x48 }
+  - { offset: 0xB0D6F, size: 0x8, addend: 0x0, symName: '_$sS2SSysWl', symObjAddr: 0xB38, symBinAddr: 0x100001D70, symSize: 0x40 }
+  - { offset: 0xB0DEA, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAACABycfc', symObjAddr: 0x0, symBinAddr: 0x100001238, symSize: 0x15C }
+  - { offset: 0xB0EA4, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAACABycfcTo', symObjAddr: 0x15C, symBinAddr: 0x100001394, symSize: 0x20 }
+  - { offset: 0xB0EDE, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAAC4menu3forSo6NSMenuCSgSo10FIMenuKindV_tFTo', symObjAddr: 0x17C, symBinAddr: 0x1000013B4, symSize: 0x18 }
+  - { offset: 0xB0F0F, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAAC10addToIndexyyyXlSgFTo', symObjAddr: 0x194, symBinAddr: 0x1000013CC, symSize: 0x4 }
+  - { offset: 0xB0F27, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAAC10addToIndexyyyXlSgFTo', symObjAddr: 0x194, symBinAddr: 0x1000013CC, symSize: 0x4 }
+  - { offset: 0xB0F39, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAACfD', symObjAddr: 0x198, symBinAddr: 0x1000013D0, symSize: 0x30 }
+  - { offset: 0xB1033, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAAC4menu3forSo6NSMenuCSgSo10FIMenuKindV_tFTf4nd_n', symObjAddr: 0x47C, symBinAddr: 0x1000016B4, symSize: 0x168 }
+  - { offset: 0xB10FB, size: 0x8, addend: 0x0, symName: '_$s19FinderSyncExtensionAAC10addToIndexyyyXlSgFTf4dd_n', symObjAddr: 0x5E4, symBinAddr: 0x10000181C, symSize: 0x46C }
+...
