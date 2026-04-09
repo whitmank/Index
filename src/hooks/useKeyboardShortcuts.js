@@ -52,6 +52,11 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Edit tags for selection',
   },
+  OBJECT_OPEN: {
+    key: 'Enter',
+    modifiers: [],
+    description: 'Open object card for selected object',
+  },
 };
 
 export function useKeyboardShortcuts(actions) {
@@ -140,6 +145,12 @@ export function useKeyboardShortcuts(actions) {
       if (!inInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.key === 'ArrowLeft'  || e.key === 'a') { e.preventDefault(); actions.onNavBack?.(); }
         if (e.key === 'ArrowRight' || e.key === 'd') { e.preventDefault(); actions.onNavForward?.(); }
+      }
+
+      // Enter — open object card for single selection (not in inputs)
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !inInput) {
+        e.preventDefault();
+        actions.onObjectOpen?.();
       }
 
       // Escape — dismiss current overlay/view

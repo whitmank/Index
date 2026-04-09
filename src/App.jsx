@@ -25,7 +25,8 @@ import { useAppearance } from './hooks/useAppearance';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import SettingsView, { TABS as SETTINGS_TABS } from './components/SettingsView';
 import ObjectListView from './components/ObjectListView';
-import ObjectDetailPane from './components/ObjectDetailPane';
+import ObjectCardModal from './components/ObjectCardModal';
+import ObjectSourceView from './components/ObjectSourceView';
 import GraphView from './components/GraphView';
 import CreateSpaceModal from './components/CreateSpaceModal';
 import CommandPalette from './components/CommandPalette';
@@ -59,8 +60,10 @@ function MainApp() {
     return (b.space ? 1 : 0) - (a.space ? 1 : 0);
   });
 
-  const addressBarRef = useRef(null);
-  const spacePrefs    = useRef(loadSpacePrefs());
+  const addressBarRef    = useRef(null);
+  const objectListRef    = useRef(null);
+  const spacePrefs       = useRef(loadSpacePrefs());
+  const selectionMemory  = useRef({});  // spaceId → selectedIds; pruned to navHistory on each fresh enter
 
   const savedNav = useRef(loadNavState());
 
@@ -72,7 +75,7 @@ function MainApp() {
   const [importTree, setImportTree]                 = useState(null);
   const [activeTopLevelView, setActiveTopLevelView] = useState(savedNav.current.topLevelView ?? 'spaces');
   const [settingsTab, setSettingsTab]               = useState('devices');
-  const [detailObjectId, setDetailObjectId]         = useState(savedNav.current.detailObjectId ?? null);
+  const [cardObjectId, setCardObjectId]             = useState(savedNav.current.detailObjectId ?? null);
   const [editNameOnMount, setEditNameOnMount]       = useState(false);
   const settingsReturnTarget = useRef(null);
 
@@ -117,7 +120,7 @@ function MainApp() {
         await window.electronAPI.db.addContains(parentId, created.id);
       }
       setEditNameOnMount(true);
-      setDetailObjectId(created.id);
+      setCardObjectId(created.id);
     } catch (err) {
       console.error('[App] Create object failed:', err);
     }
@@ -200,18 +203,37 @@ function MainApp() {
         await window.electronAPI.db.addContains(parentId, id);
       }
       setEditNameOnMount(true);
-      setDetailObjectId(id);
+      setCardObjectId(id);
     } catch (err) {
       console.error('[App] Create space failed:', err);
     }
   };
 
-  const handleEnterSpace = (id) => {
-    setDetailObjectId(null);
-    enterSpace(id);
+  const handleEnterSpace = async (id) => {
+    selectionMemory.current[activeSpaceId] = [...selectedIds];
+    setCardObjectId(null);
+    setSelectedIds(new Set());
+    await enterSpace(id);
+    // Prune selection memory for any space no longer in the nav history.
+    // This clears backed-out spaces when the user navigates to a different branch.
+    const historySet = new Set(useIndexStore.getState().navHistory);
+    for (const spaceId of Object.keys(selectionMemory.current)) {
+      if (!historySet.has(spaceId)) delete selectionMemory.current[spaceId];
+    }
+    const saved = selectionMemory.current[id];
+    if (saved?.length) setSelectedIds(new Set(saved));
   };
 
-  const onBack = activeSpaceId !== HOME_SPACE_ID      ? () => { setDetailObjectId(null); exitSpace(); }
+  const handleNavBack = async () => {
+    selectionMemory.current[activeSpaceId] = [...selectedIds];
+    setCardObjectId(null);
+    await navBack();
+    const arrived = useIndexStore.getState().activeSpaceId;
+    const saved = selectionMemory.current[arrived];
+    setSelectedIds(saved?.length ? new Set(saved) : new Set());
+  };
+
+  const onBack = activeSpaceId !== HOME_SPACE_ID      ? handleNavBack
     : activeTopLevelView !== 'spaces'                  ? () => setActiveTopLevelView('spaces')
     : null;
 
@@ -236,22 +258,60 @@ function MainApp() {
       topLevelView: activeTopLevelView,
       spaceId: activeSpaceId,
       view: activeView,
-      detailObjectId,
+      detailObjectId: cardObjectId,
     });
-  }, [activeTopLevelView, activeSpaceId, activeView, detailObjectId]);
+  }, [activeTopLevelView, activeSpaceId, activeView, cardObjectId]);
+
+  // D/→: navigate into spaces and objects alike; if nothing selected, select first
+  const navigateSelected = () => {
+    if (selectedIds.size === 0) {
+      objectListRef.current?.selectFirst();
+      return true;
+    }
+    if (selectedIds.size !== 1) return false;
+    handleEnterSpace([...selectedIds][0]);
+    return true;
+  };
+
+  // Enter: navigate into spaces, open card for objects
+  const openSelected = () => {
+    if (selectedIds.size !== 1) return false;
+    const id = [...selectedIds][0];
+    const obj = objects.find(o => o.id === id);
+    if (obj?.space) {
+      handleEnterSpace(id);
+    } else {
+      setEditNameOnMount(false);
+      setCardObjectId(id);
+    }
+    return true;
+  };
 
   useKeyboardShortcuts({
     onSettings:       () => navigateTo('settings'),
     onPalette:        () => setShowCommandPalette(v => !v),
     onSpaceNavigator: () => addressBarRef.current?.startNavigation(),
-    onNavBack:        () => navBack(),
-    onNavForward:     () => navForward(),
+    onNavBack:        handleNavBack,
+    onNavForward:     async () => {
+      if (navigateSelected()) return;
+      selectionMemory.current[activeSpaceId] = [...selectedIds];
+      await navForward();
+      const arrived = useIndexStore.getState().activeSpaceId;
+      const saved = selectionMemory.current[arrived];
+      setSelectedIds(saved?.length ? new Set(saved) : new Set());
+    },
     onNavHome:        () => { setActiveTopLevelView('spaces'); enterSpace(HOME_SPACE_ID); },
     onNavRoot:        () => { setActiveTopLevelView('spaces'); enterSpace(ROOT_SPACE_ID); },
     onToggleView:     () => setView(activeView === 'list' ? 'graph' : 'list'),
-    onTagEdit:        () => { if (selectedIds.size > 0) setShowTagEditModal(v => !v); },
+    onTagEdit:        () => {
+      const hasSelection = selectedIds.size > 0;
+      const inSpace = activeSpace?.space === true && activeSpaceId !== HOME_SPACE_ID && activeSpaceId !== ROOT_SPACE_ID;
+      if (hasSelection || inSpace) setShowTagEditModal(v => !v);
+    },
+    onObjectOpen:     () => { openSelected(); },
     onPaste:          handlePaste,
     onEscape: () => {
+      if (cardObjectId) { setCardObjectId(null); return; }
       if (showTagEditModal) { setShowTagEditModal(false); return; }
       if (activeTopLevelView === 'settings') {
         const target = settingsReturnTarget.current;
@@ -275,19 +335,24 @@ function MainApp() {
           onBack={onBack}
           activeView={inSpacesView ? activeView : null}
           setView={setView}
-          onNavigate={(id) => { setActiveTopLevelView('spaces'); setDetailObjectId(null); enterSpace(id ?? HOME_SPACE_ID); }}
-          onSelectObject={(id) => { setActiveTopLevelView('spaces'); enterSpace(id); setDetailObjectId(id); }}
+          onNavigate={(id) => { setActiveTopLevelView('spaces'); setCardObjectId(null); enterSpace(id ?? HOME_SPACE_ID); }}
+          onSelectObject={(id) => { setActiveTopLevelView('spaces'); enterSpace(id); }}
           onCreateObject={handleCreateObject}
           onCreateSpace={handleCreateSpace}
         />
         {activeTopLevelView === 'settings' && <SettingsView activeTab={settingsTab} onTabChange={setSettingsTab} />}
-        {inSpacesView && activeView === 'list' && (
+        {inSpacesView && activeSpace && !activeSpace.space && (
+          <div className="content-with-detail">
+            <ObjectSourceView object={activeSpace} />
+          </div>
+        )}
+        {inSpacesView && (!activeSpace || activeSpace.space) && activeView === 'list' && (
           <div className="content-with-detail">
             <ObjectListView
               key={activeSpaceId}
+              ref={objectListRef}
               objects={displayObjects}
               onEnterSpace={handleEnterSpace}
-              onObjectSelect={(id) => { setEditNameOnMount(false); setDetailObjectId(id); }}
               onDrop={handleDrop}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
@@ -297,13 +362,14 @@ function MainApp() {
               initialSortDir={spacePrefs.current[activeSpaceId]?.sortDir ?? 'desc'}
               onPrefsChange={(prefs) => { spacePrefs.current[activeSpaceId] = prefs; saveSpacePrefs(spacePrefs.current); }}
             />
-            {detailObjectId && <ObjectDetailPane objectId={detailObjectId} editNameOnMount={editNameOnMount} />}
           </div>
         )}
-        {inSpacesView && activeView === 'graph' && (
+        {inSpacesView && (!activeSpace || activeSpace.space) && activeView === 'graph' && (
           <div className="content-with-detail">
-            <GraphView objects={displayObjects} onObjectSelect={(id) => { setEditNameOnMount(false); setDetailObjectId(id); }} />
-            {detailObjectId && <ObjectDetailPane objectId={detailObjectId} editNameOnMount={editNameOnMount} />}
+            <GraphView
+              objects={displayObjects}
+              onObjectSelect={(id) => { setEditNameOnMount(false); setCardObjectId(id); }}
+            />
           </div>
         )}
       </div>
@@ -321,7 +387,13 @@ function MainApp() {
       <TagEditModal
         isOpen={showTagEditModal}
         onClose={() => setShowTagEditModal(false)}
-        objectIds={[...selectedIds]}
+        objectIds={selectedIds.size > 0 ? [...selectedIds] : [activeSpaceId]}
+      />
+      <ObjectCardModal
+        isOpen={!!cardObjectId}
+        objectId={cardObjectId}
+        editNameOnMount={editNameOnMount}
+        onClose={() => setCardObjectId(null)}
       />
     </div>
   );

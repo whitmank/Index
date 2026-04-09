@@ -63,6 +63,11 @@ export function registerFsHandlers() {
     }
   });
 
+  ipcMain.handle('fs:readFile', async (_event, filePath) => {
+    const buffer = await fs.readFile(filePath);
+    return buffer;
+  });
+
   ipcMain.handle('fs:readFolder', async (_event, folderPath) => {
     try {
       const stat = await fs.stat(folderPath);

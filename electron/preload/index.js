@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getPathForFile: (file) => webUtils.getPathForFile(file),
     readFolder: (folderPath) => ipcRenderer.invoke('fs:readFolder', folderPath),
     thumbnail: (filePath, size) => ipcRenderer.invoke('fs:thumbnail', filePath, size),
+    readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
   },
 
   // Import folder — fired by main process when user selects "Add to Index" in Finder.
