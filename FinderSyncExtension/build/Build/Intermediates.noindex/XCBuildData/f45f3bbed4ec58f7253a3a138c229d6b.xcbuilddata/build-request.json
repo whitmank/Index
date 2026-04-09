@@ -1,0 +1,65 @@
+{
+  "buildCommand" : {
+    "command" : "build",
+    "skipDependencies" : false,
+    "style" : "buildOnly"
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "8c4c64507b02cfa2e445283e43795ef63dc8cd421d6dc99f5cf508ce62bdafe1"
+    }
+  ],
+  "containerPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/FinderSyncExtension.xcodeproj",
+  "continueBuildingAfterErrors" : false,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "build",
+    "activeArchitecture" : "arm64",
+    "activeRunDestination" : {
+      "disableOnlyActiveArch" : false,
+      "hostTargetedPlatform" : null,
+      "platform" : "macosx",
+      "sdk" : "macosx26.4",
+      "sdkVariant" : "macos",
+      "supportedArchitectures" : [
+        "arm64e",
+        "arm64",
+        "x86_64"
+      ],
+      "targetArchitecture" : "arm64"
+    },
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Products",
+      "derivedDataPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build",
+      "indexDataStoreFolderPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Index.noindex/PrecompiledHeaders",
+      "pchPath" : "/Users/karter/files/dev/index-workspace/0.5/FinderSyncExtension/build/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Release",
+    "overrides" : {
+      "commandLine" : {
+        "table" : {
+
+        }
+      },
+      "synthesized" : {
+        "table" : {
+          "ACTION" : "build",
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "YES",
+          "ONLY_ACTIVE_ARCH" : "YES"
+        }
+      }
+    }
+  },
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}

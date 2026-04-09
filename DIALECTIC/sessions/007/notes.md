@@ -1,10 +1,10 @@
 ---
-session: 008
+session: 007
 date: 2026-03-25
 authored_by: Claude Sonnet 4.6
 ---
 
-## Session 008 — Frontend UI Work
+## Session 007 — Frontend UI Work
 
 ### Decisions
 

@@ -3,6 +3,7 @@
 
 import { ipcMain } from 'electron';
 import { loadWindowSettings, saveWindowSettings } from '../config/window-settings.js';
+import { loadAppearanceSettings, saveAppearanceSettings } from '../config/appearance-settings.js';
 
 const VALID_PROFILES = ['overlay', 'window'];
 
@@ -18,6 +19,10 @@ export function setProfileChangeCallback(callback) {
 }
 
 export function registerWindowHandlers() {
+  ipcMain.handle('appearance:get', () => loadAppearanceSettings());
+
+  ipcMain.on('appearance:set', (event, values) => saveAppearanceSettings(values));
+
   ipcMain.handle('window:getProfile', () => {
     return loadWindowSettings().profile;
   });

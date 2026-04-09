@@ -1,6 +1,7 @@
-// Author: Claude Code (Anthropic)
+// Author: Claude Sonnet 4.6
 // Manages appearance settings: background tint (HSLA).
-// Persists to localStorage and applies values to the DOM via CSS variables.
+// Persists to ~/.index/appearance.json via main process IPC (reliable cross-launch),
+// with localStorage as an in-session fallback.
 
 import { useState, useCallback } from 'react';
 
@@ -13,20 +14,26 @@ const DEFAULTS = {
   bgA: 0.75,
 };
 
-function load() {
+function normalize(parsed) {
+  const values = { ...DEFAULTS, ...parsed };
+  // Guard: bgA of 0 makes the app invisible.
+  if (values.bgA <= 0) values.bgA = DEFAULTS.bgA;
+  return values;
+}
+
+function loadFromStorage() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return { ...DEFAULTS };
     const parsed = JSON.parse(saved);
     // Migrate legacy bgLightness/bgOpacity keys
     if ('bgLightness' in parsed || 'bgOpacity' in parsed) {
-      return {
-        ...DEFAULTS,
+      return normalize({
         bgL: parsed.bgLightness != null ? Math.round(parsed.bgLightness / 255 * 100) : DEFAULTS.bgL,
         bgA: parsed.bgOpacity ?? DEFAULTS.bgA,
-      };
+      });
     }
-    return { ...DEFAULTS, ...parsed };
+    return normalize(parsed);
   } catch {
     return { ...DEFAULTS };
   }
@@ -34,6 +41,7 @@ function load() {
 
 function save(values) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+  window.electronAPI?.appearance?.set?.(values);
 }
 
 function applyToDOM({ bgH, bgS, bgL, bgA }) {
@@ -46,7 +54,7 @@ function applyToDOM({ bgH, bgS, bgL, bgA }) {
 
 export function useAppearance() {
   const [values, setValues] = useState(() => {
-    const loaded = load();
+    const loaded = loadFromStorage();
     applyToDOM(loaded);
     return loaded;
   });
@@ -63,6 +71,17 @@ export function useAppearance() {
   return { values, update };
 }
 
-export function initAppearance() {
-  applyToDOM(load());
+// Called in main.jsx before React renders. Loads from file via IPC (reliable),
+// falls back to localStorage. Returns a promise so main.jsx can await it.
+export async function initAppearance() {
+  let values;
+  try {
+    const fromFile = await window.electronAPI?.appearance?.get?.();
+    values = fromFile ? normalize(fromFile) : loadFromStorage();
+  } catch {
+    values = loadFromStorage();
+  }
+  applyToDOM(values);
+  // Sync localStorage with the authoritative file value
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
 }

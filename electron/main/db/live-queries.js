@@ -45,5 +45,13 @@ export async function startLiveQueries(db) {
     send('live:typed', { action, result: normalizeRecord(result) });
   });
 
+  await db.live('devices', (action, result) => {
+    send('live:devices', { action, result: normalizeRecord(result) });
+  });
+
+  await db.live('sourced_from', (action, result) => {
+    send('live:sourced_from', { action, result: normalizeRecord(result) });
+  });
+
   console.log('[LiveQueries] LIVE SELECT subscriptions active');
 }

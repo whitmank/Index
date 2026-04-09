@@ -3,7 +3,7 @@
 // Left column: section headers. Right column: contents of selected section.
 // Tags are grouped by type via typedEdges (tag_definitions→typed→tag_types).
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useIndexStore } from '../store/index';
 import './TagsView.css';
 
@@ -15,6 +15,7 @@ export default function TagsView() {
   const updateTag     = useIndexStore(s => s.updateTag);
   const deleteTag     = useIndexStore(s => s.deleteTag);
   const createTagType = useIndexStore(s => s.createTagType);
+  const deleteTagType = useIndexStore(s => s.deleteTagType);
 
   const alpha = (a, b) => (a.name ?? '').localeCompare(b.name ?? '');
 
@@ -32,9 +33,12 @@ export default function TagsView() {
     return acc;
   }, {});
 
-  const sortedTypes = [...tagTypes].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  const typeTagType  = tagTypes.find(t => (t.name ?? '').toLowerCase() === 'type');
+  const sortedTypes  = [...tagTypes]
+    .filter(t => (t.name ?? '').toLowerCase() !== 'type')
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
-  const [activeSection, setActiveSection] = useState('_user');
+  const [activeSection, setActiveSection] = useState(() => typeTagType?.id ?? '_user');
   const [addingType, setAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const typeInputRef = useRef(null);
@@ -51,8 +55,17 @@ export default function TagsView() {
   return (
     <div className="tags-view">
       <div className="tags-nav">
+        {typeTagType && (
+          <div
+            className={`tags-nav-item${activeSection === typeTagType.id ? ' active' : ''}`}
+            onClick={() => setActiveSection(typeTagType.id)}
+          >
+            <span className="tags-nav-label">Types</span>
+                      </div>
+        )}
+
         <div className="tags-nav-divider">
-          <span className="tags-nav-section-label">Types</span>
+          <span className="tags-nav-section-label">Tag Types</span>
         </div>
 
         <button
@@ -60,18 +73,21 @@ export default function TagsView() {
           onClick={() => setActiveSection('_user')}
         >
           <span className="tags-nav-label tags-nav-label--untyped">∅</span>
-          <span className="tags-nav-count">{userTags.length}</span>
-        </button>
+                  </button>
 
         {sortedTypes.map(tt => (
-          <button
+          <div
             key={tt.id}
             className={`tags-nav-item${activeSection === tt.id ? ' active' : ''}`}
             onClick={() => setActiveSection(tt.id)}
           >
             <span className="tags-nav-label">{tt.label}</span>
-            <span className="tags-nav-count">{systemByTypeId[tt.id]?.length ?? 0}</span>
-          </button>
+                        <button
+              className="tags-nav-delete-type"
+              onClick={e => { e.stopPropagation(); deleteTagType(tt.id); if (activeSection === tt.id) setActiveSection('_user'); }}
+              title="Delete type"
+            >×</button>
+          </div>
         ))}
 
         {addingType ? (
@@ -102,12 +118,22 @@ export default function TagsView() {
 
       <div className="tags-panel">
         {(() => {
-          const activeType = sortedTypes.find(tt => tt.id === activeSection);
+          const activeType = [typeTagType, ...sortedTypes].find(tt => tt?.id === activeSection);
           return activeType?.description
             ? <p className="tags-type-description">{activeType.description}</p>
             : null;
         })()}
 
+        {typeTagType && activeSection === typeTagType.id && (
+          <TypesPanel
+            key={typeTagType.id}
+            typeRecord={typeTagType}
+            tags={systemByTypeId[typeTagType.id] ?? []}
+            tagTypes={tagTypes}
+            onCreateTag={createTag}
+            onDeleteTag={deleteTag}
+          />
+        )}
         {activeSection === '_user' && (
           <UserTagsSection
             tags={userTags}
@@ -148,7 +174,11 @@ function UserTagsSection({ tags, onCreateTag, onUpdateTag, onDeleteTag }) {
         ))}
         {creatingNew && (
           <NewTagRow
-            onSave={async (data) => { await onCreateTag(data); setCreatingNew(false); }}
+            onSave={async (data) => {
+              try { await onCreateTag(data); }
+              catch (e) { console.error('[UserTagsSection] createTag failed:', e); }
+              setCreatingNew(false);
+            }}
             onCancel={() => setCreatingNew(false)}
           />
         )}
@@ -226,6 +256,167 @@ function NewTagRow({ onSave, onCancel }) {
   );
 }
 
+// ── Types Panel ───────────────────────────────────────────────────────────────
+// Renders the list of type values (book, song, …). Clicking a row expands an
+// inline schema editor showing which tag types are attached to that type.
+
+const SYSTEM_TYPE_NAMES = new Set(['type', 'medium', 'file', 'origin']);
+
+function TypesPanel({ typeRecord, tags, tagTypes, onCreateTag, onDeleteTag }) {
+  const updateTag = useIndexStore(s => s.updateTag);
+  const [selectedId, setSelectedId] = useState(null);
+  const [addingNew,  setAddingNew]  = useState(false);
+
+  const sorted = [...tags].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+  const selectedTag = sorted.find(t => t.id === selectedId) ?? null;
+
+  return (
+    <div className="types-panel-layout">
+      <section className="tags-section types-list-col">
+        <ul className="tags-list">
+          {sorted.map(tag => (
+            <li key={tag.id}
+                className={`tag-row type-row${selectedId === tag.id ? ' selected' : ''}`}
+                onClick={() => setSelectedId(selectedId === tag.id ? null : tag.id)}
+            >
+              <span className="tag-name">{tag.name}</span>
+              <button className="tag-delete-btn"
+                onClick={e => { e.stopPropagation(); onDeleteTag(tag.id); if (selectedId === tag.id) setSelectedId(null); }}
+                title="Delete">×</button>
+            </li>
+          ))}
+          {addingNew && (
+            <NewTagRow
+              onSave={async (data) => {
+                try { await onCreateTag({ ...data, system: true, typeId: typeRecord.id }); }
+                catch (e) { console.error('[TypesPanel] createTag failed:', e); }
+                setAddingNew(false);
+              }}
+              onCancel={() => setAddingNew(false)}
+            />
+          )}
+        </ul>
+        {!addingNew && (
+          <button className="tags-new-btn" onClick={() => setAddingNew(true)}>+ New</button>
+        )}
+      </section>
+
+      <div className="types-schema-col">
+        {selectedTag ? (
+          <TypeSchemaEditor
+            tag={selectedTag}
+            tagTypes={tagTypes}
+            onUpdate={schema => updateTag(selectedTag.id, { schema })}
+          />
+        ) : (
+          <p className="types-schema-empty">Select a type to edit its schema</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TypeSchemaEditor({ tag, tagTypes, onUpdate }) {
+  const createTagType = useIndexStore(s => s.createTagType);
+  const [adding,  setAdding]  = useState(false);
+  const [draft,   setDraft]   = useState('');
+  const [hlIndex, setHlIndex] = useState(-1);
+  const inputRef = useRef(null);
+
+  const schema = tag.schema || [];
+
+  const fieldTypes = tagTypes.filter(t =>
+    !SYSTEM_TYPE_NAMES.has((t.name ?? '').toLowerCase()) &&
+    !schema.includes(t.id)
+  );
+
+  const suggestions = draft.trim()
+    ? fieldTypes.filter(t => (t.label ?? t.name ?? '').toLowerCase().includes(draft.trim().toLowerCase()))
+    : fieldTypes;
+
+  const commitAdding = async () => {
+    const name = draft.trim();
+    if (!name) { cancelAdding(); return; }
+
+    const exact = fieldTypes.find(t =>
+      (t.label ?? t.name ?? '').toLowerCase() === name.toLowerCase()
+    );
+
+    let typeId;
+    if (hlIndex >= 0 && suggestions[hlIndex]) {
+      typeId = suggestions[hlIndex].id;
+    } else if (exact) {
+      typeId = exact.id;
+    } else {
+      const created = await createTagType({ name, label: name });
+      typeId = created?.id;
+    }
+
+    if (typeId && !schema.includes(typeId)) onUpdate([...schema, typeId]);
+    cancelAdding();
+  };
+
+  const cancelAdding = () => { setAdding(false); setDraft(''); setHlIndex(-1); };
+
+  useEffect(() => { if (adding) inputRef.current?.focus(); }, [adding]);
+  useEffect(() => { setHlIndex(-1); }, [draft]);
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter')   { e.preventDefault(); commitAdding(); }
+    else if (e.key === 'Escape') cancelAdding();
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setHlIndex(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); setHlIndex(i => Math.max(i - 1, -1)); }
+  };
+
+  return (
+    <div className="type-schema-editor" onClick={e => e.stopPropagation()}>
+      <div className="type-schema-label">Schema</div>
+      {schema.length === 0 && !adding && <div className="type-schema-empty">No fields defined</div>}
+      <ul className="type-schema-fields">
+        {schema.map(typeId => {
+          const tt = tagTypes.find(t => t.id === typeId);
+          if (!tt) return null;
+          return (
+            <li key={typeId} className="type-schema-field">
+              <span className="type-schema-field-name">{tt.label ?? tt.name}</span>
+              <button className="type-schema-field-remove"
+                onClick={() => onUpdate(schema.filter(id => id !== typeId))}>×</button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {adding ? (
+        <div className="type-schema-add-wrapper">
+          <input
+            ref={inputRef}
+            className="type-schema-add-input"
+            placeholder="Field name…"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={handleKey}
+            onBlur={() => setTimeout(cancelAdding, 120)}
+          />
+          {suggestions.length > 0 && (
+            <ul className="type-schema-suggestions">
+              {suggestions.map((tt, i) => (
+                <li key={tt.id}
+                    className={`type-schema-suggestion${i === hlIndex ? ' highlighted' : ''}`}
+                    onMouseDown={e => { e.preventDefault(); onUpdate([...schema, tt.id]); cancelAdding(); }}
+                >
+                  {tt.label ?? tt.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <button className="type-schema-add-btn" onClick={() => setAdding(true)}>+ Add field</button>
+      )}
+    </div>
+  );
+}
+
 // ── System Tag Group ──────────────────────────────────────────────────────────
 
 function SystemTagGroup({ typeRecord, tags, onCreateTag, onDeleteTag }) {
@@ -246,7 +437,11 @@ function SystemTagGroup({ typeRecord, tags, onCreateTag, onDeleteTag }) {
         ))}
         {addingNew && (
           <NewTagRow
-            onSave={async (data) => { await onCreateTag({ ...data, system: true, typeId: typeRecord.id }); setAddingNew(false); }}
+            onSave={async (data) => {
+              try { await onCreateTag({ ...data, system: true, typeId: typeRecord.id }); }
+              catch (e) { console.error('[SystemTagGroup] createTag failed:', e); }
+              setAddingNew(false);
+            }}
             onCancel={() => setAddingNew(false)}
           />
         )}

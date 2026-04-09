@@ -1,6 +1,6 @@
 ---
-author: Claude Code
-date: 2026-03-17
+author: Claude Sonnet 4.6
+date: 2026-03-26
 version: 0.5
 ---
 
@@ -60,12 +60,12 @@ A space with no `query` and no `contains` edges is empty by definition. A space 
 
 **System spaces** have deterministic IDs:
 
-| ID | Purpose |
-|---|---|
-| `objects:root` | Root view. Never shown in UI; its `contains` edges define what appears at `/`. |
-| `objects:all` | Navigable view showing all leaf objects. Pinned to root on first boot. |
+| ID | Constant | Purpose |
+|---|---|---|
+| `objects:⟨~⟩` | `HOME_SPACE_ID` | Home view. `activeSpaceId` defaults here at rest. Its `contains` edges define the home list. |
+| `objects:⟨/⟩` | `ROOT_SPACE_ID` | All-objects view. In-memory filter over all non-system objects; no DB containment query. |
 
-Membership is evaluated server-side via `db:evaluateSpace`. Results are cached in `activeSpaceObjects` (active space) and `rootObjects` (root) in the store.
+Membership is evaluated server-side via `db:evaluateSpace`. Results are cached in `activeSpaceObjects` (active space) and `rootObjects` (home) in the store.
 
 The active space is the **capture target**: Cmd+I imports the new object into whichever space is currently active.
 
@@ -103,6 +103,7 @@ A label applied to objects. Tags are globally defined and can be assigned to any
   color?: string,       // Optional hex color
   description?: string,
   system: boolean,      // true for auto-assigned system tags
+  schema?: string[],    // Ordered list of tag type IDs; present on type tag_definition records only
   created_at: string,
 }
 ```
@@ -134,8 +135,8 @@ A first-class record in the `tag_types` table that categorizes tags. Type member
 
 | ID | Label | Scope | Displayed | Description |
 |---|---|---|---|---|
-| `tag_types:medium` | Medium | Object | Yes | Signal format of the content (audio, video, image, text). Derived at capture. |
-| `tag_types:kind` | Kind | Object | Yes | Semantic form (book, essay, song, photo). Asserted at capture; open set. |
+| `tag_types:medium` | Medium | Object | Yes | Signal format of the content (audio, video, image, text). Derived at capture; auto-assignment is backlog. |
+| `tag_types:type` | Type | Object | Yes | Object type (book, song, document, etc.). Governs the schema of guided fields shown in the detail pane. |
 | `tag_types:file` | File | Source | No | File extension per source. Derived at capture. |
 | `tag_types:origin` | Origin | Source | No | Device or host that provided the source. Derived at capture. |
 
@@ -143,13 +144,15 @@ A tag with no `typed` edge is untyped — valid and grouped under `∅` in TagsV
 
 System types are seeded via `UPSERT` on every boot from `SYSTEM_TAG_TYPES` in `domain/tag-types.js`.
 
+**Object Type and schema:** A type value (e.g. "book") is a `tag_definitions` record whose tag type is `type`. That record carries a `schema` field — an ordered array of tag type IDs — that the UI uses to render guided metadata fields. The object data model is flat; the schema is an interface concern. `seedTypeSchemas()` in `connection.js` writes standard schemas on every boot (book, document, image, video, audio). Field tag types (`author`, `published`, `genre`, etc.) have `display: false`. Tag types are the field system — no separate schema data structure exists.
+
 ---
 
 ### Device
 
-Each installation of Index identifies itself with a device name chosen by the user on first launch.
+Each installation of Index identifies itself with a device name chosen by the user on first launch. Devices are first-class records in the `devices` table — not just embedded strings.
 
-**Stored at:** `~/.index/.device-id`
+**Local identity stored at:** `~/.index/.device-id`
 ```javascript
 {
   id: string,        // UUID
@@ -159,7 +162,25 @@ Each installation of Index identifies itself with a device name chosen by the us
 }
 ```
 
-The device name becomes the `origin` value for all locally-added file sources.
+**DB record (`devices` table):**
+```javascript
+{
+  id: string,   // "devices:⟨My Laptop⟩" or "devices:⟨web⟩"
+  name: string, // Display name
+}
+```
+
+`devices:⟨web⟩` is seeded at boot for HTTP/HTTPS origins. All other devices are created
+via `getOrCreateDevice(name)` in `device-service.js`.
+
+Objects are related to their origin device via a `sourced_from` RELATE edge. This edge
+is written when objects are created and updated, and is covered by LIVE SELECT. On first
+boot, a backfill migration creates `sourced_from` edges for all existing objects that
+only have a `source.origin` string.
+
+Devices can be used in space rules via `from_any` and `from_none` arrays in `evaluateSpace()`.
+The store holds all device records in `devices`; the preload exposes `getDevices` and
+`onDevicesChanged`.
 
 ---
 
@@ -175,6 +196,7 @@ SurrealDB `RELATE` edges are the primary mechanism for expressing relationships 
 | `contains` | `objects → objects` | `order: number` | Space explicitly includes this object |
 | `excludes` | `objects → objects` | — | Space explicitly excludes this object |
 | `typed` | `tag_definitions → tag_types` | — | Tag belongs to this type |
+| `sourced_from` | `objects → devices` | — | Object originated from this device |
 
 **Edge queries follow the `in`/`out` field pattern:**
 ```sql
@@ -182,13 +204,16 @@ SurrealDB `RELATE` edges are the primary mechanism for expressing relationships 
 SELECT out FROM tagged WHERE in = objects:abc
 
 -- Members explicitly pinned to a space:
-SELECT out, `order` FROM contains WHERE in = objects:root
+SELECT out, `order` FROM contains WHERE in = objects:⟨~⟩
 
 -- Type of a tag:
 SELECT out FROM typed WHERE in = tag_definitions:xyz
+
+-- Device an object came from:
+SELECT out FROM sourced_from WHERE in = objects:abc
 ```
 
-All four edge tables have LIVE SELECT subscriptions. The store handles each event channel individually — no full-table rescans on mutation.
+All five edge tables have LIVE SELECT subscriptions. The store handles each event channel individually — no full-table rescans on mutation.
 
 ---
 
@@ -240,6 +265,7 @@ When a source file is no longer found at its original path, Index attempts recov
 │   └── typed_edges.json       ← All tag→type edges
 ├── .device-id                 ← Device identification
 ├── .version                   ← Written on first v0.4 boot; gates v0.3 migration
+├── appearance.json            ← Appearance settings (IPC-backed; localStorage is in-session cache)
 └── window-settings.json       ← Window geometry and profile
 ```
 
@@ -282,7 +308,8 @@ All renderer↔main communication goes through `window.electronAPI` (context bri
 - `db.addExcludes(parentId, childId)` — Create an `excludes` edge
 - `db.removeExcludes(parentId, childId)` — Delete an `excludes` edge
 
-**Device:**
+**Devices:**
+- `db.getDevices()` — Get all device records
 - `device.getOrigin()` — Get current device name
 - `device.getId()` — Get device UUID
 - `device.isNamed()` — Check if device has been named
@@ -291,6 +318,7 @@ All renderer↔main communication goes through `window.electronAPI` (context bri
 **File system:**
 - `fs.pickFile()` — Open native file picker
 - `fs.getPathForFile(file)` — Get filesystem path from a File object
+- `fs.readFolder(path)` — Read folder tree recursively; returns flat list with `path`, `name`, `type`, `relativePath`; dirs before contents; dotfiles skipped
 - `app.openSource(uri)` — Open file or URL in native app
 
 **Window:**
@@ -304,22 +332,35 @@ All renderer↔main communication goes through `window.electronAPI` (context bri
 - `onExcludesLive(cb)` — `excludes` edge created or deleted; `{ action, result }`
 - `onTagDefinitionsLive(cb)` — Tag definition created, updated, or deleted; `{ action, result }`
 - `onTypedLive(cb)` — `typed` edge created or deleted; `{ action, result }`
+- `onDevicesChanged(cb)` — Device record created or updated; full devices array
 
 ---
 
 ## UI
 
-### Root View (`/`)
+### Home View (`~`)
 
-Shows objects explicitly pinned to `objects:root` via `contains` edges, rendered by `ObjectListView`. Spaces appear first. Nothing appears here without an explicit pin — creating a space auto-pins it.
+Shows objects explicitly pinned to `objects:⟨~⟩` via `contains` edges, rendered by `ObjectListView`. `activeSpaceId` is always `HOME_SPACE_ID` at rest — never null. Creating a space auto-pins it here.
+
+### All-Objects View (`/`)
+
+`objects:⟨/⟩` — an in-memory filter over all non-system objects. Not evaluated via `evaluateSpace`; the store filters the full `objects` array client-side. No `contains` edges are written here.
 
 ### ObjectListView
 
-List of objects inside the active space (or root). Handles both spaces (double-click to enter) and leaf objects (double-click to open). Spaces are marked with `▸`.
+List of objects inside the active space. Handles both spaces (double-click to enter) and leaf objects (double-click to open source URI). Single-click selects and opens `ObjectDetailPane`. Type indicated by ●/○ icon (object/space) in the first grid column. Filter button (top-left) cycles `filterSide` (objects/spaces) on click and toggles `filterCombined` on hold (300 ms); bound to `` ` `` key with the same tap/hold logic.
+
+### ObjectDetailPane
+
+Finder-style sidebar that opens on single-click selection in both list and graph views. Sections: name (editable), TypeField (object type badge; editable), TypeSchemaSection (guided metadata fields driven by the type's schema — shown only when the type has a schema), source badge (origin, full URI on hover), "Added" date, tag assignment (`TagAssignmentSection` — excludes schema fields already shown in TypeSchemaSection), and either space rules (`SpaceRulesSection`) for spaces. Pin button (◈) toggles containment in `~`; hidden for system objects.
+
+### GraphView
+
+D3 force-directed visualization. Nodes use ●/○ visual language matching the list view. Click-to-select opens `ObjectDetailPane` in the same `content-with-detail` layout as the list. Simulation lifecycle is split: mount effect (once, never tears down), data effect (position reconciliation on `objects` change), resize effect (center nudge only). Edges are not yet rendered.
 
 ### AddressBar
 
-Persistent navigation strip. Shows the current location (`/`, space name, or date). CMD+L focuses an in-place navigation input with Tab/Arrow/Enter keyboard navigation.
+Persistent navigation strip. Shows the current location (`~`, space name, or `/`). CMD+L focuses an in-place navigation input with Tab/Arrow/Enter keyboard navigation. `+` dropdown creates Object or Space in the active context.
 
 ### Command Palette (CMD+K)
 
@@ -327,34 +368,29 @@ Global command interface. Accepts free-text input to navigate between top-level 
 
 ### TagsView
 
-Tag management view. Tags are grouped by type in a left nav (∅ for untyped, then typed sections). Supports tag creation, editing, and deletion. New types can be created from the bottom of the nav.
-
-### QuickSpaceView
-
-Floating overlay window (CMD+`). Always-on-top, visible across all macOS Spaces. Displays the active space's contents as a graph. Space selection via the integrated command palette.
+Tag management view. "Types" is pinned as the first nav item (selected by default) and shows all type tag values. Selecting a type value opens a schema editor in a third panel — showing the ordered field list and an Add field input (creates new tag types if the name doesn't exist). Below the Types row, remaining tag types are grouped under a "Tag Types" divider (∅ for untyped). Supports tag creation, editing, and deletion. New types can be created from the bottom of the nav.
 
 ### Settings
 
-Opened with CMD+,. Device name, window profile (overlay/window), appearance (light/dark, HSLA background).
+Opened with CMD+,. Tabs: Devices (live list of all device records; current device marked with "this device" badge), Appearance (light/dark, HSLA background; settings persisted to `~/.index/appearance.json`), Keybinds (static keyboard shortcut reference). Escape restores the prior view and space context rather than defaulting to home.
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
-| Cmd+` | Toggle overlay window |
-| Cmd+Shift+` | Toggle main window visibility |
+| Cmd+Shift+Space | Toggle main window visibility |
+| Cmd+\` | Navigate to `~` (home) |
+| Cmd+/ | Navigate to `/` (all objects) |
 | Cmd+I | Capture frontmost browser tab |
 | Cmd+K | Open command palette |
 | Cmd+L | Focus address bar / space navigator |
 | Cmd+, | Open settings |
-| Cmd+. | Toggle detail panel |
-| Cmd+/ | Navigate to root |
-| Cmd+O | Create new object |
+| V | Toggle list / graph view |
+| `` ` `` | Cycle list filter (hold 300 ms for combined) |
 | Cmd+A / Cmd+← | Navigate back |
 | Cmd+D / Cmd+→ | Navigate forward |
-| Cmd+Z | Undo last destructive action |
-| Escape | Close / cancel |
+| Escape | Close / restore prior context |
 
 ---
 
-*Glossary v0.5 — Updated March 2026*
+*Glossary v0.5 — Updated 2026-04-03*

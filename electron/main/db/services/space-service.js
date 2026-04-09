@@ -25,9 +25,11 @@ export async function evaluateSpace(db, spaceId) {
 
   const query = space.query || null;
 
-  // 1. Evaluate tag query rules against all non-space objects
+  // 1. Evaluate tag + device query rules against all non-space objects
   const ruleMatchedIds = new Set();
-  const hasRules = query && (query.all?.length || query.any?.length || query.none?.length);
+  const hasTagRules = query && (query.all?.length || query.any?.length || query.none?.length);
+  const hasDeviceRules = query && (query.from_any?.length || query.from_none?.length);
+  const hasRules = hasTagRules || hasDeviceRules;
 
   if (hasRules) {
     const objectsResult = await db.query('SELECT * FROM objects WHERE !space OR space = false');
@@ -35,15 +37,26 @@ export async function evaluateSpace(db, spaceId) {
 
     for (const obj of allObjects) {
       const objId = obj.id?.toString?.() ?? obj.id;
-
-      // Fetch this object's tags via the tagged edge
-      const tagsResult = await db.query(`SELECT out FROM tagged WHERE in = ${objId}`);
-      const tagIds = new Set((tagsResult[0] || []).map(r => r.out?.toString?.() ?? r.out));
-
       let matches = true;
-      if (query.all?.length && !query.all.every(t => tagIds.has(t))) matches = false;
-      if (matches && query.any?.length && !query.any.some(t => tagIds.has(t))) matches = false;
-      if (matches && query.none?.length && query.none.some(t => tagIds.has(t))) matches = false;
+
+      // Tag rules
+      if (hasTagRules) {
+        const tagsResult = await db.query(`SELECT out FROM tagged WHERE in = ${objId}`);
+        const tagIds = new Set((tagsResult[0] || []).map(r => r.out?.toString?.() ?? r.out));
+
+        if (query.all?.length && !query.all.every(t => tagIds.has(t))) matches = false;
+        if (matches && query.any?.length && !query.any.some(t => tagIds.has(t))) matches = false;
+        if (matches && query.none?.length && query.none.some(t => tagIds.has(t))) matches = false;
+      }
+
+      // Device rules
+      if (matches && hasDeviceRules) {
+        const devResult = await db.query(`SELECT out FROM sourced_from WHERE in = ${objId}`);
+        const deviceIds = new Set((devResult[0] || []).map(r => r.out?.toString?.() ?? r.out));
+
+        if (query.from_any?.length && !query.from_any.some(d => deviceIds.has(d))) matches = false;
+        if (matches && query.from_none?.length && query.from_none.some(d => deviceIds.has(d))) matches = false;
+      }
 
       if (matches) ruleMatchedIds.add(objId);
     }

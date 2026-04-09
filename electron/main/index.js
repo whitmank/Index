@@ -10,12 +10,14 @@ import { exportToJson } from './db/export.js';
 import { startLiveQueries } from './db/live-queries.js';
 import { registerDbHandlers, setMainWindow } from './ipc/db-handlers.js';
 import { registerWindowHandlers, setProfileChangeCallback } from './ipc/window-handlers.js';
+import { registerFsHandlers, readFolderTree } from './ipc/fs-handlers.js';
 import { initializeDeviceId } from './config/device.js';
 import { loadWindowSettings } from './config/window-settings.js';
 import { ensureDeviceNamed } from './dialogs/device-naming-dialog.js';
 import * as deviceHandlers from './ipc/device-handlers.js';
 import { handleCaptureShortcut } from './capture/index.js';
 import path from 'path';
+import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,46 @@ let quickWindow = null;
 let windowManager;
 let dbStarted = false;
 let windowConfig;
+
+// Queued import path if open-url fires before the window is ready.
+let pendingImportPath = null;
+
+// Register the index:// URL scheme before ready so macOS routes it to this app.
+app.setAsDefaultProtocolClient('index');
+
+async function triggerImport(importPath) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+  try {
+    const stat = await fs.stat(importPath);
+    const tree = stat.isDirectory()
+      ? await readFolderTree(importPath)
+      : { name: path.basename(importPath), path: importPath, type: 'file', children: [] };
+    mainWindow.webContents.send('main:importFolder', tree);
+  } catch (err) {
+    console.error('[Import] Failed to read path:', importPath, err.message);
+  }
+}
+
+// macOS delivers the URL via open-url; must be registered before ready.
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'import') {
+      const importPath = decodeURIComponent(parsed.searchParams.get('path') ?? '');
+      if (!importPath) return;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        triggerImport(importPath);
+      } else {
+        pendingImportPath = importPath;
+      }
+    }
+  } catch {
+    // malformed URL — ignore
+  }
+});
 
 // Active space registry — updated by each window via app:setActiveSpace
 const activeSpaceRegistry = { main: null, overlay: null };
@@ -186,6 +228,7 @@ app.on('ready', async () => {
 
     registerDbHandlers();
     registerWindowHandlers();
+    registerFsHandlers();
     setProfileChangeCallback(recreateWindow);
 
     // Track active space per window for capture targeting
@@ -205,6 +248,13 @@ app.on('ready', async () => {
     // Wire LIVE SELECT subscriptions
     const db = getDatabase();
     await startLiveQueries(db);
+
+    // Flush any import queued before the window was ready (cold-launch via URL scheme).
+    if (pendingImportPath) {
+      const p = pendingImportPath;
+      pendingImportPath = null;
+      triggerImport(p);
+    }
 
     console.log('[App] Application ready');
   } catch (error) {

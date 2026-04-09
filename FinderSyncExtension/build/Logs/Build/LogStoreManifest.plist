@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>12</integer>
+	<key>logs</key>
+	<dict>
+		<key>2327DEB7-9497-4550-8059-88B99603AF45</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>2327DEB7-9497-4550-8059-88B99603AF45.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>FinderSyncExtension project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>FinderSyncExtension</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project FinderSyncExtension with scheme FinderSyncExtension and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>796704975.03949904</real>
+			<key>timeStoppedRecording</key>
+			<real>796704976.67899299</real>
+			<key>title</key>
+			<string>Building project FinderSyncExtension with scheme FinderSyncExtension and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>2327DEB7-9497-4550-8059-88B99603AF45</string>
+		</dict>
+		<key>4A063A95-0BEF-4842-B72B-843FDED50F95</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>4A063A95-0BEF-4842-B72B-843FDED50F95.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>FinderSyncExtension project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>FinderSyncExtension</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project FinderSyncExtension with scheme FinderSyncExtension and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>796704230.11004305</real>
+			<key>timeStoppedRecording</key>
+			<real>796704233.65133202</real>
+			<key>title</key>
+			<string>Building project FinderSyncExtension with scheme FinderSyncExtension and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>4A063A95-0BEF-4842-B72B-843FDED50F95</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

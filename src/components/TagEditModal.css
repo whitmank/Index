@@ -1,0 +1,286 @@
+/**
+ * TagEditModal Styles
+ *
+ * Author: Claude Sonnet 4.6
+ */
+
+/* ── Overlay ─────────────────────────────────────────────────────────────── */
+
+.tag-edit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+  animation: overlay-fadein 140ms ease;
+}
+
+@keyframes overlay-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Modal container ─────────────────────────────────────────────────────── */
+
+.tag-edit-modal {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  width: 440px;
+  max-width: calc(100vw - 40px);
+  max-height: 70vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  animation: modal-slidein 160ms ease;
+}
+
+@keyframes modal-slidein {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.tag-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+.tag-edit-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tag-edit-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #666;
+}
+
+.tag-edit-subject {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #ccc;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-edit-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 120ms, background 120ms;
+}
+
+.tag-edit-close:hover {
+  color: #ccc;
+  background: #2a2a2a;
+}
+
+/* ── Body ────────────────────────────────────────────────────────────────── */
+
+.tag-edit-body {
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Single-object mode — TagAssignmentSection renders directly */
+.tag-edit-body .tags-assignment {
+  gap: 10px;
+}
+
+/* ── Batch body ──────────────────────────────────────────────────────────── */
+
+.batch-tag-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+
+/* ── Batch groups ────────────────────────────────────────────────────────── */
+
+.batch-tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.batch-tag-group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #555;
+}
+
+.batch-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+/* Partial tags — dimmed */
+.tag-badge--partial {
+  opacity: 0.6;
+}
+
+.tag-badge--partial:hover {
+  opacity: 0.85;
+}
+
+.tag-badge-count {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.tag-badge-action {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 1px;
+  opacity: 0.7;
+  transition: opacity 100ms;
+}
+
+.tag-badge-action:hover {
+  opacity: 1;
+}
+
+/* ── States ──────────────────────────────────────────────────────────────── */
+
+.batch-tag-loading,
+.batch-tag-empty {
+  font-size: 0.78rem;
+  color: #555;
+  margin: 0;
+  padding: 4px 0;
+}
+
+/* ── SpaceRulesSection dark-mode overrides ───────────────────────────────── */
+
+.tag-edit-body .srs-add-btn {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #666;
+}
+
+.tag-edit-body .srs-add-btn:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #aaa;
+}
+
+.tag-edit-body .srs-divider {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.tag-edit-body .srs-input {
+  background: #141414;
+  border-color: #333;
+  color: #e8e4de;
+}
+
+.tag-edit-body .srs-input:focus {
+  border-color: #555;
+}
+
+.tag-edit-body .srs-input::placeholder {
+  color: #555;
+}
+
+.tag-edit-body .srs-suggestions {
+  background: #222;
+  border-color: #333;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tag-edit-body .srs-suggestion {
+  color: #ccc;
+}
+
+.tag-edit-body .srs-suggestion:hover,
+.tag-edit-body .srs-suggestion.highlighted {
+  background: #2a2a2a;
+  color: #e8e4de;
+}
+
+/* ── TagAddInput dark-mode overrides ─────────────────────────────────────── */
+/* TagAddInput.css uses light theme defaults; override for the dark modal.   */
+
+.tag-edit-body .tag-field1,
+.tag-edit-body .tag-field2 {
+  background: #141414;
+  border-color: #333;
+  color: #e8e4de;
+}
+
+.tag-edit-body .tag-field1:focus,
+.tag-edit-body .tag-field2:focus {
+  border-color: #555;
+}
+
+.tag-edit-body .tag-field1::placeholder,
+.tag-edit-body .tag-field2::placeholder {
+  color: #555;
+}
+
+.tag-edit-body .tag-field1.is-type {
+  color: #888;
+}
+
+.tag-edit-body .tag-add-submit {
+  border-color: #333;
+  color: #666;
+}
+
+.tag-edit-body .tag-add-submit:hover {
+  border-color: #555;
+  color: #ccc;
+}
+
+.tag-edit-body .tag-suggestions {
+  background: #222;
+  border-color: #333;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tag-edit-body .tag-suggestion {
+  color: #ccc;
+}
+
+.tag-edit-body .tag-suggestion:hover,
+.tag-edit-body .tag-suggestion.highlighted {
+  background: #2a2a2a;
+  color: #e8e4de;
+}
+
+.tag-edit-body .suggestion-type {
+  color: #666;
+}
+
+.tag-edit-body .suggestion-name {
+  color: #ccc;
+}

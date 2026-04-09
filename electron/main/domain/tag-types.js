@@ -8,7 +8,8 @@
  *
  * Types:
  *   medium — signal/format (audio, video, image, text). Derived, closed set.
- *   kind   — semantic form (book, essay, song, photo). Asserted, open set.
+ *   type   — object type (book, song, movie, essay). Asserted by user; open set.
+ *            Governs which metadata fields the UI surfaces for an object.
  *   file   — file extension per source. Derived, hidden.
  *   origin — device identifier per source. Derived, hidden.
  */
@@ -22,9 +23,9 @@ export const SYSTEM_TAG_TYPES = {
     deletable: true,
     order: 0,
   },
-  kind: {
-    label: 'Kind',
-    description: 'The semantic form of the content — book, essay, song, photo. Asserted by the user; open set.',
+  type: {
+    label: 'Type',
+    description: 'The type of the object — book, song, movie, essay. Asserted by the user; open set. Determines which metadata fields the UI suggests.',
     scope: 'object',
     display: true,
     editable: true,

@@ -137,6 +137,12 @@
   color: #111;
 }
 
+.address-bar-dropdown-icon {
+  margin-right: 6px;
+  opacity: 0.4;
+  font-size: 0.65rem;
+}
+
 /* ── Right slot / view switcher ──────────────────────────────────────── */
 
 .address-bar-right-slot {

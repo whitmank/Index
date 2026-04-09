@@ -1,123 +1,175 @@
 import { useEffect, useRef, useState } from 'react';
-import { createForceSimulation, stopSimulation } from '../lib/forceSimulation';
+import { createForceSimulation, updateSimulationNodes, updateSimulationDimensions, stopSimulation } from '../lib/forceSimulation';
 import { select } from 'd3-selection';
 import { zoom } from 'd3-zoom';
 import { drag } from 'd3-drag';
 import '../styles/GraphView.css';
 
 /**
- * GraphView - Renders a D3 force-directed graph
+ * GraphView - Renders a D3 force-directed graph.
+ *
+ * Lifecycle is split into three independent effects:
+ *   mount    — creates SVG skeleton and zoom behavior once; never rebuilds
+ *   data     — reconciles nodes in-place via D3 general update; preserves positions
+ *   resize   — nudges forceCenter on container size change
  *
  * Author: Claude Code (Anthropic)
  */
-export default function GraphView({ objects }) {
-  const svgRef = useRef(null);
-  const simulationRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+export default function GraphView({ objects, onObjectSelect }) {
+  const svgRef          = useRef(null);
+  const simulationRef   = useRef(null);
+  const onObjectSelectRef = useRef(onObjectSelect);
+  const nodesRef        = useRef([]);           // live node array owned by simulation
+  const gRef            = useRef(null);          // <g class="graph-inner"> D3 selection
+  const nodeGroupRef    = useRef(null);          // current merged .node-group selection
+  const zoomBehaviorRef = useRef(null);          // zoom instance — persists across data updates
+  const dimensionsRef   = useRef({ width: 800, height: 600 }); // readable in async tick
 
-  // Initialize force simulation and render loop
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [selectedId, setSelectedId] = useState(null);
+
+  // Keep callback ref current without causing other effects to re-run
+  useEffect(() => { onObjectSelectRef.current = onObjectSelect; }, [onObjectSelect]);
+
+  // ── Mount effect ────────────────────────────────────────────────────────────
+  // Creates permanent SVG skeleton and zoom behavior. Runs once.
   useEffect(() => {
     if (!svgRef.current) return;
-
     const svg = select(svgRef.current);
+    svg.selectAll('*').remove();
 
+    gRef.current = svg.append('g').attr('class', 'graph-inner');
+
+    zoomBehaviorRef.current = zoom().on('zoom', (event) => {
+      gRef.current.attr('transform', event.transform);
+    });
+    svg.call(zoomBehaviorRef.current);
+    svg.on('dblclick.zoom', null);
+  }, []);
+
+  // ── Data update effect ──────────────────────────────────────────────────────
+  // Reconciles nodes in-place. Never touches SVG structure or zoom state.
+  useEffect(() => {
+    if (!svgRef.current || !gRef.current) return;
+
+    // Empty case: clear and stop
     if (!objects || objects.length === 0) {
-      svg.selectAll('*').remove();
+      if (simulationRef.current) {
+        stopSimulation(simulationRef.current);
+        simulationRef.current = null;
+      }
+      gRef.current.selectAll('.node-group').remove();
+      nodesRef.current = [];
+      nodeGroupRef.current = null;
       return;
     }
-    const rect = svgRef.current.getBoundingClientRect();
-    const width = rect.width || 800;
-    const height = rect.height || 600;
 
-    setDimensions({ width, height });
+    const { width, height } = dimensionsRef.current;
 
-    // Create node data with initial positions
-    const nodes = objects.map((obj, i) => {
+    // Reconcile positions: survivors keep x/y/vx/vy/fx/fy; new nodes spawn at center ± jitter
+    const existingById = new Map(nodesRef.current.map(n => [n.id, n]));
+    nodesRef.current = objects.map(obj => {
       const fallback = obj.name.length > 24 ? obj.name.slice(0, 23) + '…' : obj.name;
+      const ex = existingById.get(obj.id);
       return {
         id: obj.id,
         name: obj.name,
+        isSpace: !!obj.space,
         displayLabel: obj.label || fallback,
         source: obj.sources?.[0]?.uri,
-        x: width / 2 + (Math.random() - 0.5) * 100,
-        y: height / 2 + (Math.random() - 0.5) * 100,
+        x:  ex?.x  ?? (width  / 2 + (Math.random() - 0.5) * 100),
+        y:  ex?.y  ?? (height / 2 + (Math.random() - 0.5) * 100),
+        vx: ex?.vx ?? 0,
+        vy: ex?.vy ?? 0,
+        fx: ex?.fx ?? null,
+        fy: ex?.fy ?? null,
       };
     });
 
-    // Create force simulation
-    const simulation = createForceSimulation(nodes, { width, height }, () => {
-      updateNodePositions();
-    });
+    // Simulation: create on first data (or after empty), otherwise update in-place
+    if (!simulationRef.current) {
+      simulationRef.current = createForceSimulation(
+        () => nodesRef.current,
+        { width, height },
+        () => {
+          if (nodeGroupRef.current) {
+            nodeGroupRef.current.attr('transform', d => `translate(${d.x},${d.y})`);
+          }
+        }
+      );
+    } else {
+      updateSimulationNodes(simulationRef.current, nodesRef.current, { width, height });
+    }
 
-    simulationRef.current = simulation;
+    // D3 general update ─────────────────────────────────────────────────────────
+    const g = gRef.current;
+    const joined = g.selectAll('.node-group').data(nodesRef.current, d => d.id);
 
-    // Create SVG groups
-    svg.selectAll('*').remove();
+    // EXIT — remove DOM nodes for deleted objects
+    joined.exit().remove();
 
-    const g = svg.append('g').attr('class', 'graph-inner');
+    // ENTER — create elements for new nodes
+    const entered = joined.enter().append('g').attr('class', 'node-group');
 
-    // Add zoom behavior
-    const zoomBehavior = zoom().on('zoom', (event) => {
-      g.attr('transform', event.transform);
-    });
-    svg.call(zoomBehavior);
+    entered.append('circle').attr('class', 'node').attr('r', 12);
+    entered.append('text').attr('class', 'node-label')
+      .attr('text-anchor', 'start').attr('dx', '18px').attr('dy', '0.3em');
 
-    // Disable double-click zoom
-    svg.on('dblclick.zoom', null);
-
-    // Create node group
-    const nodeGroup = g.selectAll('.node').data(nodes, (d) => d.id).enter().append('g').attr('class', 'node-group');
-
-    nodeGroup.append('circle').attr('class', 'node').attr('r', 12);
-
-    nodeGroup.append('text').attr('class', 'node-label').attr('text-anchor', 'start').attr('dx', '18px').attr('dy', '0.3em').text((d) => d.displayLabel);
-
-    // Add drag behavior
-    nodeGroup.call(
+    // Bind drag/hover/click only to entering nodes — handlers persist on DOM nodes
+    entered.call(
       drag()
         .on('start', (event, d) => {
-          if (!event.active) simulation.alphaTarget(0.3).restart();
-          d.fx = d.x;
-          d.fy = d.y;
+          if (!event.active) simulationRef.current.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
         })
-        .on('drag', (event, d) => {
-          d.fx = event.x;
-          d.fy = event.y;
-        })
+        .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
         .on('end', (event, d) => {
-          if (!event.active) simulation.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
+          if (!event.active) simulationRef.current.alphaTarget(0);
+          d.fx = null; d.fy = null;
         })
     );
 
-    // Add hover event handlers
-    nodeGroup.on('mouseenter', function () {
-      select(this).classed('hovered', true);
-    }).on('mouseleave', function () {
-      select(this).classed('hovered', false);
-    });
+    entered
+      .on('mouseenter', function() { select(this).classed('hovered', true); })
+      .on('mouseleave', function() { select(this).classed('hovered', false); })
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        if (event.metaKey || event.ctrlKey) {
+          window.electronAPI?.openSource?.(d.source);
+        } else {
+          setSelectedId(d.id);
+          onObjectSelectRef.current?.(d.id);
+        }
+      });
 
-    // Cmd/Ctrl+Click: open source
-    nodeGroup.on('click', (event, d) => {
-      event.stopPropagation();
-      if (event.metaKey || event.ctrlKey) window.electronAPI?.openSource?.(d.source);
-    });
+    // MERGE — update mutable display properties on all live nodes (enter + update)
+    const merged = entered.merge(joined);
+    merged.select('circle').classed('node--space', d => d.isSpace);
+    merged.select('text').text(d => d.displayLabel);
 
-    // Update positions on each simulation tick
-    function updateNodePositions() {
-      nodeGroup.attr('transform', (d) => `translate(${d.x},${d.y})`);
-    }
+    nodeGroupRef.current = merged;
 
-    // Initial layout
-    updateNodePositions();
+    // Restore selected class after reconciliation
+    g.selectAll('.node-group').classed('selected', d => d.id === selectedId);
 
-    return () => {
-      stopSimulation(simulation);
-    };
-  }, [objects, dimensions.width, dimensions.height]);
+  }, [objects]); // eslint-disable-line react-hooks/exhaustive-deps
+  // selectedId is read for the post-reconciliation class restore but must not trigger this effect
 
-  // Observe SVG element size — more reliable than window resize in Electron
+  // ── Resize effect ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    dimensionsRef.current = dimensions;
+    if (!simulationRef.current) return;
+    updateSimulationDimensions(simulationRef.current, dimensions);
+  }, [dimensions]);
+
+  // ── Selected class effect ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!svgRef.current) return;
+    select(svgRef.current).selectAll('.node-group')
+      .classed('selected', d => d.id === selectedId);
+  }, [selectedId]);
+
+  // ── ResizeObserver ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!svgRef.current) return;
     const ro = new ResizeObserver(entries => {

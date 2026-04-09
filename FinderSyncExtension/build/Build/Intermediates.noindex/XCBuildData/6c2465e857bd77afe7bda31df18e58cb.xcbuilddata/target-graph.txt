@@ -1,0 +1,2 @@
+Target dependency graph (1 target)
+Target 'FinderSyncExtension' in project 'FinderSyncExtension' (no dependencies)

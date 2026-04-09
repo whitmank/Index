@@ -10,6 +10,7 @@ import { findOrCreateSystemTag } from '../db/services/system-tags.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
 import { createObjectCore } from '../db/services/object-service.js';
+import { syncSourcedFromEdges, findOrCreateDevice } from '../db/services/device-service.js';
 import { evaluateSpace } from '../db/services/space-service.js';
 import { normalizeRecord, normalizeRecords } from '../utils/normalize.js';
 import { isSystemTagDeletable } from '../domain/tag-types.js';
@@ -62,9 +63,20 @@ export function registerDbHandlers() {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
+      const trimmedName = data.name.trim();
+
+      // Case-insensitive dedup — return existing if name already taken
+      const dupCheck = await db.query(
+        `SELECT id FROM tag_types WHERE string::lowercase(name) = string::lowercase('${trimmedName.replace(/'/g, "\\'")}')`
+      );
+      if (dupCheck[0]?.length > 0) {
+        const existing = normalizeRecord(dupCheck[0][0]);
+        return { success: true, data: existing };
+      }
+
       const record = {
-        name: data.name,
-        label: data.label || data.name,
+        name: trimmedName,
+        label: data.label?.trim() || trimmedName,
         system: false,
         display: true,
         editable: true,
@@ -187,6 +199,11 @@ export function registerDbHandlers() {
       }
 
       const result = await db.query(`UPDATE ${id} MERGE ${JSON.stringify(updateObj)}`);
+
+      if (objectData.sources !== undefined) {
+        await syncSourcedFromEdges(db, id, updateObj.sources);
+      }
+
       scheduleExport(db);
 
       return { success: true, data: result };
@@ -203,13 +220,30 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
+      const trimmedTagName = tagData.name?.trim();
+
+      // Case-insensitive dedup — scoped to type when typeId is provided
+      if (trimmedTagName) {
+        const nameClause = `name IS NOT NONE AND name IS NOT NULL AND string::lowercase(name) = string::lowercase('${trimmedTagName.replace(/'/g, "\\'")}') AND system = ${!!tagData.system}`;
+        const typeClause = tagData.typeId
+          ? `AND id INSIDE (SELECT VALUE in FROM typed WHERE out = ${tagData.typeId})`
+          : '';
+        const dupCheck = await db.query(
+          `SELECT * FROM tag_definitions WHERE ${nameClause} ${typeClause}`
+        );
+        if (dupCheck[0]?.length > 0) {
+          return { success: true, data: normalizeRecord(dupCheck[0][0]) };
+        }
+      }
+
       const tagRecord = {
-        name: tagData.name,
+        name: trimmedTagName,
         color: tagData.color || null,
         description: tagData.description || null,
         system: tagData.system || false,
         created_at: new Date().toISOString(),
       };
+      if (tagData.schema !== undefined) tagRecord.schema = tagData.schema;
       const result = await db.create('tag_definitions', tagRecord);
       const created = Array.isArray(result) ? result[0] : result;
       const tagId = created.id?.toString?.() ?? created.id;
@@ -235,9 +269,10 @@ export function registerDbHandlers() {
       if (!db) throw new Error('Database not connected');
 
       const updateObj = {};
-      if (tagData.name        !== undefined) updateObj.name        = tagData.name;
+      if (tagData.name        !== undefined) updateObj.name        = tagData.name?.trim();
       if (tagData.color       !== undefined) updateObj.color       = tagData.color;
       if (tagData.description !== undefined) updateObj.description = tagData.description;
+      if (tagData.schema      !== undefined) updateObj.schema      = tagData.schema;
 
       if (Object.keys(updateObj).length > 0) {
         await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(updateObj)}`);
@@ -480,6 +515,21 @@ export function registerDbHandlers() {
       return { success: true, data: normalizeRecords(objects) };
     } catch (error) {
       console.error('[IPC] Evaluate space error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── DEVICES ────────────────────────────────────────────────────────────────
+
+  ipcMain.handle('db:getDevices', async () => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+      const result = await db.query(`SELECT * FROM devices ORDER BY name`);
+      const data = (Array.isArray(result) && result.length > 0) ? result[0] : [];
+      return { success: true, data: normalizeRecords(data) };
+    } catch (error) {
+      console.error('[IPC] Get devices error:', error);
       return { success: false, error: error.message };
     }
   });
