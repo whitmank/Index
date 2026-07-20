@@ -27,7 +27,12 @@ export function createWindow(): BrowserWindow {
     },
   });
 
-  window.once("ready-to-show", () => window.show());
+  window.once("ready-to-show", () => {
+    window.show();
+    // INDEX_TOP keeps the window above everything else — useful when
+    // driving or capturing it while other apps are open.
+    if (process.env.INDEX_TOP) window.setAlwaysOnTop(true);
+  });
 
   const devUrl = process.env.INDEX_RENDERER_URL;
   if (devUrl) {

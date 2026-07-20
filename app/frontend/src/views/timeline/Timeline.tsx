@@ -17,7 +17,7 @@ import { DayPager } from "./DayPager.tsx";
 
 export interface TimelineProps {
   setId: string;
-  onOpen: (item: Item) => void;
+  onOpen: (item: Item, isNew?: boolean) => void;
 }
 
 export function Timeline({ setId, onOpen }: TimelineProps) {

@@ -10,6 +10,8 @@ interface ImportMetaEnv {
   readonly VITE_INDEX_DEBUG?: string;
   /** Set to drive the live UI with synthetic gestures on launch. */
   readonly VITE_INDEX_UICHECK?: string;
+  /** Open the first item whose name contains this, on launch. */
+  readonly VITE_INDEX_OPEN?: string;
 }
 
 interface ImportMeta {

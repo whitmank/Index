@@ -9,7 +9,7 @@
 // console, which the dev runner forwards to the terminal.
 import type { Item } from "@index/database/types";
 import { undo } from "../changes/index.js";
-import { pool } from "../store/index.js";
+import { history, pool } from "../store/index.js";
 
 export interface CheckLine {
   ok: boolean;
@@ -108,6 +108,25 @@ function distanceBetween(a: string, b: string): number {
   const from = readTranslate(a);
   const to = readTranslate(b);
   return Math.hypot(from.x - to.x, from.y - to.y);
+}
+
+/**
+ * Type into a React-controlled input. Setting `.value` directly is
+ * invisible to React — it tracks the last value it rendered — so the
+ * native setter is called and an input event dispatched, which is what a
+ * real keystroke ends up doing.
+ */
+export function typeInto(element: HTMLInputElement | HTMLTextAreaElement, text: string): void {
+  const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
+  const setter = Object.getOwnPropertyDescriptor(prototype.prototype, "value")?.set;
+  setter?.call(element, text);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+export function pressEnter(element: Element): void {
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+  );
 }
 
 /** The database's own answer, through the bridge path a view uses. */
@@ -236,3 +255,94 @@ export async function checkCanvas(setId: string, checks: Checks): Promise<void> 
   );
 }
 
+
+/**
+ * Open an item, edit it through the real editing surface, and check that
+ * every write landed in the pool *and* the database — then that undo
+ * walks each one back.
+ */
+export async function checkFocus(checks: Checks): Promise<void> {
+  const node = await waitFor<HTMLElement>(".pager-pane.is-current .node");
+  if (!node) {
+    checks.say(false, "focus — no node to open");
+    return;
+  }
+  const itemId = node.dataset.item ?? "";
+
+  await clickAt(node);
+  const focus = await waitFor<HTMLElement>(".focus");
+  checks.say(Boolean(focus), "clicking a node opens its focus view");
+  if (!focus) return;
+
+  const chip = focus.querySelector(".opens-as .chip")?.textContent ?? "";
+  checks.say(chip.startsWith("opens as"), `the opens-as chip reads "${chip}"`);
+
+  const slot = focus.querySelector(".content-slot");
+  checks.say(Boolean(slot), `the content slot rendered (${slot?.className ?? "absent"})`);
+
+  // rename, through the name field, committing on blur
+  const nameField = focus.querySelector<HTMLInputElement>(".focus-name");
+  if (!nameField) {
+    checks.say(false, "focus — no name field");
+    return;
+  }
+  const originalName = nameField.value;
+  nameField.focus();
+  typeInto(nameField, "renamed by the checks");
+  nameField.blur();
+  await sleep(300);
+
+  const renamedInPool = pool.getItem(itemId)?.name;
+  const renamedInDb = (await itemFromDatabase(itemId))?.name;
+  checks.say(
+    renamedInPool === "renamed by the checks" && renamedInDb === "renamed by the checks",
+    `commit-on-settle renamed it (pool "${renamedInPool}", database "${renamedInDb}")`,
+  );
+
+  // an unchanged value must not write at all
+  const depthBeforeNoop = historyDepth();
+  nameField.focus();
+  nameField.blur();
+  await sleep(200);
+  checks.say(historyDepth() === depthBeforeNoop, "leaving a field unchanged writes nothing");
+
+  // tag, through the composer — mints the target in the same change
+  const term = focus.querySelector<HTMLInputElement>(".composer-term");
+  if (!term) {
+    checks.say(false, "focus — no connection composer");
+    return;
+  }
+  typeInto(term, "checkstag");
+  pressEnter(term);
+  await sleep(500);
+
+  const tagged = pool
+    .outboundFrom(itemId)
+    .map((connection) => pool.getItem(connection.target)?.name)
+    .filter(Boolean);
+  checks.say(tagged.includes("checkstag"), `the composer tagged it (${tagged.join(", ") || "nothing"})`);
+
+  await undo();
+  await sleep(400);
+  const afterUndo = pool
+    .outboundFrom(itemId)
+    .map((connection) => pool.getItem(connection.target)?.name)
+    .filter(Boolean);
+  checks.say(!afterUndo.includes("checkstag"), "undo takes the tag and its target back");
+
+  await undo();
+  await sleep(400);
+  checks.say(
+    pool.getItem(itemId)?.name === originalName,
+    `undo restores the name to "${originalName}"`,
+  );
+
+  // dismiss
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(300);
+  checks.say(!document.querySelector(".focus"), "Escape dismisses the focus view");
+}
+
+function historyDepth(): number {
+  return history.entries().done.length;
+}
