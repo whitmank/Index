@@ -161,3 +161,92 @@ body {
   border-radius: 4px;
   color: #e06c75;
 }
+
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 2.75rem;
+  padding: 0 0.9rem;
+  border-bottom: 1px solid #1e1e22;
+  -webkit-app-region: drag;
+  padding-left: 5rem; /* clear of the traffic lights */
+}
+
+.bar-set {
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.bar-action {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.bar-action:hover {
+  color: var(--ink);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.stub {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  background: rgb(10 10 12 / 0.82);
+  color: var(--ink-quiet);
+  font-size: 0.8125rem;
+  z-index: 30;
+}
+
+.troubles {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  z-index: 50;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.troubles li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: #e06c75;
+  background: #1a1416;
+  border: 1px solid #4a2b2e;
+  border-radius: 6px;
+}
+
+.troubles button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  opacity: 0.7;
+}

@@ -1,0 +1,153 @@
+/* Authored by Karter Whitman using Claude Opus 4.8 */
+
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  color: var(--ink-quiet);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+.canvas-add {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--ink);
+  background: #1c1c20;
+  border: 1px solid #2e2e34;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.canvas-add:hover {
+  background: #26262c;
+  border-color: #3d3d45;
+}
+
+/* A node sits at the origin and is moved by a transform the simulation
+   writes each tick; everything inside is positioned around that point. */
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  --hw: var(--radius);
+  --hh: var(--radius);
+}
+
+.node-shape {
+  position: absolute;
+  width: calc(var(--radius) * 2);
+  height: calc(var(--radius) * 2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1a1a1e;
+  border: 1px solid #2a2a30;
+  transition:
+    width 160ms ease,
+    height 160ms ease,
+    border-radius 160ms ease;
+}
+
+.node-shape img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+/* Hover grows an image-bearing node into its bounded preview. The
+   simulation already keeps half that box clear of every edge, so the
+   node never has to move to make room. */
+.node.can-grow:hover .node-shape,
+.node.dragging .node-shape {
+  width: var(--hw);
+  height: var(--hh);
+  border-radius: 6px;
+}
+
+.node.can-grow:hover,
+.node.dragging {
+  z-index: 2;
+}
+
+.node.can-grow:hover .node-shape img,
+.node.dragging .node-shape img {
+  object-fit: contain;
+}
+
+.node-caption {
+  position: absolute;
+  top: calc(var(--radius) + 0.5rem);
+  left: 0;
+  transform: translateX(-50%);
+  max-width: 12rem;
+  text-align: center;
+  color: var(--ink-quiet);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  pointer-events: none;
+}
+
+.menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 11rem;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1e;
+  border: 1px solid #2e2e34;
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+.menu-item {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: #26262c;
+}
+
+.menu-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.menu-item.danger {
+  color: #e06c75;
+}
