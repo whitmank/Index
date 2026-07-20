@@ -135,3 +135,50 @@ SIGTERMs the database and everything exits.
    RocksDB directory with the previous version. Different table names, so
    nothing collides today — but it is worth a decision before this is
    anyone's real data.
+
+## Phase 3 — store, changes, history
+
+The record pool with its selectors, the full §3.3 change catalog, the
+optimistic apply path with revert-on-error, and session history on
+`⌘Z`/`⇧⌘Z` with the text-input guard. The debug panel replaces phase 2's
+bridge check and does what the plan asked for: it drives create → rename
+→ tag → place → delete and then undoes each in turn, checking after every
+single step that the pool, the database (read back through the same
+bridge paths a view uses) and the history stack still agree. Seventeen
+checks, all green, and the panel leaves the database with nothing but its
+two seeds.
+
+**Pinned here:**
+
+- **The pool is versioned, not snapshotted.** Subscription is a counter;
+  views read what they need from the map on render. At personal scale a
+  re-render on any change is cheaper than per-selector memoisation, and
+  far less machinery to be wrong.
+- **The pool holds only what is live.** A record arriving with
+  `deleted_at` — from a load or from a write's own answer — is removed
+  rather than stored.
+- **A change that fails to persist is not recorded in history.** The
+  stack has to describe the database; a change that never landed
+  describes nothing. A failed undo or redo is pushed back where it came
+  from for the same reason.
+- `changes/catalog.ts` is the only place in the renderer that decides what
+  a gesture *means*. Constructors ask the pool for the live arrow before
+  making one, which is what keeps the upsert rule true from this side.
+- `lib/ids.ts` and `lib/derive.ts` mirror their counterparts in
+  `app/database` rather than importing them — ARCHITECTURE's dependency
+  rule says the renderer takes types from that package, not values. If the
+  format ladder changes, both change. Same for the seed ids in
+  `lib/seeds.ts`.
+
+**Surprised us:** the soft delete undid itself. `applyPairs` correctly
+removed the record from the pool, and then `send` merged the write's
+answer — which, for a soft-deleted record, is the record — and put it
+straight back. Two functions each doing something reasonable, adding up
+to a delete that didn't. It only showed up because the panel checks the
+pool *and* the database after every step rather than at the end; a
+final-state check would have missed it entirely. That is the argument for
+keeping this panel around.
+
+The other stumble was self-inflicted: StrictMode fires effects twice, so
+the autorun ran two interleaved sequences over shared state and reported
+nonsense history depths. The panel now refuses to run re-entrantly.
