@@ -7,3 +7,5 @@ INSERT RELATION INTO connections { id: connections:c2, in: items:a, out: items:b
 SELECT * FROM connections;
 UPDATE connections:c2 CONTENT { in: items:a, out: items:b };
 SELECT * FROM connections;
+INFO FOR DB;
+SELECT id, name, date, resources FROM items;

@@ -70,29 +70,30 @@ function startProcess(options: Required<Pick<DatabaseOptions, "directory" | "hos
   );
 }
 
-async function waitForReady(url: string): Promise<void> {
+/**
+ * Readiness is polled over plain HTTP rather than by opening a throwaway
+ * SDK connection: a websocket connect to a port nothing is listening on
+ * yet never settles inside Electron's main process, which turns a 10 s
+ * timeout into a hang with no window and no error.
+ */
+async function waitForReady(host: string, port: number): Promise<void> {
+  const health = `http://${host}:${port}/health`;
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError: unknown;
+
   while (Date.now() < deadline) {
-    const probe = new Surreal();
     try {
-      await probe.connect(url, {
-        authentication: { username: DEFAULTS.user, password: DEFAULTS.pass },
-      });
-      await probe.close();
-      return;
+      const response = await fetch(health, { signal: AbortSignal.timeout(READY_INTERVAL_MS * 5) });
+      if (response.ok) return;
+      lastError = new Error(`health returned ${response.status}`);
     } catch (error) {
       lastError = error;
-      try {
-        await probe.close();
-      } catch {
-        /* the probe never opened */
-      }
-      await new Promise((resolve) => setTimeout(resolve, READY_INTERVAL_MS));
     }
+    await new Promise((resolve) => setTimeout(resolve, READY_INTERVAL_MS));
   }
+
   throw new Error(
-    `SurrealDB did not become ready at ${url} within ${READY_TIMEOUT_MS} ms: ${String(lastError)}`,
+    `SurrealDB did not become ready at ${health} within ${READY_TIMEOUT_MS} ms: ${String(lastError)}`,
   );
 }
 
@@ -112,7 +113,7 @@ export async function startDatabase(options: DatabaseOptions = {}): Promise<Data
     child.once("error", (error) => reject(new Error(`could not spawn surreal: ${error.message}`)));
   });
 
-  await Promise.race([waitForReady(url), spawnFailed]);
+  await Promise.race([waitForReady(host, port), spawnFailed]);
 
   const db = new Surreal();
   await db.connect(url, {

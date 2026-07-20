@@ -74,3 +74,64 @@ spec's SurrealQL, none of them design changes —
 
 `created_at` survives an UPSERT that re-sends it, so `READONLY` stayed in
 the schema as written.
+
+## Phase 2 — app/backend
+
+The main process end to end: directories and device config, the SurrealDB
+child, `res://` and `thumb://`, the §2.2 handlers behind a typed preload,
+and the services — resolver, derivations (sharp thumbnails; the
+kwhitman.xyz link scrape ported with the spec's 10 s / 1 MB caps), intake,
+gc. Verified from the renderer: intake stamps a uri and derives
+`thumbnail, mime`; a change applies and reads back through
+`sets.members`; `res://` streams 9.3 MB of a real photo and `thumb://`
+mints and serves a 20 KB cache file; the launch sweep logs; quitting
+SIGTERMs the database and everything exits.
+
+**Pinned here:**
+
+- **`res://uri/<encoded>`, not `res://<encoded>`.** The spec's form puts
+  the encoded uri in the URL's authority. That cannot work: a scheme must
+  be registered `standard` for the renderer to `fetch()` it at all (a
+  non-standard scheme is blocked by CORS outright), a standard scheme
+  requires a non-empty host, and Chromium normalises hosts — while
+  resource paths are case-sensitive. A fixed `uri` host with the encoded
+  uri in the path survives normalisation. The handler still accepts the
+  spec's shape.
+- `pathsToResources` also takes an http(s) url. A pasted link is the same
+  gesture as a dropped file, and §2.2 gives the renderer exactly one way
+  to turn something handed over into a resource; overloading it beat
+  inventing a second handler. It also *awaits* derivations rather than
+  only warming them, so §2.4's "written into `resources[].cached` by the
+  same change" holds.
+- `intake.pathForFile` was added to the bridge. Electron removed
+  `File.path`, so only the preload (via `webUtils`) can turn a dropped
+  File into a path — phase 5's OS drop needs it and nothing else can
+  provide it.
+- The device table is a hand-rolled ~30-line TOML reader. It parses one
+  `self` key and a `[mounts]` section of strings, which is shorter and
+  easier to trust than a dependency, and it ignores anything it doesn't
+  understand.
+- Only workspace code is bundled into `dist/main.js`; third-party packages
+  stay external. Bundling them put cheerio's CommonJS `iconv-lite` inside
+  an ESM bundle, where its dynamic `require` died on load.
+- Renderer console messages are forwarded to the main process's stdout in
+  development, so one log tells the whole story.
+
+**Surprised us:**
+
+1. **A websocket connect never settles in Electron's main process when
+   nothing is listening yet.** The readiness poll from §2.1 — open a
+   throwaway SDK connection, catch, retry — hung forever instead of
+   timing out after 10 s: no window, no error, nothing in the log.
+   Readiness is now polled over plain HTTP against `/health`, which is
+   what that endpoint is for.
+2. **`items:⟨public⟩` is really `items:public`.** SurrealDB brackets only
+   the ids that need it, and the wire id has to be what the SDK renders
+   or ids silently stop matching across the bridge. `~` keeps its
+   brackets; `public` does not. The test now asserts both. (Confusingly,
+   the `surreal` CLI prints these same ids with backticks — a different
+   renderer, not a different id. That cost a detour.)
+3. `~/.index/surreal` already holds 0.6's store, so 0.7 shares a
+   RocksDB directory with the previous version. Different table names, so
+   nothing collides today — but it is worth a decision before this is
+   anyone's real data.

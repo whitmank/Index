@@ -77,6 +77,7 @@ async function main(): Promise<void> {
     const publicSet = await getItem(PUBLIC_SET_ID);
     check("~ exists and is a system item", () => {
       assert.ok(home, "~ missing");
+      assert.equal(home.id, HOME_SET_ID);
       assert.equal(home.name, "~");
       assert.equal(home.system, true);
       assert.deepEqual(home.query, { all: true });
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
     });
     check("public exists with no query", () => {
       assert.ok(publicSet, "public missing");
+      assert.equal(publicSet.id, PUBLIC_SET_ID);
       assert.equal(publicSet.system, true);
       assert.equal(publicSet.query, null);
     });

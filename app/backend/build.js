@@ -4,19 +4,39 @@
 // it fine); the preload must be CommonJS — a sandboxed preload has no
 // module loader — so it is emitted as .cjs.
 import { build, context } from "esbuild";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// Native modules and Electron itself resolve at runtime, never bundled.
-const external = ["electron", "sharp"];
+// Only our own workspace code is bundled. Third-party packages resolve
+// from node_modules at runtime, which keeps the bundle small and — more
+// importantly — keeps CommonJS packages (cheerio's iconv-lite, sharp's
+// native binding) out of an ESM bundle, where their dynamic `require`
+// calls do not survive.
+const dependenciesOf = (workspace) =>
+  Object.keys(
+    JSON.parse(readFileSync(path.join(here, workspace, "package.json"), "utf8")).dependencies ?? {},
+  );
+
+const external = ["electron", ...dependenciesOf("."), ...dependenciesOf("../database")].filter(
+  (name) => !name.startsWith("@index/"),
+);
 
 const targets = [
   {
     entryPoints: [path.join(here, "src/main.ts")],
     outfile: path.join(here, "dist/main.js"),
     format: "esm",
+    // The bundle is ESM but its externals may be CommonJS; give them the
+    // `require` they expect.
+    banner: {
+      js: [
+        'import { createRequire as __createRequire } from "node:module";',
+        "const require = __createRequire(import.meta.url);",
+      ].join("\n"),
+    },
   },
   {
     entryPoints: [path.join(here, "src/preload.ts")],

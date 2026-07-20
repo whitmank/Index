@@ -160,8 +160,15 @@ export const ITEMS_TABLE = "items";
 export const CONNECTIONS_TABLE = "connections";
 export const LABELS_TABLE = "labels";
 
+// The wire id is whatever the SDK renders a record id as, so that ids
+// compared in the renderer match ids read from the database. SurrealDB
+// brackets only the ids that need it: `~` does, `public` does not — which
+// is why the second of these is barer than PRODUCT-SPEC §1.4 writes it.
+// The test asserts both, because guessing here is how ids silently stop
+// matching. (The `surreal` CLI prints the same records with backticks — a
+// different renderer, not a different id.)
 export const HOME_SET_ID = "items:⟨~⟩";
-export const PUBLIC_SET_ID = "items:⟨public⟩";
+export const PUBLIC_SET_ID = "items:public";
 
 /** Which shape a record in a change pair is. */
 export function isItem(record: StoredRecord): record is Item {

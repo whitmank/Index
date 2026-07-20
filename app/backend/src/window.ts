@@ -31,6 +31,11 @@ export function createWindow(): BrowserWindow {
 
   const devUrl = process.env.INDEX_RENDERER_URL;
   if (devUrl) {
+    // In development the renderer's console lands in the same terminal as
+    // the main process's, so one log tells the whole story.
+    window.webContents.on("console-message", (event) => {
+      console.log(`[renderer] ${event.message}`);
+    });
     void window.loadURL(devUrl);
     // Devtools stay closed unless asked for — ⌥⌘I opens them on demand,
     // and a detached inspector on every launch buries the window.

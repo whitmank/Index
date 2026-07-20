@@ -1,14 +1,50 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 // The contextBridge: the narrow, typed surface the renderer sees. It
-// forwards; it never decides. Phase 2 fills in the §2.2 handlers.
-import { contextBridge, ipcRenderer } from "electron";
-import type { IndexBridge } from "./bridge.js";
+// forwards; it never decides. Everything here is one line per handler on
+// purpose — logic belongs on the other side of the wire.
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { BridgeEvents, IndexBridge } from "./bridge.js";
+import { CHANNELS } from "./ipc/channels.js";
+import { resUrl, thumbUrl } from "./urls.js";
+
+const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
 
 const bridge: IndexBridge = {
-  on(channel, listener) {
-    const forward = (_event: unknown, ...args: unknown[]) => listener(...args);
+  sets: {
+    members: (setId, options) => invoke(CHANNELS.setsMembers, setId, options),
+    dates: (setId) => invoke(CHANNELS.setsDates, setId),
+  },
+  items: {
+    get: (id) => invoke(CHANNELS.itemsGet, id),
+    search: (prefix, limit) => invoke(CHANNELS.itemsSearch, prefix, limit),
+  },
+  labels: {
+    list: () => invoke(CHANNELS.labelsList),
+    ensure: (name) => invoke(CHANNELS.labelsEnsure, name),
+  },
+  changes: {
+    apply: (change) => invoke(CHANNELS.changesApply, change),
+  },
+  intake: {
+    pathsToResources: (paths) => invoke(CHANNELS.intakePathsToResources, paths),
+    pick: () => invoke(CHANNELS.intakePick),
+    pathForFile: (file) => webUtils.getPathForFile(file),
+  },
+  shell: {
+    reveal: (uri) => invoke(CHANNELS.shellReveal, uri),
+    openExternal: (uri) => invoke(CHANNELS.shellOpenExternal, uri),
+  },
+  url: {
+    res: resUrl,
+    thumb: thumbUrl,
+  },
+  on<C extends keyof BridgeEvents>(channel: C, listener: (...args: BridgeEvents[C]) => void) {
+    const forward = (_event: unknown, ...args: unknown[]) =>
+      listener(...(args as BridgeEvents[C]));
     ipcRenderer.on(channel, forward);
-    return () => ipcRenderer.off(channel, forward);
+    return () => {
+      ipcRenderer.off(channel, forward);
+    };
   },
 };
 

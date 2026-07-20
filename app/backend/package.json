@@ -17,12 +17,13 @@
   "license": "ISC",
   "dependencies": {
     "@index/database": "*",
+    "cheerio": "^1.2.0",
     "sharp": "^0.34.2"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
-    "esbuild": "^0.25.0",
     "electron": "^39.2.7",
+    "esbuild": "^0.25.0",
     "typescript": "^5.9.3"
   }
 }
