@@ -1,0 +1,9 @@
+#V2
+INSERT RELATION INTO connections { id: connections:c2, in: items:a, out: items:b, note: "x" };
+SELECT * FROM connections;
+UPDATE connections:c2 CONTENT { in: items:a, out: items:b, note: "y" };
+SELECT * FROM connections;
+INSERT RELATION INTO connections { id: connections:c2, in: items:a, out: items:b };
+SELECT * FROM connections;
+UPDATE connections:c2 CONTENT { in: items:a, out: items:b };
+SELECT * FROM connections;
