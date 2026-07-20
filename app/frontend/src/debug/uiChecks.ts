@@ -33,6 +33,16 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Wait for a condition to hold, or give up. */
+export async function waitUntil(holds: () => boolean, timeoutMs = 5000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (holds()) return true;
+    await sleep(50);
+  }
+  return false;
+}
+
 /** Wait for a selector to appear, or give up. */
 export async function waitFor<T extends Element>(
   selector: string,
@@ -107,31 +117,76 @@ export async function itemFromDatabase(id: string): Promise<Item | null> {
 }
 
 /**
+ * Turn the timeline back and forward, and check that the page actually
+ * changes and lands where the skip-empty rule says it should.
+ */
+export async function checkTimeline(checks: Checks): Promise<void> {
+  const nav = await waitFor<HTMLElement>(".timeline-nav");
+  if (!nav) {
+    checks.say(false, "timeline — no pager rendered");
+    return;
+  }
+
+  const label = () =>
+    document.querySelector(".pager-pane.is-current .page-head h2")?.textContent ?? "";
+  const dateOf = () => document.querySelector(".pager-pane.is-current .page-date")?.textContent ?? "";
+
+  await waitFor(".pager-pane.is-current .page-date");
+  const started = { label: label(), date: dateOf() };
+  checks.say(started.label === "today", `timeline opens on today (${started.date})`);
+
+  // The pager only knows which days it can turn to once the set's dates
+  // have loaded, so wait for the control to arm rather than racing it.
+  const older = nav.querySelector<HTMLButtonElement>("button:first-of-type");
+  const armed = await waitUntil(() => Boolean(older && !older.disabled), 6000);
+  if (!older || !armed) {
+    checks.say(false, "timeline — the back control never armed");
+    return;
+  }
+
+  older.click();
+  await sleep(500);
+  const turned = dateOf();
+  checks.say(turned !== started.date && turned < started.date, `turning back lands on ${turned}`);
+
+  // Every day it lands on has members — that is the skip-empty rule.
+  const nodes = document.querySelectorAll(".pager-pane.is-current .node").length;
+  checks.say(nodes > 0, `the day it landed on has ${nodes} members`);
+
+  const newer = nav.querySelector<HTMLButtonElement>("button:last-of-type");
+  newer?.click();
+  await sleep(500);
+  checks.say(dateOf() === started.date, `turning forward returns to ${started.date}`);
+}
+
+/**
  * Drag the first node on the canvas, and check that the position landed
  * on the arrow to this set — in the pool *and* in the database — then
  * that one undo takes it away again.
  */
 export async function checkCanvas(setId: string, checks: Checks): Promise<void> {
-  const node = await waitFor<HTMLElement>(".node");
+  const node = await waitFor<HTMLElement>(".pager-pane.is-current .node");
   if (!node) {
     checks.say(false, "canvas — no nodes rendered");
     return;
   }
 
-  const nodeCount = document.querySelectorAll(".node").length;
+  const nodeCount = document.querySelectorAll(".pager-pane.is-current .node").length;
   // A node only learns its expanded box once its image reports an aspect,
   // and `thumb://` mints on first request — so give the probes a moment
   // before counting, or this races them.
   await waitFor(".node.can-grow", 8000);
   await sleep(400);
-  const withImages = document.querySelectorAll(".node.can-grow").length;
+  const withImages = document.querySelectorAll(".pager-pane.is-current .node.can-grow").length;
   checks.say(nodeCount > 0, `canvas draws ${nodeCount} nodes, ${withImages} with image previews`);
   checks.say(withImages > 0, `${withImages} nodes learned a hover box from their image`);
 
   // Distinct transforms mean the ring seeded rather than everything
   // stacking at the origin.
   const transforms = new Set(
-    [...document.querySelectorAll<HTMLElement>(".node")].map((element) => element.style.transform),
+    [...document.querySelectorAll<HTMLElement>(".pager-pane.is-current .node")].map(
+      (element) => element.style.transform,
+    ),
   );
   checks.say(transforms.size === nodeCount, `nodes are at ${transforms.size} distinct positions`);
 

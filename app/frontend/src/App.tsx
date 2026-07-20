@@ -2,39 +2,32 @@
 // The shell. Phase 5 gives it its real top bar (set switcher, view-kind
 // switcher, undo indicators — PRODUCT-SPEC §3.1); for now it loads a set
 // and hands it to a view, which is enough to use one.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
 import { useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { HOME_SET_ID } from "./lib/seeds.js";
-import { errors, loadSet, useTroubles } from "./store/index.js";
-import { Checks, checkCanvas } from "./debug/uiChecks.js";
-import { Canvas } from "./views/canvas/Canvas.tsx";
+import { errors, useTroubles } from "./store/index.js";
+import { Checks, checkCanvas, checkTimeline } from "./debug/uiChecks.js";
+import { Timeline } from "./views/timeline/Timeline.tsx";
 import "./views/canvas/Canvas.css";
+import "./views/timeline/Timeline.css";
 
 export function App() {
   useUndoRedo();
 
-  const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<Item | null>(null);
   const troubles = useTroubles();
-
-  const reload = useCallback(async () => {
-    setMemberIds(await loadSet(HOME_SET_ID));
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
 
   // VITE_INDEX_UICHECK drives the real UI with synthetic gestures once the
   // view is up, and reports through the forwarded console.
   const checked = useRef(false);
   useEffect(() => {
-    if (!import.meta.env.VITE_INDEX_UICHECK || checked.current || memberIds.length === 0) return;
+    if (!import.meta.env.VITE_INDEX_UICHECK || checked.current) return;
     checked.current = true;
     void (async () => {
       const checks = new Checks();
+      await checkTimeline(checks);
       await checkCanvas(HOME_SET_ID, checks);
       console.log(
         checks.failures
@@ -42,7 +35,7 @@ export function App() {
           : `all ${checks.lines.length} ui checks passed`,
       );
     })();
-  }, [memberIds]);
+  }, []);
 
   if (typeof window.index === "undefined") {
     return (
@@ -66,13 +59,11 @@ export function App() {
     <div className="shell">
       <header className="bar">
         <span className="bar-set">~</span>
-        <button className="bar-action" onClick={() => void reload()} type="button">
-          reload
-        </button>
+
       </header>
 
       <div className="stage">
-        <Canvas itemIds={memberIds} onOpen={setOpened} setId={HOME_SET_ID} />
+        <Timeline onOpen={setOpened} setId={HOME_SET_ID} />
       </div>
 
       {opened && (

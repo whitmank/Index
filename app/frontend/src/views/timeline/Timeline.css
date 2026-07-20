@@ -1,0 +1,186 @@
+/* Authored by Karter Whitman using Claude Opus 4.8 */
+
+.timeline {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed chrome: the controls only. The date itself lives in the page
+   header, where it slides with the page it names. */
+.timeline-nav {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0;
+}
+
+.timeline-nav button {
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.timeline-nav button:hover:not(:disabled) {
+  color: var(--ink);
+  background: #1c1c20;
+}
+
+.timeline-nav button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.timeline-pick {
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+/* The filmstrip. Three panes, each one viewport wide, on a track that
+   sits centred on the middle one. */
+.pager-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pager-track {
+  display: flex;
+  height: 100%;
+  will-change: transform;
+}
+
+.pager-track.is-animating {
+  /* PRODUCT-SPEC §3.4: a turn lands in 300 ms or less. */
+  transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.pager-track.is-busy {
+  pointer-events: none;
+}
+
+.pager-pane {
+  flex: 0 0 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.pager-pane:not(.is-current) {
+  opacity: 0.45;
+}
+
+.page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0 0 0.5rem;
+  justify-content: center;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.page-date {
+  color: var(--ink-quiet);
+  font-size: 0.6875rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.calendar {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: 15rem;
+  padding: 0.6rem;
+  background: #1a1a1e;
+  border: 1px solid #2e2e34;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.calendar-weekday {
+  display: grid;
+  place-content: center;
+  height: 1.5rem;
+  color: var(--ink-quiet);
+  font-size: 0.625rem;
+}
+
+.calendar-day {
+  position: relative;
+  height: 1.75rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.calendar-day:hover:not(:disabled) {
+  background: #26262c;
+}
+
+.calendar-day:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.calendar-day.is-selected {
+  background: #2f2f37;
+}
+
+/* A day with members wears a dot — the calendar shows where the set
+   actually is, not just where the month is. */
+.calendar-day.has-members::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #6fbf8b;
+}
