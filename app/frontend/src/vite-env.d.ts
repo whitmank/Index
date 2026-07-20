@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_INDEX_UICHECK?: string;
   /** Open the first item whose name contains this, on launch. */
   readonly VITE_INDEX_OPEN?: string;
+  /** The view kind to open on: timeline (default), canvas or list. */
+  readonly VITE_INDEX_VIEW?: string;
 }
 
 interface ImportMeta {

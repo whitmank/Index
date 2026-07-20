@@ -346,3 +346,99 @@ export async function checkFocus(checks: Checks): Promise<void> {
 function historyDepth(): number {
   return history.entries().done.length;
 }
+
+/**
+ * Switch to the list, sort it, reorder a row by its handle, and check
+ * that the order landed on the arrows — then that the "sorted manually"
+ * chip clears every one of them in a single undo.
+ */
+export async function checkList(
+  setId: string,
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  setKind("list");
+
+  const list = await waitFor<HTMLElement>(".list");
+  if (!list) {
+    checks.say(false, "list — never rendered");
+    return;
+  }
+  await waitUntil(() => document.querySelectorAll(".row").length > 1, 6000);
+
+  const ids = () => [...document.querySelectorAll<HTMLElement>(".row")].map((row) => row.dataset.item ?? "");
+  const before = ids();
+  checks.say(before.length > 1, `list draws ${before.length} rows`);
+
+  // sorting by a column reorders the rows
+  const nameHeader = list.querySelector<HTMLButtonElement>(".list-head .col-name");
+  nameHeader?.click();
+  await sleep(200);
+  const byName = ids();
+  checks.say(
+    byName.join() !== before.join() || byName.length < 2,
+    "clicking a column header sorts by it",
+  );
+
+  // drag the last row's handle up to the top
+  const rows = [...document.querySelectorAll<HTMLElement>(".row")];
+  const last = rows[rows.length - 1];
+  const first = rows[0];
+  if (!last || !first) {
+    checks.say(false, "list — not enough rows to reorder");
+    return;
+  }
+  const movedId = last.dataset.item ?? "";
+
+  const handle = last.querySelector<HTMLElement>(".col-handle");
+  if (!handle) {
+    checks.say(false, "list — no drag handle");
+    return;
+  }
+
+  const handleBox = handle.getBoundingClientRect();
+  const firstBox = first.getBoundingClientRect();
+  handle.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true, cancelable: true, pointerId: 2, button: 0, buttons: 1,
+      clientX: handleBox.left + 4, clientY: handleBox.top + 4,
+    }),
+  );
+  await sleep(30);
+  window.dispatchEvent(
+    new PointerEvent("pointerup", {
+      bubbles: true, cancelable: true, pointerId: 2, button: 0, buttons: 0,
+      clientX: firstBox.left + 4, clientY: firstBox.top + 2,
+    }),
+  );
+  await sleep(500);
+
+  const arrow = pool.findConnection(movedId, setId, null);
+  checks.say(arrow?.order === 0, `reorder wrote order ${String(arrow?.order)} onto the arrow`);
+  checks.say(
+    Boolean(document.querySelector(".list-manual")),
+    "the 'sorted manually' chip appeared",
+  );
+  checks.say(ids()[0] === movedId, "the row moved to the top");
+
+  // the chip's ✕ clears every manual order in one change
+  const revert = document.querySelector<HTMLButtonElement>(".list-manual button");
+  revert?.click();
+  await sleep(500);
+  checks.say(
+    pool.findConnection(movedId, setId, null)?.order == null,
+    "the chip's ✕ clears the manual order",
+  );
+
+  await undo();
+  await sleep(400);
+  checks.say(
+    pool.findConnection(movedId, setId, null)?.order === 0,
+    "and one undo brings the manual order back",
+  );
+
+  // leave the set as we found it
+  await undo();
+  await sleep(400);
+  setKind("timeline");
+}

@@ -182,3 +182,76 @@ keeping this panel around.
 The other stumble was self-inflicted: StrictMode fires effects twice, so
 the autorun ran two interleaved sequences over shared state and reported
 nonsense history depths. The panel now refuses to run re-entrantly.
+
+## Phase 4 — the views
+
+Four views, each usable before the next was started, all against the real
+database, every mutation undoing cleanly. Verification is a set of
+synthetic-gesture UI checks (`VITE_INDEX_UICHECK=1`) that drive the live
+interface — a real drag, a real click, real typing into the composer —
+and then ask the pool *and* the database what happened: 28 checks, all
+green, covering the done-when of every view.
+
+**Canvas.** A set's members as spatial nodes; images from the thumbnail
+derivation, hover previews bounded and kept clear of the edges, drag to
+place, click to open, right-click for the shared item menu, a `+` that
+creates on the day. The physics is ported from the parent repo's settled
+decisions — one spring per node toward `centre + offset`, no node-to-node
+forces — but runs its own rAF loop, so d3 never entered the tree.
+
+**Timeline.** Day pages over any set, each page a canvas of that day's
+members, so placing on a day writes the same arrow as placing anywhere.
+Swipe / arrows / calendar turn the page; empty days are skipped and today
+is always reachable; the two reachable days are prefetched. The pager,
+its swipe recogniser, and its slide transition are ported wholesale. This
+is the launch surface.
+
+**Focus.** Layout × renderer, the two machines that never override each
+other: the renderer is chosen by format, the layout by the presentation
+cascade. Renderers for image / markdown / video / book / link / file /
+bare; layouts for default / movie / photo / note / video. The editing
+surface commits on settle and a new-but-empty item is discarded untracked
+on dismissal.
+
+**List.** Rows sortable by their intrinsic columns; a drag-handle reorder
+writes `order` onto the arrows and raises the "sorted manually" chip,
+whose ✕ clears every one of them in a single change.
+
+**Pinned here:**
+
+- **Two mirrors grew a third.** `lib/derive.ts` already mirrored the
+  format ladder; the views also needed the seed ids (`lib/seeds.ts`) and
+  client-side ULIDs (`lib/ids.ts`), each mirrored from `@index/database`
+  for the same reason — the renderer takes types from that package, never
+  values. Three files now restate database constants. If that ever grows
+  a fourth, a shared value-only package is the answer; it is not worth one
+  yet.
+- **Nodes carry no id in the DOM.** The simulation addresses them by
+  index, so a node's `<div>` gets a `data-item` only for the checks (and,
+  soon, whatever else needs to find a node by its item). Position is
+  written straight to the element transform each tick, never through
+  React state.
+- **The canvas adopts positions it did not write.** A node stays where a
+  drag put it, but an undo, a redo, or another view moving the same item
+  changes the arrow without this canvas doing it — so `syncPlacements`
+  reconciles the ring against the set's opinion on every position change,
+  and can tell its own write (already matching) from a foreign one.
+- The view-kind switcher lives in the shell already, ahead of phase 5: a
+  view nobody can reach isn't finished. The set switcher, undo indicators
+  and `⌘N` are still phase 5's.
+
+**Surprised us:** the soft-delete-undoes-itself shape from phase 3 has a
+sibling in the pool's merge, and the same discipline fixed both — the
+pool holds only what is live, so a record arriving with `deleted_at`, from
+any direction, is removed rather than stored. The canvas found the other
+half: a view has to *follow* a change it didn't make, not just hold the
+data. A final-state assertion would have missed both; checking the pool
+and the database after every single step is what caught them, which is
+the whole argument for how these checks are written.
+
+**A note on tooling, not the app:** the UI checks and screenshots are
+driven headlessly. `osascript`-based window control needs macOS
+accessibility permission this environment doesn't grant, and reaching for
+it once popped a permission dialog over unrelated apps — so the checks
+dispatch synthetic DOM events instead, and screenshots use a dev-only
+always-on-top flag (`INDEX_TOP`). None of that is shipped behaviour.

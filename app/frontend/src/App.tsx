@@ -1,24 +1,49 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// The shell. Phase 5 gives it its real top bar (set switcher, view-kind
-// switcher, undo indicators — PRODUCT-SPEC §3.1); for now it loads a set
-// and hands it to a view, which is enough to use one.
-import { useEffect, useRef, useState } from "react";
+// The shell: exactly one view at a time, plus the overlay surfaces
+// (PRODUCT-SPEC §3.1). Phase 5 gives the top bar its set switcher and
+// undo indicators; the view-kind switcher is here already, because a view
+// nobody can reach isn't finished.
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ViewKind } from "@index/database/types";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
+import { Checks, checkCanvas, checkFocus, checkList, checkTimeline } from "./debug/uiChecks.js";
 import { useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { HOME_SET_ID } from "./lib/seeds.js";
-import { errors, pool, useTroubles } from "./store/index.js";
-import { Checks, checkCanvas, checkFocus, checkTimeline } from "./debug/uiChecks.js";
+import { errors, loadSet, pool, useTroubles } from "./store/index.js";
+import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
+import { List } from "./views/list/List.tsx";
 import { Timeline } from "./views/timeline/Timeline.tsx";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
+import "./views/list/List.css";
 import "./views/timeline/Timeline.css";
+
+const VIEW_KINDS: ViewKind[] = ["timeline", "canvas", "list"];
 
 export function App() {
   useUndoRedo();
 
+  // VITE_INDEX_VIEW picks the view to open on, for looking at one
+  // without clicking; the launch state is otherwise the timeline.
+  const [kind, setKind] = useState<ViewKind>(
+    (VIEW_KINDS as string[]).includes(import.meta.env.VITE_INDEX_VIEW ?? "")
+      ? (import.meta.env.VITE_INDEX_VIEW as ViewKind)
+      : "timeline",
+  );
+  const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
   const troubles = useTroubles();
+
+  const open = useCallback((item: { id: string }, isNew?: boolean) => {
+    setOpened({ id: item.id, isNew: Boolean(isNew) });
+  }, []);
+
+  // Canvas and list show the whole set; the timeline loads its own pages.
+  useEffect(() => {
+    if (kind === "timeline") return;
+    void loadSet(HOME_SET_ID).then(setMemberIds);
+  }, [kind]);
 
   // VITE_INDEX_OPEN opens the first item whose name matches, once the
   // view is up — for looking at a renderer without hunting for a node.
@@ -53,6 +78,7 @@ export function App() {
       await checkTimeline(checks);
       await checkCanvas(HOME_SET_ID, checks);
       await checkFocus(checks);
+      await checkList(HOME_SET_ID, checks, setKind);
       console.log(
         checks.failures
           ? `${checks.failures} of ${checks.lines.length} ui checks failed`
@@ -84,13 +110,24 @@ export function App() {
       <header className="bar">
         <span className="bar-set">~</span>
 
+        <nav className="bar-views">
+          {VIEW_KINDS.map((candidate) => (
+            <button
+              className={candidate === kind ? "is-current" : ""}
+              key={candidate}
+              onClick={() => setKind(candidate)}
+              type="button"
+            >
+              {candidate}
+            </button>
+          ))}
+        </nav>
       </header>
 
       <div className="stage">
-        <Timeline
-          onOpen={(item, isNew) => setOpened({ id: item.id, isNew: Boolean(isNew) })}
-          setId={HOME_SET_ID}
-        />
+        {kind === "timeline" && <Timeline onOpen={open} setId={HOME_SET_ID} />}
+        {kind === "canvas" && <Canvas itemIds={memberIds} onOpen={open} setId={HOME_SET_ID} />}
+        {kind === "list" && <List itemIds={memberIds} onOpen={open} setId={HOME_SET_ID} />}
       </div>
 
       {opened && (
@@ -99,8 +136,8 @@ export function App() {
           itemId={opened.id}
           key={opened.id}
           onDismiss={() => setOpened(null)}
-          // Following a connection opens the item at its far end; the
-          // one you came from is not "new", whatever this one was.
+          // Following a connection opens the item at its far end; the one
+          // you came from is not "new", whatever this one was.
           onNavigate={(itemId) => setOpened({ id: itemId, isNew: false })}
         />
       )}

@@ -250,3 +250,29 @@ body {
   cursor: pointer;
   opacity: 0.7;
 }
+
+.bar-views {
+  display: flex;
+  gap: 0.15rem;
+  -webkit-app-region: no-drag;
+}
+
+.bar-views button {
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+}
+
+.bar-views button:hover {
+  color: var(--ink);
+}
+
+.bar-views button.is-current {
+  color: var(--ink);
+  background: #1f1f24;
+}
