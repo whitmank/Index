@@ -78,7 +78,8 @@ async function main(): Promise<void> {
     check("~ exists and is a system item", () => {
       assert.ok(home, "~ missing");
       assert.equal(home.id, HOME_SET_ID);
-      assert.equal(home.name, "~");
+      // The id is still `~`; the name is what the set list calls it.
+      assert.equal(home.name, "All");
       assert.equal(home.system, true);
       assert.deepEqual(home.query, { all: true });
       assert.equal(home.opens, "timeline");

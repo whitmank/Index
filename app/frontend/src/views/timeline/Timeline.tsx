@@ -17,10 +17,11 @@ import { DayPager } from "./DayPager.tsx";
 
 export interface TimelineProps {
   setId: string;
-  onOpen: (item: Item, isNew?: boolean) => void;
+  /** The shell's one navigation primitive. */
+  onGoTo: (item: Item, isNew?: boolean) => void;
 }
 
-export function Timeline({ setId, onOpen }: TimelineProps) {
+export function Timeline({ setId, onGoTo }: TimelineProps) {
   const today = useMemo(() => todayISO(), []);
   const [selected, setSelected] = useState(today);
   const [populated, setPopulated] = useState<string[]>([]);
@@ -92,13 +93,13 @@ export function Timeline({ setId, onOpen }: TimelineProps) {
             date={date}
             itemIds={pages[date] ?? []}
             key={date}
-            onOpen={isActive ? onOpen : () => undefined}
+            onGoTo={isActive ? onGoTo : () => undefined}
             setId={setId}
           />
         </div>
       </section>
     ),
-    [pages, onOpen, setId, today],
+    [pages, onGoTo, setId, today],
   );
 
   return (

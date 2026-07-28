@@ -97,6 +97,27 @@
   object-fit: contain;
 }
 
+/* A place wears its view kind on the rim, so the click that goes *into*
+   it is never a guess. Outside .node-shape, which clips to a circle. */
+.node-place {
+  position: absolute;
+  top: calc(var(--radius) * 0.68);
+  left: calc(var(--radius) * 0.68);
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  line-height: var(--leading-none);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .node-caption {
   position: absolute;
   top: calc(var(--radius) + 0.5rem);

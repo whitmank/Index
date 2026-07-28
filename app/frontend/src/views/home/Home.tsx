@@ -7,15 +7,11 @@
 // Picking a set enters it; the shell then shows that set's view and the
 // address bar in the top-left says where you are.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ViewKind } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { captionOf } from "../../lib/derive.js";
 import { HOME_SET_ID, PUBLIC_SET_ID } from "../../lib/seeds.js";
-import { viewKindOf } from "../../lib/sets.js";
+import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
 import { loadSets, pool, usePool } from "../../store/index.js";
-
-/** A glyph per view kind, so a set reads as what it opens into at a glance. */
-const VIEW_GLYPH: Record<ViewKind, string> = { timeline: "▦", canvas: "◍", list: "≣" };
 
 export interface HomeProps {
   onEnter: (setId: string) => void;

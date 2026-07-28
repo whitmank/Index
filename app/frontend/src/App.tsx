@@ -1,13 +1,23 @@
-// Authored by Karter Whitman using Claude Opus 4.8
-// The shell: an address bar that says where you are (top-left), a view
-// switcher that says how you're looking at it (top-right), and one surface
-// at a time on the stage — the home screen when you are nowhere in
-// particular, otherwise the current set in its chosen view, plus the focus
-// overlay above either (PRODUCT-SPEC §3.1).
-import { useCallback, useEffect, useRef, useState } from "react";
+// Authored by Karter Whitman using Claude Opus 5
+// The shell: a trail that says where you are (top-left), a view switcher
+// that says how you're looking at it (top-right), and one surface at a
+// time on the stage — the home screen when you are nowhere in particular,
+// otherwise the place you walked to, plus the focus overlay above either.
+//
+// There is one navigation primitive: `goTo`. A place you enter, a thing
+// you open. Which one an item is comes from the pool, and the views draw
+// the difference so the same click never surprises you.
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { ViewKind } from "@index/database/types";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
-import { Checks, checkCanvas, checkFocus, checkList, checkTimeline } from "./debug/uiChecks.js";
+import {
+  Checks,
+  checkCanvas,
+  checkFocus,
+  checkList,
+  checkNavigation,
+  checkTimeline,
+} from "./debug/uiChecks.js";
 import { useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
@@ -35,32 +45,54 @@ export function App() {
     : null;
   const startsInHomeSet = forcedView !== null || Boolean(import.meta.env.VITE_INDEX_UICHECK);
 
-  // `null` current set means the home screen — you are nowhere in
-  // particular, looking at the list of everywhere you could go.
-  const [currentSetId, setCurrentSetId] = useState<string | null>(
-    startsInHomeSet ? HOME_SET_ID : null,
-  );
+  // The trail of places walked into. Empty means the home screen — you are
+  // nowhere in particular, looking at the list of everywhere you could go.
+  const [path, setPath] = useState<string[]>(startsInHomeSet ? [HOME_SET_ID] : []);
   const [kind, setKind] = useState<ViewKind>(forcedView ?? "timeline");
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
   const troubles = useTroubles();
 
-  const currentSet = usePool(() => (currentSetId ? pool.getItem(currentSetId) : null));
+  const currentSetId = path[path.length - 1] ?? null;
 
-  const open = useCallback((item: { id: string }, isNew?: boolean) => {
-    setOpened({ id: item.id, isNew: Boolean(isNew) });
+  // The trail, resolved to records so the crumbs can name themselves.
+  const crumbs = usePool(() => path.map((id) => ({ id, item: pool.getItem(id) })));
+
+  /** Walk into a place: it becomes the last crumb, shown in the view it
+   * opens into. Going somewhere already on the trail truncates back to it
+   * rather than pushing a second copy. */
+  const enter = useCallback((id: string) => {
+    setPath((current) => {
+      const at = current.indexOf(id);
+      return at === -1 ? [...current, id] : current.slice(0, at + 1);
+    });
+    const item = pool.getItem(id);
+    setKind(item ? viewKindOf(item) : "timeline");
+    setOpened(null);
   }, []);
 
-  /** Enter a set: show it in the view it opens into, and make sure the set
-   * record itself is in the pool so the address bar can name it. */
-  const enterSet = useCallback((setId: string) => {
-    const set = pool.getItem(setId);
-    setCurrentSetId(setId);
-    setKind(set ? viewKindOf(set) : "timeline");
-    if (!set) void loadItem(setId);
-  }, []);
+  /**
+   * The one primitive. A place you enter; a thing you open. An item you
+   * just made is always opened, whatever it looks like — you made it to
+   * say something about it.
+   */
+  const goTo = useCallback(
+    (item: { id: string }, isNew?: boolean) => {
+      if (!isNew && pool.isPlace(item.id)) enter(item.id);
+      else setOpened({ id: item.id, isNew: Boolean(isNew) });
+    },
+    [enter],
+  );
 
-  const goHome = useCallback(() => setCurrentSetId(null), []);
+  const goHome = useCallback(() => setPath([]), []);
+
+  // Every crumb has to be able to name itself, however you arrived —
+  // walked in, forced by an env var, or restored on the trail.
+  useEffect(() => {
+    for (const id of path) {
+      if (!pool.getItem(id)) void loadItem(id);
+    }
+  }, [path]);
 
   // Canvas and list show the whole set at once; the timeline loads its own
   // pages. Nothing to load on the home screen.
@@ -100,7 +132,8 @@ export function App() {
     void (async () => {
       const checks = new Checks();
       await checkTimeline(checks);
-      await checkCanvas(HOME_SET_ID, checks);
+      await checkCanvas(HOME_SET_ID, checks, setKind);
+      await checkNavigation(checks, setKind);
       await checkFocus(checks);
       await checkList(HOME_SET_ID, checks, setKind);
       console.log(
@@ -132,7 +165,7 @@ export function App() {
   return (
     <div className="shell">
       <header className="bar">
-        <div className="bar-address">
+        <nav className="bar-address" aria-label="trail">
           <button
             className={currentSetId ? "bar-home" : "bar-home is-here"}
             onClick={goHome}
@@ -141,18 +174,32 @@ export function App() {
           >
             ⌂
           </button>
-          {currentSet && (
-            <>
-              <span className="bar-sep">/</span>
-              <span className="bar-set">{captionOf(currentSet) || "untitled"}</span>
-            </>
-          )}
-        </div>
+
+          {crumbs.map(({ id, item }, index) => {
+            const last = index === crumbs.length - 1;
+            const name = item ? captionOf(item) || "untitled" : "…";
+            return (
+              <Fragment key={id}>
+                <span className="bar-sep">/</span>
+                <button
+                  aria-current={last ? "page" : undefined}
+                  className={last ? "bar-crumb is-here" : "bar-crumb"}
+                  onClick={() => (last ? setOpened({ id, isNew: false }) : enter(id))}
+                  title={last ? `About ${name}` : `Back to ${name}`}
+                  type="button"
+                >
+                  {name}
+                </button>
+              </Fragment>
+            );
+          })}
+        </nav>
 
         {currentSetId && (
-          <nav className="bar-views">
+          <nav className="bar-views" aria-label="view">
             {VIEW_KINDS.map((candidate) => (
               <button
+                aria-pressed={candidate === kind}
                 className={candidate === kind ? "is-current" : ""}
                 key={candidate}
                 onClick={() => setKind(candidate)}
@@ -166,13 +213,13 @@ export function App() {
       </header>
 
       <div className="stage">
-        {!currentSetId && <Home onEnter={enterSet} />}
-        {currentSetId && kind === "timeline" && <Timeline onOpen={open} setId={currentSetId} />}
+        {!currentSetId && <Home onEnter={enter} />}
+        {currentSetId && kind === "timeline" && <Timeline onGoTo={goTo} setId={currentSetId} />}
         {currentSetId && kind === "canvas" && (
-          <Canvas itemIds={memberIds} onOpen={open} setId={currentSetId} />
+          <Canvas itemIds={memberIds} onGoTo={goTo} setId={currentSetId} />
         )}
         {currentSetId && kind === "list" && (
-          <List itemIds={memberIds} onOpen={open} setId={currentSetId} />
+          <List itemIds={memberIds} onGoTo={goTo} setId={currentSetId} />
         )}
       </div>
 
@@ -182,9 +229,9 @@ export function App() {
           itemId={opened.id}
           key={opened.id}
           onDismiss={() => setOpened(null)}
-          // Following a connection opens the item at its far end; the one
-          // you came from is not "new", whatever this one was.
-          onNavigate={(itemId) => setOpened({ id: itemId, isNew: false })}
+          // Following a connection is the same primitive as anywhere else:
+          // a place takes you there, a thing swaps the focus to it.
+          onGoTo={goTo}
         />
       )}
 

@@ -75,6 +75,27 @@
   color: var(--danger);
 }
 
+/* The way in, when the thing you are looking at is also a place. Carries
+   the accent because it navigates — the only control here that does. */
+.focus-enter {
+  color: var(--accent);
+}
+
+.focus-actions .focus-enter:hover:not(:disabled) {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+}
+
+/* Destructive and dismissive were neighbours at the same weight. Hold
+   them apart so a miss is a miss, not a deletion. */
+.focus-actions button.danger {
+  margin-left: 0.5rem;
+}
+
+.focus-close {
+  margin-left: 0.25rem;
+}
+
 .focus-actions button:disabled {
   opacity: 0.3;
   cursor: default;

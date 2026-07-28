@@ -211,6 +211,7 @@ body {
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
+  overflow: hidden;
 }
 
 .bar-home {
@@ -236,12 +237,33 @@ body {
   font-size: var(--text-sm);
 }
 
-.bar-set {
+/* Every crumb is a button. The ones behind you go back; the last one —
+   where you are — opens the place itself, which is how you edit a set's
+   own name and fields without leaving it. */
+.bar-crumb {
+  -webkit-app-region: no-drag;
+  font: inherit;
   font-size: var(--text-base);
   letter-spacing: var(--tracking-wide);
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.15rem 0.3rem;
+  max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.bar-crumb:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.bar-crumb.is-here {
+  color: var(--ink);
 }
 
 .bar-action {

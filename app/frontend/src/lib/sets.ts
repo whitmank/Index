@@ -6,6 +6,14 @@ import type { Item, ViewKind } from "@index/database/types";
 
 export const VIEW_KINDS: ViewKind[] = ["timeline", "canvas", "list"];
 
+/** A glyph per view kind, so a place reads as one — and as *which* one —
+ * wherever it is drawn: the home screen, a node, a row. */
+export const VIEW_GLYPH: Record<ViewKind, string> = {
+  timeline: "▦",
+  canvas: "◍",
+  list: "≣",
+};
+
 export function viewKindOf(set: Item, fallback: ViewKind = "timeline"): ViewKind {
   return (VIEW_KINDS as string[]).includes(set.opens ?? "")
     ? (set.opens as ViewKind)

@@ -9,6 +9,7 @@ export {
   listItems,
   listMemberDates,
   listMembers,
+  listPlacesAmong,
   listSets,
   searchItems,
   timelinePartitionOf,

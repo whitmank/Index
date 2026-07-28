@@ -26,10 +26,12 @@ export interface FocusProps {
   /** True when this item was created by the gesture that opened it. */
   isNew?: boolean;
   onDismiss: () => void;
-  onNavigate: (itemId: string) => void;
+  /** The shell's one navigation primitive, so following a connection
+   * behaves exactly as clicking the same item anywhere else would. */
+  onGoTo: (item: { id: string }) => void;
 }
 
-export function Focus({ itemId, isNew, onDismiss, onNavigate }: FocusProps) {
+export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [openAsOpen, setOpenAsOpen] = useState(false);
 
@@ -56,6 +58,11 @@ export function Focus({ itemId, isNew, onDismiss, onNavigate }: FocusProps) {
   );
 
   const shared = usePool(() => (item ? isPublic(item) : false));
+
+  // Things you can look at; places you can also walk into. An item that
+  // has become a place — because you tagged something into it — offers
+  // the way in from here, rather than only from the home screen.
+  const isPlace = usePool(() => pool.isPlace(itemId));
 
   /** An item is "still empty" when nothing has been said about it. */
   const isEmpty = useCallback(
@@ -148,7 +155,11 @@ export function Focus({ itemId, isNew, onDismiss, onNavigate }: FocusProps) {
     <>
       <FieldsEditor item={item} />
       <ResourcesEditor item={item} />
-      <ConnectionComposer item={item} onNavigate={onNavigate} outbound={outbound} />
+      <ConnectionComposer
+        item={item}
+        onNavigate={(id) => onGoTo({ id })}
+        outbound={outbound}
+      />
     </>
   );
 
@@ -168,6 +179,17 @@ export function Focus({ itemId, isNew, onDismiss, onNavigate }: FocusProps) {
           />
 
           <div className="focus-actions">
+            {isPlace && (
+              <button
+                className="focus-enter"
+                onClick={() => onGoTo({ id: itemId })}
+                title="Show what is in here"
+                type="button"
+              >
+                go in →
+              </button>
+            )}
+
             <div className="opens-as">
               <button
                 className={resolution.source === "override" ? "chip is-override" : "chip"}

@@ -43,6 +43,31 @@ export async function waitUntil(holds: () => boolean, timeoutMs = 5000): Promise
   return false;
 }
 
+/**
+ * Wait for a set of elements to stop changing size, and answer how many
+ * there are. A view that is still loading its members answers differently
+ * a moment later, and every element it has already mounted is replaced —
+ * so nothing sampled before this returns can be trusted or held onto.
+ */
+export async function settled(selector: string, timeoutMs = 8000): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  let last = -1;
+  let unchanged = 0;
+
+  while (Date.now() < deadline) {
+    const count = document.querySelectorAll(selector).length;
+    if (count > 0 && count === last) {
+      unchanged += 1;
+      if (unchanged >= 4) return count;
+    } else {
+      unchanged = 0;
+      last = count;
+    }
+    await sleep(100);
+  }
+  return document.querySelectorAll(selector).length;
+}
+
 /** Wait for a selector to appear, or give up. */
 export async function waitFor<T extends Element>(
   selector: string,
@@ -169,7 +194,8 @@ export async function checkTimeline(checks: Checks): Promise<void> {
   checks.say(turned !== started.date && turned < started.date, `turning back lands on ${turned}`);
 
   // Every day it lands on has members — that is the skip-empty rule.
-  const nodes = document.querySelectorAll(".pager-pane.is-current .node").length;
+  // Scoped to the current pane: the pager keeps its neighbours mounted.
+  const nodes = document.querySelectorAll(".pager-pane.is-current .canvas .node").length;
   checks.say(nodes > 0, `the day it landed on has ${nodes} members`);
 
   const newer = nav.querySelector<HTMLButtonElement>("button:last-of-type");
@@ -183,34 +209,47 @@ export async function checkTimeline(checks: Checks): Promise<void> {
  * on the arrow to this set — in the pool *and* in the database — then
  * that one undo takes it away again.
  */
-export async function checkCanvas(setId: string, checks: Checks): Promise<void> {
-  const node = await waitFor<HTMLElement>(".pager-pane.is-current .node");
-  if (!node) {
+export async function checkCanvas(
+  setId: string,
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  // Switch to the canvas rather than borrowing the timeline's current
+  // page: that page is *today*, and today is empty more often than not.
+  setKind("canvas");
+
+  // The set's members are still arriving when the first node appears, and
+  // every node mounted before the load finishes is replaced by it. Sample
+  // nothing — and hold no element — until the count stops moving.
+  const nodeCount = await settled(".canvas .node");
+  if (nodeCount === 0) {
     checks.say(false, "canvas — no nodes rendered");
     return;
   }
 
-  const nodeCount = document.querySelectorAll(".pager-pane.is-current .node").length;
   // A node only learns its expanded box once its image reports an aspect,
   // and `thumb://` mints on first request — so give the probes a moment
   // before counting, or this races them.
   await waitFor(".node.can-grow", 8000);
   await sleep(400);
-  const withImages = document.querySelectorAll(".pager-pane.is-current .node.can-grow").length;
+  const withImages = document.querySelectorAll(".canvas .node.can-grow").length;
   checks.say(nodeCount > 0, `canvas draws ${nodeCount} nodes, ${withImages} with image previews`);
   checks.say(withImages > 0, `${withImages} nodes learned a hover box from their image`);
 
   // Distinct transforms mean the ring seeded rather than everything
   // stacking at the origin.
   const transforms = new Set(
-    [...document.querySelectorAll<HTMLElement>(".pager-pane.is-current .node")].map(
+    [...document.querySelectorAll<HTMLElement>(".canvas .node")].map(
       (element) => element.style.transform,
     ),
   );
   checks.say(transforms.size === nodeCount, `nodes are at ${transforms.size} distinct positions`);
 
-  const itemId = node.dataset.item ?? null;
-  if (!itemId) {
+  // Taken now, from the settled render — an element captured earlier is
+  // detached, and dragging it moves nothing.
+  const node = document.querySelector<HTMLElement>(".canvas .node");
+  const itemId = node?.dataset.item ?? null;
+  if (!node || !itemId) {
     checks.say(false, "canvas — could not identify the dragged node's item");
     return;
   }
@@ -257,14 +296,59 @@ export async function checkCanvas(setId: string, checks: Checks): Promise<void> 
 
 
 /**
+ * The one navigation primitive. Clicking a place walks into it and grows
+ * the trail; clicking a crumb walks back out. The half this proves that
+ * no unit test can is that the *same gesture* does both — which is only
+ * safe because the node says which kind of thing it is.
+ */
+export async function checkNavigation(
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  setKind("canvas");
+  await settled(".canvas .node");
+
+  const place = document.querySelector<HTMLElement>(".canvas .node.is-place");
+  if (!place) {
+    checks.say(false, "navigation — no place on the canvas to walk into");
+    return;
+  }
+
+  const name = place.querySelector(".node-caption")?.textContent ?? "";
+  checks.say(
+    Boolean(place.querySelector(".node-place")),
+    `a place wears its view kind (${name || "untitled"})`,
+  );
+
+  const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
+  const before = trail();
+
+  await clickAt(place);
+  const walkedIn = await waitUntil(() => trail().length === before.length + 1, 4000);
+  checks.say(walkedIn, `clicking a place walks in — trail is ${trail().join(" / ")}`);
+  checks.say(trail()[trail().length - 1] === name, `the last crumb is the place you entered`);
+  checks.say(!document.querySelector(".focus"), "walking in did not open the focus view instead");
+
+  // And back out again, by the crumb behind you.
+  const back = document.querySelectorAll<HTMLButtonElement>(".bar-crumb")[before.length - 1];
+  back?.click();
+  const walkedOut = await waitUntil(() => trail().length === before.length, 4000);
+  checks.say(walkedOut, "clicking an earlier crumb walks back out");
+  checks.say(trail().join(" / ") === before.join(" / "), "the trail is where it started");
+}
+
+/**
  * Open an item, edit it through the real editing surface, and check that
  * every write landed in the pool *and* the database — then that undo
  * walks each one back.
  */
 export async function checkFocus(checks: Checks): Promise<void> {
-  const node = await waitFor<HTMLElement>(".pager-pane.is-current .node");
+  await waitFor<HTMLElement>(".canvas .node");
+  // A place would be walked into, not opened — this check is about the
+  // editing surface, so it needs a thing.
+  const node = document.querySelector<HTMLElement>(".canvas .node:not(.is-place)");
   if (!node) {
-    checks.say(false, "focus — no node to open");
+    checks.say(false, "focus — no thing to open (every node is a place)");
     return;
   }
   const itemId = node.dataset.item ?? "";

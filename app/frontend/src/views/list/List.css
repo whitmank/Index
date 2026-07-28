@@ -67,10 +67,17 @@
   height: 2.25rem;
   border-radius: 4px;
   user-select: none;
+  cursor: pointer;
 }
 
 .row:hover {
   background: var(--surface);
+}
+
+/* The row is reachable by keyboard now that clicking it navigates. */
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .row.is-dragging {
@@ -95,6 +102,26 @@
 .col-thumb {
   display: grid;
   place-items: center;
+  position: relative;
+}
+
+/* The same mark the canvas puts on a node, at row scale: this one is
+   somewhere you go, not something you open. */
+.row-place {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-none);
+  pointer-events: none;
 }
 
 .col-thumb img,

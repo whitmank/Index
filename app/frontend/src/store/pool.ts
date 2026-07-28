@@ -10,11 +10,14 @@
 // is cheaper than maintaining per-selector memoisation, and far less
 // machinery to be wrong.
 import type { ChangePair, Connection, Item, StoredRecord } from "@index/database/types";
+import { VIEW_KINDS } from "../lib/sets.js";
 
 type Listener = () => void;
 
 const records = new Map<string, StoredRecord>();
 const listeners = new Set<Listener>();
+/** Ids the backend has told us play the set role. */
+const marked = new Set<string>();
 let version = 0;
 
 function announce(): void {
@@ -80,7 +83,38 @@ export function merge(incoming: StoredRecord[]): void {
  * tests. Loads re-fill it. */
 export function clear(): void {
   records.clear();
+  marked.clear();
   announce();
+}
+
+/** Remember which ids the backend says play the set role. */
+export function markPlaces(ids: string[]): void {
+  if (ids.length === 0) return;
+  let added = false;
+  for (const id of ids) {
+    if (!marked.has(id)) {
+      marked.add(id);
+      added = true;
+    }
+  }
+  if (added) announce();
+}
+
+/**
+ * Whether an item is somewhere you can go, rather than something you
+ * open. The backend's answer is authoritative and arrives with a load;
+ * the local reading is what makes a place that was *just made* one —
+ * tag something into an item and the arrow is in the pool immediately,
+ * so the item becomes enterable without waiting for a refresh.
+ */
+export function isPlace(id: string): boolean {
+  if (marked.has(id)) return true;
+
+  const item = getItem(id);
+  if (!item) return false;
+  if (item.query !== null) return true;
+  if ((VIEW_KINDS as string[]).includes(item.opens ?? "")) return true;
+  return inboundTo(id).some((connection) => connection.label === null);
 }
 
 /**

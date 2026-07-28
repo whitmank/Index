@@ -14,14 +14,19 @@ export function isPublic(item: Item): boolean {
 
 export function itemMenu(
   item: Item,
-  handlers: { onOpen: (item: Item) => void; onDelete?: (item: Item) => void },
+  handlers: { onGoTo: (item: Item) => void; onDelete?: (item: Item) => void },
 ): MenuItem[] {
   const resource = item.resources[0];
   const local = resource ? deviceOf(resource.uri) !== "web" : false;
   const shared = isPublic(item);
 
   return [
-    { label: "Open", onChoose: () => handlers.onOpen(item) },
+    // The menu names what the click will actually do, so the two never
+    // disagree about what this item is.
+    {
+      label: pool.isPlace(item.id) ? "Go in" : "Open",
+      onChoose: () => handlers.onGoTo(item),
+    },
     {
       label: local ? "Reveal in Finder" : "Open in browser",
       disabled: !resource,

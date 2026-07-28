@@ -17,6 +17,7 @@ export async function loadSet(setId: string, options?: MembersOptions): Promise<
 
   const records: StoredRecord[] = [...answer.ok.items, ...answer.ok.arrows];
   pool.merge(records);
+  pool.markPlaces(answer.ok.places);
   return answer.ok.items.map((item) => item.id);
 }
 
@@ -46,8 +47,11 @@ export async function loadSets(): Promise<string[]> {
     errors.surface(answer.err);
     return [];
   }
+  const ids = answer.ok.sets.map((set) => set.id);
   pool.merge(answer.ok.sets);
-  return answer.ok.sets.map((set) => set.id);
+  // Everything this returns plays the set role by definition.
+  pool.markPlaces(ids);
+  return ids;
 }
 
 /** The dates a set has members on — what the calendar popover marks. */

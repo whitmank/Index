@@ -14,6 +14,7 @@ import type {
 } from "../types.js";
 import { compileQuery } from "./query.js";
 import {
+  idToString,
   recordId,
   serializeConnection,
   serializeItem,
@@ -69,21 +70,41 @@ export async function listItems(ids: string[]): Promise<Item[]> {
  * Roles are computed, never stored (DESIGN-CONCEPT §3) — this is that rule
  * read back out of the data.
  */
+/**
+ * The set role, as a SurrealQL predicate. Named once because two callers
+ * ask the same question of different populations — `listSets` of every
+ * item, `listPlacesAmong` of one set's members — and an item has to play
+ * the role identically wherever it is asked about.
+ */
+const PLAYS_SET_ROLE = `(
+  query IS NOT NONE
+  OR opens IN ['timeline', 'canvas', 'list']
+  OR id IN (SELECT VALUE out FROM connections WHERE label IS NONE AND ${LIVE})
+)`;
+
 export async function listSets(): Promise<Item[]> {
   const db = getDb();
   const [rows] = await db
     .query<[ItemRow[]]>(
       `SELECT * FROM items
-       WHERE ${LIVE}
-         AND (
-           query IS NOT NONE
-           OR opens IN ['timeline', 'canvas', 'list']
-           OR id IN (SELECT VALUE out FROM connections WHERE label IS NONE AND ${LIVE})
-         )
+       WHERE ${LIVE} AND ${PLAYS_SET_ROLE}
        ORDER BY system DESC, created_at ASC`,
     )
     .collect();
   return rows.map(serializeItem);
+}
+
+/** Which of these ids play the set role — what the shell may enter. */
+export async function listPlacesAmong(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const db = getDb();
+  const [rows] = await db
+    .query<[unknown[]]>(
+      `SELECT VALUE id FROM items WHERE id IN $ids AND ${LIVE} AND ${PLAYS_SET_ROLE}`,
+      { ids: ids.map(recordId) },
+    )
+    .collect();
+  return rows.map(idToString);
 }
 
 /** Name/display-name prefix search — the tag composer's and the set
@@ -112,7 +133,7 @@ export async function searchItems(prefix: string, limit = 20): Promise<Item[]> {
  */
 export async function listMembers(setId: string, options: MembersOptions = {}): Promise<Members> {
   const set = await getItem(setId);
-  if (!set) return { items: [], arrows: [] };
+  if (!set) return { items: [], arrows: [], places: [] };
 
   const partition = options.partition?.date;
   const partitionBy = timelinePartitionOf(set);
@@ -141,7 +162,8 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   }
 
   items.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  return { items, arrows };
+  const places = await listPlacesAmong(items.map((item) => item.id));
+  return { items, arrows, places };
 }
 
 async function listByQuery(set: Item, partitionDate: string | undefined): Promise<Item[]> {

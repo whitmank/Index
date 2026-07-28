@@ -8,11 +8,12 @@
 // this set, and the chip that appears says so — with an ✕ that clears
 // every one of them in a single change.
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { Item } from "@index/database/types";
+import type { Item, ViewKind } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, deviceOf, nodeImageUrl } from "../../lib/derive.js";
+import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
 import { pool, usePool } from "../../store/index.js";
 
 type SortKey = "name" | "date" | "device";
@@ -20,7 +21,8 @@ type SortKey = "name" | "date" | "device";
 export interface ListProps {
   setId: string;
   itemIds: string[];
-  onOpen: (item: Item, isNew?: boolean) => void;
+  /** The shell's one navigation primitive. */
+  onGoTo: (item: Item, isNew?: boolean) => void;
 }
 
 interface Row {
@@ -28,9 +30,11 @@ interface Row {
   tags: string[];
   device: string;
   order: number | null;
+  /** The view kind when this row is a place, null when it is a thing. */
+  place: ViewKind | null;
 }
 
-export function List({ setId, itemIds, onOpen }: ListProps) {
+export function List({ setId, itemIds, onGoTo }: ListProps) {
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     key: "date",
     ascending: false,
@@ -49,9 +53,13 @@ export function List({ setId, itemIds, onOpen }: ListProps) {
           item,
           order: arrow?.order ?? null,
           device: item.resources[0] ? deviceOf(item.resources[0].uri) : "—",
+          place: pool.isPlace(id) ? viewKindOf(item) : null,
+          // Belonging to the set you are already looking at is not a fact
+          // about the item — every row would carry it. Only the other
+          // arrows say anything here.
           tags: pool
             .outboundFrom(id)
-            .filter((connection) => connection.label === null)
+            .filter((connection) => connection.label === null && connection.target !== setId)
             .flatMap((connection) => {
               const target = pool.getItem(connection.target);
               return target ? [captionOf(target)] : [];
@@ -173,11 +181,23 @@ export function List({ setId, itemIds, onOpen }: ListProps) {
               event.preventDefault();
               setMenu({ anchor: { x: event.clientX, y: event.clientY }, item: row.item });
             }}
-            onDoubleClick={() => onOpen(row.item)}
+            // One click, the same as everywhere else. A row is not a
+            // different kind of object because it is drawn as a line.
+            onClick={() => onGoTo(row.item)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onGoTo(row.item);
+            }}
+            role="button"
+            tabIndex={0}
           >
             <button
               aria-label="reorder"
               className="col-handle"
+              // The handle is inside the row; without this, grabbing it
+              // would also navigate away from the list you are sorting.
+              onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => startReorder(event, row.item)}
               type="button"
             >
@@ -185,6 +205,7 @@ export function List({ setId, itemIds, onOpen }: ListProps) {
             </button>
             <span className="col-thumb">
               <Thumb item={row.item} />
+              {row.place && <span className="row-place">{VIEW_GLYPH[row.place]}</span>}
             </span>
             <span className="col-name">{captionOf(row.item) || "unnamed"}</span>
             <span className="col-date">{row.item.date}</span>
@@ -199,7 +220,7 @@ export function List({ setId, itemIds, onOpen }: ListProps) {
       {menu && (
         <ContextMenu
           anchor={menu.anchor}
-          items={itemMenu(menu.item, { onOpen })}
+          items={itemMenu(menu.item, { onGoTo })}
           onDismiss={() => setMenu(null)}
         />
       )}

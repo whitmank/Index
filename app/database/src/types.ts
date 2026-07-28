@@ -136,6 +136,13 @@ export interface Members {
   items: Item[];
   /** The live arrows into the set, carrying position and order. */
   arrows: Connection[];
+  /**
+   * Which of these members play the set role themselves — the ones the
+   * shell can enter rather than open. Computed by the same rule as
+   * `listSets`, because a member that is a place has to look like one
+   * wherever it is drawn.
+   */
+  places: string[];
 }
 
 export interface ItemDetail {
