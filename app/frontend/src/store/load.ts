@@ -38,6 +38,18 @@ export async function loadItem(id: string): Promise<Item | null> {
   return item;
 }
 
+/** Every set the home screen can list. Returns their ids in the backend's
+ * order (seeds first); the set items themselves land in the pool. */
+export async function loadSets(): Promise<string[]> {
+  const answer = await window.index.sets.list();
+  if ("err" in answer) {
+    errors.surface(answer.err);
+    return [];
+  }
+  pool.merge(answer.ok.sets);
+  return answer.ok.sets.map((set) => set.id);
+}
+
 /** The dates a set has members on — what the calendar popover marks. */
 export async function loadSetDates(setId: string): Promise<string[]> {
   const answer = await window.index.sets.dates(setId);

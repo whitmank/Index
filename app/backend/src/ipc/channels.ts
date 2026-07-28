@@ -3,6 +3,7 @@
 // them without dragging the main-process handlers (and everything they
 // import) into the renderer's bundle.
 export const CHANNELS = {
+  setsList: "sets:list",
   setsMembers: "sets:members",
   setsDates: "sets:dates",
   itemsGet: "items:get",

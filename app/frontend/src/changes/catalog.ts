@@ -16,6 +16,7 @@ import type {
   Item,
   Position,
   Resource,
+  ViewKind,
 } from "@index/database/types";
 import { today } from "../lib/dates.js";
 import { connectionId, itemId } from "../lib/ids.js";
@@ -62,6 +63,23 @@ export function blankItem(date = today()): Item {
  * needs the id to open the item's focus view. */
 export function createItem(item: Item): Change {
   return { description: "Create item", pairs: [{ before: null, after: item }] };
+}
+
+/**
+ * A new set. It plays the set role from birth because it declares a view
+ * to open in — `opens` naming a view kind is what listSets recognises, so
+ * an empty set still shows on the home screen before it has any members.
+ * The caller keeps the record: it needs the id to navigate into the set.
+ */
+export function blankSet(name: string, opens: ViewKind = "canvas"): Item {
+  return { ...blankItem(), name, opens };
+}
+
+export function createSet(set: Item): Change {
+  return {
+    description: set.name ? `Create set '${set.name}'` : "Create set",
+    pairs: [{ before: null, after: set }],
+  };
 }
 
 export function rename(item: Item, name: string): Change {

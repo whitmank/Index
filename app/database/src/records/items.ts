@@ -61,6 +61,31 @@ export async function listItems(ids: string[]): Promise<Item[]> {
   return rows.map(serializeItem);
 }
 
+/**
+ * The items that play the set role — what the home screen lists. An item
+ * is a set when it carries a query, declares a view to open in (`opens`
+ * naming a view kind), or has at least one live belonging arrow pointing
+ * at it. The two seeds always qualify: they carry both a query and a view.
+ * Roles are computed, never stored (DESIGN-CONCEPT §3) — this is that rule
+ * read back out of the data.
+ */
+export async function listSets(): Promise<Item[]> {
+  const db = getDb();
+  const [rows] = await db
+    .query<[ItemRow[]]>(
+      `SELECT * FROM items
+       WHERE ${LIVE}
+         AND (
+           query IS NOT NONE
+           OR opens IN ['timeline', 'canvas', 'list']
+           OR id IN (SELECT VALUE out FROM connections WHERE label IS NONE AND ${LIVE})
+         )
+       ORDER BY system DESC, created_at ASC`,
+    )
+    .collect();
+  return rows.map(serializeItem);
+}
+
 /** Name/display-name prefix search — the tag composer's and the set
  * switcher's lookup. */
 export async function searchItems(prefix: string, limit = 20): Promise<Item[]> {

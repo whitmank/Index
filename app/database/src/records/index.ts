@@ -9,6 +9,7 @@ export {
   listItems,
   listMemberDates,
   listMembers,
+  listSets,
   searchItems,
   timelinePartitionOf,
   TIMELINE_DIRECTION_FIELD,

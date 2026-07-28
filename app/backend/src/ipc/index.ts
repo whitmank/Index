@@ -10,6 +10,7 @@ import {
   listLabels,
   listMemberDates,
   listMembers,
+  listSets,
   searchItems,
 } from "@index/database";
 import type { Result } from "../bridge.js";
@@ -43,6 +44,8 @@ function handle<T>(channel: string, body: (...args: unknown[]) => Promise<T>): v
 }
 
 export function registerHandlers(): void {
+  handle(CHANNELS.setsList, async () => ({ sets: await listSets() }));
+
   handle(CHANNELS.setsMembers, async (setId, options) =>
     listMembers(asString(setId, "setId"), asMembersOptions(options)),
   );

@@ -1,10 +1,33 @@
 /* Authored by Karter Whitman using Claude Opus 4.8 */
 
+/* Solarized Light. The palette is Ethan Schoonover's; the semantic tokens
+   below are the only colours the rest of the app names. base3 is the
+   paper, base2 the raised surface, base01/base1 the two inks, and the
+   accents (blue / green / red / violet) carry meaning, never decoration. */
 :root {
-  --paper: #111113;
-  --ink: #e8e6e1;
-  --ink-quiet: #8a8781;
-  color-scheme: dark;
+  color-scheme: light;
+
+  --page: #d5ccba; /* the main background — measured value, warmer than base3 */
+  --paper: #fdf6e3; /* base3  — raised panels, popovers, modals (lift off --page) */
+  --surface: #eee8d5; /* base2  — inline raised: inputs, chips, hover fills */
+  --surface-hi: #e4ddc6; /* a touch deeper — active / selected / dragging */
+  --sunk: #f5efdb; /* inset well — code blocks, reader surface */
+
+  --ink: #46383d; /* primary text — darker, warmer, higher contrast on --page */
+  --ink-quiet: #8d827c; /* secondary text, captions — warm gray, keyed to --ink */
+  --ink-faint: #bcb6a0; /* fainter still — idle drag handles */
+
+  --line: #ddd6c1; /* hairline border on paper */
+  --line-strong: #c9c0a6; /* focus / hover edge */
+
+  --accent: #268bd2; /* blue   — links, connection labels, selection */
+  --good: #859900; /* green  — membership, the primary resource */
+  --danger: #dc322f; /* red    — destructive, errors */
+  --violet: #6c71c5; /* violet — a chosen override */
+
+  --shadow-pop: 0 12px 32px rgb(88 110 117 / 0.2);
+  --shadow-modal: 0 24px 64px rgb(88 110 117 / 0.26);
+  --scrim: rgb(101 123 131 / 0.24);
 }
 
 * {
@@ -18,11 +41,11 @@ body,
   margin: 0;
 }
 
+/* Type — family, size, weight, smoothing — is owned by typography.css,
+   imported before this file. Here body carries only colour. */
 body {
-  background: var(--paper);
+  background: var(--page);
   color: var(--ink);
-  font-family: ui-sans-serif, -apple-system, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
 }
 
 .placeholder {
@@ -36,15 +59,15 @@ body {
 
 .placeholder h1 {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
 }
 
 .placeholder p {
   margin: 0;
   color: var(--ink-quiet);
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
 }
 
 .check {
@@ -57,8 +80,8 @@ body {
 .check-line {
   margin: 0;
   color: var(--ink-quiet);
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
 .check-images {
@@ -83,8 +106,8 @@ body {
 
 .check-images figcaption {
   color: var(--ink-quiet);
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }
 
 .debug {
@@ -92,8 +115,8 @@ body {
   flex-direction: column;
   gap: 0.75rem;
   width: min(640px, 90vw);
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
 .debug-head {
@@ -105,8 +128,8 @@ body {
 .debug button {
   font: inherit;
   color: var(--ink);
-  background: #1c1c20;
-  border: 1px solid #2e2e34;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: 0.3rem 0.6rem;
   cursor: pointer;
@@ -127,11 +150,11 @@ body {
 }
 
 .debug-verdict.good {
-  color: #6fbf8b;
+  color: var(--good);
 }
 
 .debug-verdict.bad {
-  color: #e06c75;
+  color: var(--danger);
 }
 
 .debug-lines {
@@ -150,16 +173,16 @@ body {
 }
 
 .debug-lines .bad {
-  color: #e06c75;
+  color: var(--danger);
 }
 
 .debug-troubles {
   list-style: none;
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #4a2b2e;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--paper));
   border-radius: 4px;
-  color: #e06c75;
+  color: var(--danger);
 }
 
 .shell {
@@ -172,24 +195,60 @@ body {
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   height: 2.75rem;
   padding: 0 0.9rem;
-  border-bottom: 1px solid #1e1e22;
+  border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
   padding-left: 5rem; /* clear of the traffic lights */
 }
 
+/* Left: the address bar — where you are. A home affordance, then the
+   current set's name when you are inside one, browser-breadcrumb style. */
+.bar-address {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.bar-home {
+  -webkit-app-region: no-drag;
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: 1;
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+}
+
+.bar-home:hover,
+.bar-home.is-here {
+  color: var(--ink);
+}
+
+.bar-sep {
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+}
+
 .bar-set {
-  font-size: 0.8125rem;
-  letter-spacing: 0.02em;
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bar-action {
   -webkit-app-region: no-drag;
   margin-left: auto;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--ink-quiet);
   background: none;
   border: 0;
@@ -210,9 +269,9 @@ body {
   inset: 0;
   display: grid;
   place-content: center;
-  background: rgb(10 10 12 / 0.82);
+  background: rgb(253 246 227 / 0.82);
   color: var(--ink-quiet);
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
   z-index: 30;
 }
 
@@ -235,11 +294,12 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  color: #e06c75;
-  background: #1a1416;
-  border: 1px solid #4a2b2e;
+  font-size: var(--text-sm);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--paper));
   border-radius: 6px;
+  box-shadow: var(--shadow-pop);
 }
 
 .troubles button {
@@ -259,7 +319,7 @@ body {
 
 .bar-views button {
   font: inherit;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   color: var(--ink-quiet);
   background: none;
   border: 0;
@@ -274,5 +334,5 @@ body {
 
 .bar-views button.is-current {
   color: var(--ink);
-  background: #1f1f24;
+  background: var(--surface);
 }

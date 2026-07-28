@@ -5,6 +5,6 @@ export * as pool from "./pool.js";
 export * as history from "./history.js";
 export * as errors from "./errors.js";
 
-export { loadItem, loadSet, loadSetDates } from "./load.js";
+export { loadItem, loadSet, loadSetDates, loadSets } from "./load.js";
 export { useHistory, usePool, useTroubles } from "./hooks.js";
 export type { Trouble } from "./errors.js";

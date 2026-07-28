@@ -30,6 +30,8 @@ export interface BridgeEvents {
 
 export interface IndexBridge {
   sets: {
+    /** Every item that plays the set role — the home screen's listing. */
+    list(): Promise<Result<{ sets: Item[] }>>;
     members(setId: string, options?: MembersOptions): Promise<Result<Members>>;
     /** The dates a set has members on — the calendar popover's marks. */
     dates(setId: string): Promise<Result<string[]>>;

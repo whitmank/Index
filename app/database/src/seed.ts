@@ -20,8 +20,9 @@ function today(): string {
 const SEEDS = [
   {
     id: HOME_SET_ID,
-    name: "~",
-    // Everything belongs to `~`; its timeline is the application's home.
+    name: "All",
+    // Everything belongs to this set (its id is still `~`); it is the
+    // application's home, titled "All" for the set list.
     query: { all: true },
     fields: [
       { name: TIMELINE_PARTITION_FIELD, value: "date", kind: "string" },

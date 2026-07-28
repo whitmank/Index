@@ -11,6 +11,7 @@ const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(chann
 
 const bridge: IndexBridge = {
   sets: {
+    list: () => invoke(CHANNELS.setsList),
     members: (setId, options) => invoke(CHANNELS.setsMembers, setId, options),
     dates: (setId) => invoke(CHANNELS.setsDates, setId),
   },

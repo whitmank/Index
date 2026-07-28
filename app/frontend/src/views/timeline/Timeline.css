@@ -20,7 +20,7 @@
 
 .timeline-nav button {
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
   color: var(--ink-quiet);
   background: none;
   border: 0;
@@ -31,7 +31,7 @@
 
 .timeline-nav button:hover:not(:disabled) {
   color: var(--ink);
-  background: #1c1c20;
+  background: var(--surface);
 }
 
 .timeline-nav button:disabled {
@@ -40,8 +40,8 @@
 }
 
 .timeline-pick {
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-loose);
 }
 
 /* The filmstrip. Three panes, each one viewport wide, on a track that
@@ -94,15 +94,15 @@
 
 .page-head h2 {
   margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-snug);
 }
 
 .page-date {
   color: var(--ink-quiet);
-  font-size: 0.6875rem;
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
 }
 
 .page-body {
@@ -118,10 +118,10 @@
   z-index: 30;
   width: 15rem;
   padding: 0.6rem;
-  background: #1a1a1e;
-  border: 1px solid #2e2e34;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+  box-shadow: var(--shadow-pop);
 }
 
 .calendar-head {
@@ -129,7 +129,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.5rem;
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
 }
 
 .calendar-grid {
@@ -143,14 +143,14 @@
   place-content: center;
   height: 1.5rem;
   color: var(--ink-quiet);
-  font-size: 0.625rem;
+  font-size: var(--text-2xs);
 }
 
 .calendar-day {
   position: relative;
   height: 1.75rem;
   font: inherit;
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   color: var(--ink);
   background: none;
   border: 0;
@@ -159,7 +159,7 @@
 }
 
 .calendar-day:hover:not(:disabled) {
-  background: #26262c;
+  background: var(--surface);
 }
 
 .calendar-day:disabled {
@@ -168,7 +168,7 @@
 }
 
 .calendar-day.is-selected {
-  background: #2f2f37;
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
 }
 
 /* A day with members wears a dot — the calendar shows where the set
@@ -182,5 +182,5 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #6fbf8b;
+  background: var(--good);
 }

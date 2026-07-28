@@ -4,7 +4,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  font-size: 0.8125rem;
+  font-size: var(--text-base);
 }
 
 .list-head,
@@ -20,9 +20,9 @@
   flex: none;
   height: 2rem;
   color: var(--ink-quiet);
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid #1e1e22;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  border-bottom: 1px solid var(--line);
 }
 
 .list-head button {
@@ -46,7 +46,7 @@
 
 .list-manual .chip button {
   font: inherit;
-  font-size: 0.625rem;
+  font-size: var(--text-2xs);
   color: inherit;
   background: none;
   border: 0;
@@ -70,17 +70,17 @@
 }
 
 .row:hover {
-  background: #17171b;
+  background: var(--surface);
 }
 
 .row.is-dragging {
-  background: #1f1f26;
+  background: var(--surface-hi);
   opacity: 0.75;
 }
 
 .col-handle {
-  color: #3a3a42;
-  font-size: 0.75rem;
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
   background: none;
   border: 0;
   padding: 0;
@@ -107,8 +107,8 @@
 }
 
 .thumb-blank {
-  background: #1c1c20;
-  border: 1px solid #2a2a30;
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 
 .col-name,
@@ -122,12 +122,12 @@
 .col-device,
 .col-tags {
   color: var(--ink-quiet);
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
 }
 
 .col-date {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }
 
 .list-empty {
