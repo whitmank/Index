@@ -17,6 +17,7 @@ import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
 import { pathsToResources } from "../services/intake.js";
 import { isLocalUri, resolve } from "../services/resolver.js";
+import { broadcast } from "../windowBehavior/index.js";
 import {
   asChange,
   asMembersOptions,
@@ -66,9 +67,16 @@ export function registerHandlers(): void {
 
   handle(CHANNELS.labelsEnsure, async (name) => ensureLabel(asString(name, "name")));
 
-  handle(CHANNELS.changesApply, async (change) => ({
-    records: await applyChange(asChange(change)),
-  }));
+  handle(CHANNELS.changesApply, async (change) => {
+    const applying = asChange(change);
+    const records = await applyChange(applying);
+    // Every window is looking at the same database, so what one of them
+    // did is news in all of them. The window that asked is included: it
+    // has already merged these records itself, and merging them twice is
+    // the same as merging them once.
+    broadcast("records:changed", applying, records);
+    return { records };
+  });
 
   handle(CHANNELS.intakePathsToResources, async (paths) => ({
     resources: await pathsToResources(asStringArray(paths, "paths")),

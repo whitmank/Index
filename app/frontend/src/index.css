@@ -200,8 +200,9 @@ body {
   height: 2.75rem;
   padding: 0 0.9rem;
   border-bottom: 1px solid var(--line);
+  /* The window is frameless — no title bar, no traffic lights — so the
+     address bar is what you grab to move it. */
   -webkit-app-region: drag;
-  padding-left: 5rem; /* clear of the traffic lights */
 }
 
 /* Left: the address bar — where you are. A home affordance, then the

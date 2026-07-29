@@ -10,6 +10,7 @@ export const INDEX_DIR = path.join(os.homedir(), ".index");
 export const SURREAL_DIR = path.join(INDEX_DIR, "surreal");
 export const CACHE_DIR = path.join(INDEX_DIR, "cache");
 export const DEVICES_FILE = path.join(INDEX_DIR, "devices.toml");
+export const WINDOW_FILE = path.join(INDEX_DIR, "window.json");
 
 export interface DeviceConfig {
   /** This machine's device id — the authority intake stamps on new uris. */

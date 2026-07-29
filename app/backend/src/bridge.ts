@@ -26,6 +26,10 @@ export interface Sweep {
 export interface BridgeEvents {
   "intake:dropped": [paths: string[]];
   "gc:swept": [sweep: Sweep];
+  /** A change landed in the database — possibly from another window. The
+   * pairs move the pool, the records are what the database actually
+   * wrote. */
+  "records:changed": [change: Change, records: StoredRecord[]];
 }
 
 export interface IndexBridge {

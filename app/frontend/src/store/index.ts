@@ -6,5 +6,6 @@ export * as history from "./history.js";
 export * as errors from "./errors.js";
 
 export { loadItem, loadSet, loadSetDates, loadSets } from "./load.js";
+export { listen as listenForRemoteChanges } from "./remote.js";
 export { useHistory, usePool, useTroubles } from "./hooks.js";
 export type { Trouble } from "./errors.js";
