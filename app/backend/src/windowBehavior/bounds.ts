@@ -14,7 +14,6 @@ export interface Bounds {
 }
 
 export const DEFAULT_SIZE = { width: 1280, height: 820 };
-export const MIN_SIZE = { width: 720, height: 520 };
 
 /** How much of the window has to land on a display for saved bounds to be
  * worth restoring. A window remembered on a monitor that is no longer
@@ -52,7 +51,10 @@ export function loadBounds(): Bounds | null {
 
   const { x, y, width, height } = parsed;
   if (!isSize(x) || !isSize(y) || !isSize(width) || !isSize(height)) return null;
-  if (width < MIN_SIZE.width || height < MIN_SIZE.height) return null;
+  // However small the user made it is how small they wanted it; only a
+  // frame with no extent at all is refused, and that is a corrupt file
+  // rather than a choice.
+  if (width <= 0 || height <= 0) return null;
 
   const bounds = { x, y, width, height };
   return onSomeDisplay(bounds) ? bounds : null;

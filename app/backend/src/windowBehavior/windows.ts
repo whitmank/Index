@@ -12,7 +12,7 @@ import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { activeDesktop } from "./desktops.js";
-import { DEFAULT_SIZE, MIN_SIZE, loadBounds, saveBounds, type Bounds } from "./bounds.js";
+import { DEFAULT_SIZE, loadBounds, saveBounds, type Bounds } from "./bounds.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -75,8 +75,6 @@ export function createWindow(desktop: string = desktopNow()): BrowserWindow {
 
   const window = new BrowserWindow({
     ...frameFor(panes.size),
-    minWidth: MIN_SIZE.width,
-    minHeight: MIN_SIZE.height,
     backgroundColor: "#111113",
     // No frame at all. There is no handle to grab and nothing to close
     // with: the address bar is the drag region and the edges resize.
