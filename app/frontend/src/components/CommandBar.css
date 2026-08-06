@@ -1,0 +1,142 @@
+/* Authored by Karter Whitman using Claude Opus 5 */
+
+/* Above the focus view (z 20): the bar is how you leave whatever is open,
+   so it has to be reachable from on top of it. */
+.command-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: 14vh 2rem 2rem;
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+}
+
+.command {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 68vh;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.command-input {
+  flex: none;
+  font: inherit;
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+}
+
+.command-input::placeholder {
+  color: var(--ink-faint);
+}
+
+.command-input:focus {
+  outline: none;
+  border-bottom-color: var(--line-strong);
+}
+
+.command-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+}
+
+/* One row, laid out like a set card on the home screen — mark, name,
+   kind — so a result reads the same wherever you meet it. */
+.command-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.command-row.is-at {
+  background: var(--surface);
+}
+
+.command-row-mark {
+  flex: none;
+  width: 1.35rem;
+  text-align: center;
+  font-size: var(--text-md);
+  color: var(--ink-quiet);
+}
+
+.command-row.is-at .command-row-mark {
+  color: var(--accent);
+}
+
+.command-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-row-kind {
+  flex: none;
+  color: var(--ink-quiet);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: lowercase;
+}
+
+.command-empty {
+  margin: 0;
+  padding: 1rem;
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+}
+
+.command-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.8rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: lowercase;
+}
+
+/* The offer to make a set that does not exist yet. Quieter than a real
+   result — it is a thing you would be doing, not a thing that is. */
+.command-row.is-new .command-row-name {
+  color: var(--ink-quiet);
+}
+
+.command-row.is-new .command-row-mark {
+  color: var(--good);
+}
+
+.command-row.is-new.is-at .command-row-name {
+  color: var(--ink);
+}

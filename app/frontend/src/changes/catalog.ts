@@ -203,6 +203,59 @@ export function tag(item: Item, target: Item, targetIsNew = false): Change {
   };
 }
 
+/**
+ * Tag many items into one set at once — the batch bar's "add to set".
+ * One change, not N: the user made one decision, so one undo has to take
+ * it back. Items already in the set contribute no pair, so re-adding is
+ * silent rather than a no-op change cluttering the history; if that
+ * empties the change entirely, the caller has nothing to apply.
+ */
+export function tagMany(items: Item[], target: Item, targetIsNew = false): Change {
+  const pairs = items.flatMap((item) => {
+    if (item.id === target.id) return []; // a set cannot be its own member
+    if (pool.findConnection(item.id, target.id, null)) return [];
+    return [{ before: null, after: blankConnection(item.id, target.id) }];
+  });
+
+  return {
+    description: `Add ${countOf(pairs.length, "item")} to '${nameOf(target)}'`,
+    pairs: targetIsNew && pairs.length > 0 ? [{ before: null, after: target }, ...pairs] : pairs,
+  };
+}
+
+/**
+ * Delete many items and everything touching them, in one change. System
+ * items refuse deletion here exactly as they do one at a time — the batch
+ * simply passes over them rather than failing whole.
+ */
+export function deleteMany(items: Item[]): Change {
+  const at = now();
+  const deletable = items.filter((item) => !item.system);
+  const connections = new Map<string, Connection>();
+  for (const item of deletable) {
+    for (const connection of pool.connectionsTouching(item.id)) {
+      // A connection between two doomed items is touched by both; the map
+      // keeps one pair for it, because two would undo each other.
+      connections.set(connection.id, connection);
+    }
+  }
+
+  return {
+    description: `Delete ${countOf(deletable.length, "item")}`,
+    pairs: [
+      ...deletable.map((item) => ({ before: item, after: { ...item, deleted_at: at } })),
+      ...[...connections.values()].map((connection) => ({
+        before: connection,
+        after: { ...connection, deleted_at: at },
+      })),
+    ],
+  };
+}
+
+function countOf(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
 export function untag(item: Item, target: Item): Change | null {
   const arrow = pool.findConnection(item.id, target.id, null);
   if (!arrow) return null;

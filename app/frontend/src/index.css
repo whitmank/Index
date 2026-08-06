@@ -334,6 +334,28 @@ body {
   opacity: 0.7;
 }
 
+/* The command bar's door, kept quiet: the keystroke is the real way in,
+   and this is what tells you the keystroke exists. */
+.bar-goto {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  font: inherit;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  color: var(--ink-faint);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+.bar-goto:hover {
+  color: var(--ink-quiet);
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
 .bar-views {
   display: flex;
   gap: 0.15rem;

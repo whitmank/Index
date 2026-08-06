@@ -10,6 +10,7 @@ import {
   listLabels,
   listMemberDates,
   listMembers,
+  listPlacesAmong,
   listSets,
   searchItems,
 } from "@index/database";
@@ -59,9 +60,13 @@ export function registerHandlers(): void {
     return detail;
   });
 
-  handle(CHANNELS.itemsSearch, async (prefix, limit) => ({
-    items: await searchItems(asString(prefix, "prefix"), asOptionalNumber(limit, "limit") ?? 20),
-  }));
+  // Search answers with the places among its hits for the same reason a
+  // set load does: whatever draws a hit has to know whether it is somewhere
+  // to go or something to open, and the role is computed, never stored.
+  handle(CHANNELS.itemsSearch, async (term, limit) => {
+    const items = await searchItems(asString(term, "term"), asOptionalNumber(limit, "limit") ?? 20);
+    return { items, places: await listPlacesAmong(items.map((item) => item.id)) };
+  });
 
   handle(CHANNELS.labelsList, async () => ({ labels: await listLabels() }));
 

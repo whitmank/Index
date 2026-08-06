@@ -54,6 +54,23 @@ export async function loadSets(): Promise<string[]> {
   return ids;
 }
 
+/**
+ * Search, as a load: the hits go into the pool and their roles are marked
+ * before anyone sees them. That is what lets the caller hand a hit
+ * straight to `goTo` — the pool already knows whether it is a place to
+ * enter or a thing to open.
+ */
+export async function searchItems(term: string, limit?: number): Promise<Item[]> {
+  const answer = await window.index.items.search(term, limit);
+  if ("err" in answer) {
+    errors.surface(answer.err);
+    return [];
+  }
+  pool.merge(answer.ok.items);
+  pool.markPlaces(answer.ok.places);
+  return answer.ok.items;
+}
+
 /** The dates a set has members on — what the calendar popover marks. */
 export async function loadSetDates(setId: string): Promise<string[]> {
   const answer = await window.index.sets.dates(setId);

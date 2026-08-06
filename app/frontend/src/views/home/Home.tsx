@@ -9,8 +9,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apply, changes } from "../../changes/index.js";
 import { captionOf } from "../../lib/derive.js";
-import { HOME_SET_ID, PUBLIC_SET_ID } from "../../lib/seeds.js";
-import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
+import { HOME_SET_ID } from "../../lib/seeds.js";
+import { orderSets, VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
 import { loadSets, pool, usePool } from "../../store/index.js";
 
 export interface HomeProps {
@@ -33,16 +33,9 @@ export function Home({ onEnter }: HomeProps) {
     }),
   );
 
-  // `~` first, `public` next, then everything else in the backend's order.
-  const ordered = useMemo(() => {
-    const pinned = [HOME_SET_ID, PUBLIC_SET_ID];
-    const head = pinned.flatMap((id) => {
-      const set = sets.find((candidate) => candidate.id === id);
-      return set ? [set] : [];
-    });
-    const rest = sets.filter((set) => !pinned.includes(set.id));
-    return [...head, ...rest];
-  }, [sets]);
+  // `~` first, `public` next, then everything else in the backend's order
+  // — the same order the command bar offers them in.
+  const ordered = useMemo(() => orderSets(sets), [sets]);
 
   const create = useCallback(() => {
     const trimmed = name.trim();

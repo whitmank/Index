@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
-import { errors, pool } from "../../store/index.js";
+import { errors, pool, searchItems } from "../../store/index.js";
 
 export interface Outbound {
   connectionId: string;
@@ -40,13 +40,9 @@ export function ConnectionComposer({
       return;
     }
     const token = ++searchToken.current;
-    void window.index.items.search(trimmed, 8).then((answer) => {
+    void searchItems(trimmed, 8).then((items) => {
       if (token !== searchToken.current) return;
-      if ("err" in answer) {
-        errors.surface(answer.err);
-        return;
-      }
-      setMatches(answer.ok.items.filter((match) => match.id !== item.id));
+      setMatches(items.filter((match) => match.id !== item.id));
     });
   }, [term, item.id]);
 

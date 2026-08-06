@@ -162,3 +162,14 @@
   text-align: center;
   color: var(--ink-quiet);
 }
+
+/* Picked out: a filled row with the accent on its leading edge, so a
+   selection is legible down the left margin without reading a word. */
+.row.is-chosen {
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.row.is-chosen:hover {
+  background: color-mix(in srgb, var(--accent) 16%, var(--paper));
+}

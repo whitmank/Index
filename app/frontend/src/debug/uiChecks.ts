@@ -9,7 +9,7 @@
 // console, which the dev runner forwards to the terminal.
 import type { Item } from "@index/database/types";
 import { undo } from "../changes/index.js";
-import { history, pool } from "../store/index.js";
+import { history, pool, selection } from "../store/index.js";
 
 export interface CheckLine {
   ok: boolean;
@@ -429,6 +429,278 @@ export async function checkFocus(checks: Checks): Promise<void> {
 
 function historyDepth(): number {
   return history.entries().done.length;
+}
+
+/**
+ * Selection and the batch it enables. The half no unit test can see is
+ * that picking things out and *going* somewhere are the same click with
+ * and without a modifier — and that twenty items added to a set is one
+ * change, so one undo takes all of them back out.
+ */
+export async function checkSelection(
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  setKind("canvas");
+  const nodeCount = await settled(".canvas .node");
+  if (nodeCount < 2) {
+    checks.say(false, "selection — not enough nodes on the canvas to pick from");
+    return;
+  }
+
+  const nodes = () => [...document.querySelectorAll<HTMLElement>(".canvas .node")];
+  const countLabel = () => document.querySelector(".selected-count")?.textContent ?? "";
+
+  // ⌘-click picks out rather than navigating — the one gesture that has
+  // to differ from a plain click, and the one that must not navigate.
+  for (const node of nodes().slice(0, 2)) await pickAt(node);
+  const picked = await waitUntil(() => selection.count() === 2, 3000);
+  checks.say(picked, `⌘-click picks out without navigating — ${countLabel() || "no bar"}`);
+  checks.say(!document.querySelector(".focus"), "picking did not open the item instead");
+  checks.say(
+    document.querySelectorAll(".canvas .node.is-chosen").length === 2,
+    "the picked nodes are drawn as picked",
+  );
+
+  // ⌘A takes what is on screen.
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "a", metaKey: true, bubbles: true, cancelable: true }),
+  );
+  const all = await waitUntil(() => selection.count() === nodeCount, 3000);
+  checks.say(all, `⌘A takes all ${nodeCount} on screen (${countLabel()})`);
+
+  // Escape puts it down.
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  const cleared = await waitUntil(() => selection.count() === 0, 3000);
+  checks.say(cleared, "Escape puts the selection down");
+  checks.say(!document.querySelector(".selected-bar"), "and the batch bar goes with it");
+
+  // A sweep across the whole canvas catches what it covers.
+  const surface = document.querySelector<HTMLElement>(".canvas");
+  if (!surface) {
+    checks.say(false, "selection — no canvas to sweep");
+    return;
+  }
+  const area = surface.getBoundingClientRect();
+  await sweep(surface, { x: area.left + 2, y: area.top + 2 }, {
+    x: area.right - 2,
+    y: area.bottom - 2,
+  });
+  const swept = await waitUntil(() => selection.count() > 0, 3000);
+  checks.say(swept, `a sweep of the canvas caught ${selection.count()} of ${nodeCount}`);
+
+  // The batch itself: everything picked, into one set, in one change.
+  const target = pool
+    .all()
+    .filter(pool.isItem)
+    .find((item) => pool.isPlace(item.id) && !item.system);
+  if (!target) {
+    checks.say(false, "selection — no set to add a batch to");
+    return;
+  }
+  const targetName = target.display_name ?? target.name;
+  // A sweep of `~` catches the sets drawn on it too, and one of them may
+  // be the very set being added to. Nothing can be its own member, so it
+  // is not part of what this expects to land.
+  const members = selection.ids().filter((id) => id !== target.id);
+  const selfCaught = selection.count() - members.length;
+  const before = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+
+  const addButton = [...document.querySelectorAll<HTMLButtonElement>(".selected-action")].find(
+    (button) => button.textContent?.includes("add to set"),
+  );
+  addButton?.click();
+
+  const field = await waitFor<HTMLInputElement>(".command-input");
+  checks.say(Boolean(field), "'add to set…' opens the set picker");
+  if (!field) return;
+
+  const onlyPlaces = [...document.querySelectorAll(".command-row-kind")].every((kind) =>
+    ["timeline", "canvas", "list", "new"].includes(kind.textContent ?? ""),
+  );
+  checks.say(onlyPlaces, "the picker offers only places — a thing cannot hold things");
+
+  typeInto(field, targetName.toLowerCase());
+  await waitUntil(
+    () =>
+      [...document.querySelectorAll(".command-row-name")].some(
+        (row) => row.textContent === targetName,
+      ),
+    4000,
+  );
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  await sleep(600);
+
+  const arrows = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+  checks.say(
+    arrows === members.length && arrows > before,
+    `${arrows} of ${members.length} landed in '${targetName}'` +
+      ` (${before} were already there${selfCaught ? `, and it skipped itself` : ""})`,
+  );
+  checks.say(selection.count() === 0, "the batch done, the selection is released");
+
+  const stored = await window.index.sets.members(target.id);
+  const persisted =
+    "ok" in stored && members.every((id) => stored.ok.items.some((item) => item.id === id));
+  checks.say(persisted, "the database has the same members");
+
+  // One decision, one undo.
+  await undo();
+  await sleep(500);
+  const afterUndo = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+  checks.say(afterUndo === before, `one undo takes the whole batch back out (${afterUndo} left)`);
+}
+
+/** A click with ⌘ held — the gesture that picks out instead of going. */
+async function pickAt(element: Element): Promise<void> {
+  const box = element.getBoundingClientRect();
+  const at = { x: box.left, y: box.top };
+  element.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true, cancelable: true, pointerId: 3, button: 0, buttons: 1,
+      clientX: at.x, clientY: at.y, metaKey: true,
+    }),
+  );
+  await sleep(16);
+  window.dispatchEvent(
+    new PointerEvent("pointerup", {
+      bubbles: true, cancelable: true, pointerId: 3, button: 0, buttons: 0,
+      clientX: at.x, clientY: at.y, metaKey: true,
+    }),
+  );
+  await sleep(60);
+}
+
+/** Draw a rubber band from one point to another across a surface. */
+async function sweep(
+  surface: Element,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  surface.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true, cancelable: true, pointerId: 4, button: 0, buttons: 1,
+      clientX: from.x, clientY: from.y,
+    }),
+  );
+  await sleep(16);
+  for (const step of [0.25, 0.5, 0.75, 1]) {
+    window.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true, cancelable: true, pointerId: 4, button: 0, buttons: 1,
+        clientX: from.x + (to.x - from.x) * step,
+        clientY: from.y + (to.y - from.y) * step,
+      }),
+    );
+    await sleep(16);
+  }
+  window.dispatchEvent(
+    new PointerEvent("pointerup", {
+      bubbles: true, cancelable: true, pointerId: 4, button: 0, buttons: 0,
+      clientX: to.x, clientY: to.y,
+    }),
+  );
+  await sleep(80);
+}
+
+/**
+ * The command bar: reach anything by name, and land on it the way its
+ * role says you should. What no unit test can see is the half that
+ * matters — that ↵ on a set walks you there and ↵ on a thing opens it,
+ * from the same field, with nothing but the row's own glyph to warn you
+ * which it will be.
+ */
+export async function checkCommandBar(homeSetId: string, checks: Checks): Promise<void> {
+  const open = async (): Promise<HTMLInputElement | null> => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }),
+    );
+    return waitFor<HTMLInputElement>(".command-input");
+  };
+  const rowNames = () =>
+    [...document.querySelectorAll(".command-row-name")].map((row) => row.textContent ?? "");
+  const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
+
+  let field = await open();
+  checks.say(Boolean(field), "⌘K opens the command bar");
+  if (!field) return;
+
+  // Empty, it is the set switcher: the sets, `~` at the front.
+  await waitUntil(() => rowNames().length > 0, 4000);
+  const sets = rowNames();
+  const homeName = pool.getItem(homeSetId)?.display_name ?? pool.getItem(homeSetId)?.name ?? "";
+  checks.say(sets.length > 0, `empty, it lists ${sets.length} sets — ${sets.join(", ")}`);
+  checks.say(sets[0] === homeName, `\`~\` is offered first (${sets[0]})`);
+
+  // A set, found by a fragment of its name that is not its start — the
+  // reason this is a substring search and not a prefix one.
+  const target = sets.find((name) => name !== homeName && name.length > 3) ?? sets[1] ?? "";
+  const fragment = target.slice(1, 4).toLowerCase();
+  typeInto(field, fragment);
+  const found = await waitUntil(() => rowNames().some((name) => name === target), 4000);
+  checks.say(found, `"${fragment}" finds "${target}" from the middle of its name`);
+
+  const kind = document.querySelector(".command-row.is-at .command-row-kind")?.textContent ?? "";
+  checks.say(
+    ["timeline", "canvas", "list"].includes(kind),
+    `the selected row says it is a place (${kind})`,
+  );
+
+  // ↵ on a place walks there — and the trail starts over, because you
+  // did not walk through anywhere to get there.
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const walked = await waitUntil(() => trail().join("/") === target, 4000);
+  checks.say(walked, `↵ on a set goes there — trail is ${trail().join(" / ") || "(empty)"}`);
+  checks.say(!document.querySelector(".focus"), "going to a set did not open it as a thing instead");
+  checks.say(!document.querySelector(".command"), "the bar closed behind you");
+
+  // ↵ on a thing opens it where you stand, leaving the trail alone.
+  const thing = pool
+    .all()
+    .filter(pool.isItem)
+    .find((item) => !pool.isPlace(item.id) && (item.display_name ?? item.name).length > 3);
+  if (!thing) {
+    checks.say(false, "command bar — no thing in the pool to look for");
+    return;
+  }
+  const thingName = thing.display_name ?? thing.name;
+
+  field = await open();
+  if (!field) {
+    checks.say(false, "command bar — would not reopen");
+    return;
+  }
+  const wasTrail = trail().join(" / ");
+  typeInto(field, thingName.slice(0, 6).toLowerCase());
+  await waitUntil(() => rowNames().some((name) => name === thingName), 4000);
+  const row = [...document.querySelectorAll<HTMLElement>(".command-row")].find(
+    (candidate) => candidate.querySelector(".command-row-name")?.textContent === thingName,
+  );
+  checks.say(Boolean(row), `searching finds the item "${thingName}"`);
+  row?.click();
+
+  const openedIt = await waitFor(".focus", 4000);
+  checks.say(Boolean(openedIt), "picking a thing opens it in focus");
+  checks.say(trail().join(" / ") === wasTrail, "opening a thing left the trail where it was");
+
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(300);
+
+  // Escape closes the bar without going anywhere — and leaves us home.
+  field = await open();
+  if (!field) return;
+  await waitUntil(() => rowNames().length > 0, 4000);
+  typeInto(field, homeName.toLowerCase());
+  await waitUntil(() => rowNames().some((name) => name === homeName), 4000);
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  await waitUntil(() => trail().join("/") === homeName, 4000);
+
+  field = await open();
+  if (!field) return;
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  const closed = await waitUntil(() => !document.querySelector(".command"), 3000);
+  checks.say(closed, "Escape closes the bar");
+  checks.say(trail().join("/") === homeName, `and left you where you were (${trail().join("/")})`);
 }
 
 /**

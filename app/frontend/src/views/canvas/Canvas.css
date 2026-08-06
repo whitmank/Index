@@ -172,3 +172,26 @@
 .menu-item.danger {
   color: var(--danger);
 }
+
+/* Picked out. The ring rides outside the shape so it reads the same on a
+   bare circle and on one grown into an image preview, and it uses the
+   accent — the colour this app already reserves for selection. */
+.node.is-chosen .node-shape {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.node.is-chosen .node-caption {
+  color: var(--ink);
+}
+
+/* The sweep itself. Fixed, because it is drawn in the same client frame
+   the gesture is measured in — no conversion, nothing to get wrong. */
+.marquee {
+  position: fixed;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 2px;
+}

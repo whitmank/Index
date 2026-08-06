@@ -90,6 +90,7 @@ export function Timeline({ setId, onGoTo }: TimelineProps) {
         </header>
         <div className="page-body">
           <Canvas
+            active={isActive}
             date={date}
             itemIds={pages[date] ?? []}
             key={date}

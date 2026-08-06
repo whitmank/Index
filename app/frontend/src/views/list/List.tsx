@@ -7,14 +7,14 @@
 // is the moment an opinion appears: `order` materialises on the arrows to
 // this set, and the chip that appears says so — with an ✕ that clears
 // every one of them in a single change.
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ViewKind } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, deviceOf, nodeImageUrl } from "../../lib/derive.js";
 import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
-import { pool, usePool } from "../../store/index.js";
+import { pool, selection, usePool, useSelection } from "../../store/index.js";
 
 type SortKey = "name" | "date" | "device";
 
@@ -42,6 +42,14 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
+  /** Where the last pick landed, so ⇧-click knows what "to here" means. */
+  const anchor = useRef<string | null>(null);
+
+  const chosen = useSelection(() => new Set(selection.ids()));
+
+  useEffect(() => {
+    selection.setScope(itemIds);
+  }, [itemIds]);
 
   const rows = usePool<Row[]>(() =>
     itemIds.flatMap((id) => {
@@ -139,6 +147,37 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
     [indexAt, setId, sorted],
   );
 
+  /**
+   * A click with a modifier picks the row out instead of going to it —
+   * the same rule the canvas follows, so the two views never disagree
+   * about what a plain click means. ⇧ takes everything between the last
+   * pick and this one, which is the whole reason a list is easier to
+   * select in than a canvas.
+   */
+  const pick = useCallback(
+    (event: React.MouseEvent | React.KeyboardEvent, item: Item): boolean => {
+      if (event.shiftKey) {
+        const from = sorted.findIndex((row) => row.item.id === anchor.current);
+        const to = sorted.findIndex((row) => row.item.id === item.id);
+        if (from !== -1 && to !== -1) {
+          const [start, end] = from < to ? [from, to] : [to, from];
+          selection.add(sorted.slice(start, end + 1).map((row) => row.item.id));
+        } else {
+          selection.add([item.id]);
+        }
+        anchor.current = item.id;
+        return true;
+      }
+      if (event.metaKey || event.ctrlKey) {
+        selection.toggle(item.id);
+        anchor.current = item.id;
+        return true;
+      }
+      return false;
+    },
+    [sorted],
+  );
+
   return (
     <div className="list">
       <div className="list-head">
@@ -174,7 +213,15 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
       <div className="list-body" ref={body}>
         {sorted.map((row) => (
           <div
-            className={dragging === row.item.id ? "row is-dragging" : "row"}
+            aria-selected={chosen.has(row.item.id)}
+            className={[
+              "row",
+              dragging === row.item.id ? "is-dragging" : "",
+              chosen.has(row.item.id) ? "is-chosen" : "",
+            ]
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim()}
             data-item={row.item.id}
             key={row.item.id}
             onContextMenu={(event) => {
@@ -183,10 +230,14 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
             }}
             // One click, the same as everywhere else. A row is not a
             // different kind of object because it is drawn as a line.
-            onClick={() => onGoTo(row.item)}
+            onClick={(event) => {
+              if (pick(event, row.item)) return;
+              onGoTo(row.item);
+            }}
             onKeyDown={(event) => {
               if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
+              if (pick(event, row.item)) return;
               onGoTo(row.item);
             }}
             role="button"

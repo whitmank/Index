@@ -42,7 +42,10 @@ export interface IndexBridge {
   };
   items: {
     get(id: string): Promise<Result<ItemDetail>>;
-    search(prefix: string, limit?: number): Promise<Result<{ items: Item[] }>>;
+    /** Substring search over names, best match first, with the hits that
+     * play the set role named — a hit is somewhere to go or something to
+     * open, and only the backend can say which. */
+    search(term: string, limit?: number): Promise<Result<{ items: Item[]; places: string[] }>>;
   };
   labels: {
     list(): Promise<Result<{ labels: Label[] }>>;

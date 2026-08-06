@@ -17,7 +17,7 @@ const bridge: IndexBridge = {
   },
   items: {
     get: (id) => invoke(CHANNELS.itemsGet, id),
-    search: (prefix, limit) => invoke(CHANNELS.itemsSearch, prefix, limit),
+    search: (term, limit) => invoke(CHANNELS.itemsSearch, term, limit),
   },
   labels: {
     list: () => invoke(CHANNELS.labelsList),

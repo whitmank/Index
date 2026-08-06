@@ -8,26 +8,42 @@
 // you open. Which one an item is comes from the pool, and the views draw
 // the difference so the same click never surprises you.
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { ViewKind } from "@index/database/types";
+import type { Item, ViewKind } from "@index/database/types";
+import { apply, changes } from "./changes/index.js";
+import { CommandBar } from "./components/CommandBar.tsx";
+import { SelectionBar } from "./components/SelectionBar.tsx";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
 import {
   Checks,
   checkCanvas,
+  checkCommandBar,
   checkFocus,
   checkList,
   checkNavigation,
+  checkSelection,
   checkTimeline,
 } from "./debug/uiChecks.js";
+import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
 import { useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
 import { VIEW_KINDS, viewKindOf } from "./lib/sets.js";
-import { errors, loadItem, loadSet, pool, usePool, useTroubles } from "./store/index.js";
+import {
+  errors,
+  loadItem,
+  loadSet,
+  pool,
+  selection,
+  usePool,
+  useTroubles,
+} from "./store/index.js";
 import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
 import { Home } from "./views/home/Home.tsx";
 import { List } from "./views/list/List.tsx";
 import { Timeline } from "./views/timeline/Timeline.tsx";
+import "./components/CommandBar.css";
+import "./components/SelectionBar.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/home/Home.css";
@@ -51,25 +67,52 @@ export function App() {
   const [kind, setKind] = useState<ViewKind>(forcedView ?? "timeline");
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
+  const [commanding, setCommanding] = useState(false);
+  /** The set picker — the command bar asking which set, for the batch. */
+  const [picking, setPicking] = useState(false);
   const troubles = useTroubles();
+
+  // ⌘A and Escape belong to the selection only while nothing is over the
+  // stage; an open focus view or command bar asked for those keys first.
+  useSelectionKeys(!opened && !commanding && !picking);
 
   const currentSetId = path[path.length - 1] ?? null;
 
   // The trail, resolved to records so the crumbs can name themselves.
   const crumbs = usePool(() => path.map((id) => ({ id, item: pool.getItem(id) })));
 
-  /** Walk into a place: it becomes the last crumb, shown in the view it
-   * opens into. Going somewhere already on the trail truncates back to it
-   * rather than pushing a second copy. */
-  const enter = useCallback((id: string) => {
-    setPath((current) => {
-      const at = current.indexOf(id);
-      return at === -1 ? [...current, id] : current.slice(0, at + 1);
-    });
+  /** Arrive at a place on the given trail, in the view it opens into.
+   * Every way of getting somewhere ends here; they differ only in the
+   * trail they claim to have walked. */
+  const arriveAt = useCallback((id: string, trail: string[]) => {
+    setPath(trail);
     const item = pool.getItem(id);
     setKind(item ? viewKindOf(item) : "timeline");
     setOpened(null);
   }, []);
+
+  /** Walk into a place: it becomes the last crumb. Going somewhere
+   * already on the trail truncates back to it rather than pushing a
+   * second copy. */
+  const enter = useCallback(
+    (id: string) => {
+      const at = path.indexOf(id);
+      arriveAt(id, at === -1 ? [...path, id] : path.slice(0, at + 1));
+    },
+    [arriveAt, path],
+  );
+
+  /** Go straight to a place from the command bar. Unlike entering, this
+   * did not walk through anywhere, so it does not claim to have: the
+   * trail starts over at the destination — unless you jumped to a place
+   * already behind you, which is a walk back. */
+  const jump = useCallback(
+    (id: string) => {
+      const at = path.indexOf(id);
+      arriveAt(id, at === -1 ? [id] : path.slice(0, at + 1));
+    },
+    [arriveAt, path],
+  );
 
   /**
    * The one primitive. A place you enter; a thing you open. An item you
@@ -85,6 +128,68 @@ export function App() {
   );
 
   const goHome = useCallback(() => setPath([]), []);
+
+  /**
+   * What the command bar hands back: the same primitive as a click, on
+   * the far side of a search. A place is jumped to, a thing is opened
+   * over wherever you are — you asked to see it, not to move house.
+   */
+  const goToPicked = useCallback(
+    (id: string) => {
+      setCommanding(false);
+      if (pool.isPlace(id)) jump(id);
+      else setOpened({ id, isNew: false });
+    },
+    [jump],
+  );
+
+  /**
+   * Put every picked item into one set, as a single change — so one undo
+   * takes the whole batch back out. Landing there afterwards would be a
+   * second decision the user did not make, so the shell stays put and the
+   * selection is released: the batch is done.
+   */
+  const addPickedTo = useCallback(async (target: Item, targetIsNew = false) => {
+    const items = selection.ids().flatMap((id) => {
+      const item = pool.getItem(id);
+      return item ? [item] : [];
+    });
+
+    setPicking(false);
+    const change = changes.tagMany(items, target, targetIsNew);
+    // Everything picked was already in there: nothing happened, and
+    // nothing should be recorded as having happened.
+    if (change.pairs.length === 0) {
+      selection.clear();
+      return;
+    }
+    if (await apply(change)) selection.clear();
+  }, []);
+
+  /** The same gesture when the set does not exist yet: the set is minted
+   * inside the very same change that fills it, so one undo removes both
+   * the members and the set they went into. */
+  const addPickedToNew = useCallback(
+    (name: string) => {
+      void addPickedTo(changes.blankSet(name), true);
+    },
+    [addPickedTo],
+  );
+
+  // ⌘K opens the bar; ⌘F is the same door under the name the spec gave it
+  // (§3.7). Both work while typing — reaching for the bar is exactly what
+  // you do when what is under your cursor is not what you wanted.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== "k" && key !== "f") return;
+      event.preventDefault();
+      setCommanding((open) => !open);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Every crumb has to be able to name itself, however you arrived —
   // walked in, forced by an env var, or restored on the trail.
@@ -136,6 +241,8 @@ export function App() {
       await checkNavigation(checks, setKind);
       await checkFocus(checks);
       await checkList(HOME_SET_ID, checks, setKind);
+      await checkCommandBar(HOME_SET_ID, checks);
+      await checkSelection(checks, setKind);
       console.log(
         checks.failures
           ? `${checks.failures} of ${checks.lines.length} ui checks failed`
@@ -195,6 +302,15 @@ export function App() {
           })}
         </nav>
 
+        <button
+          className="bar-goto"
+          onClick={() => setCommanding(true)}
+          title="Go to… (⌘K)"
+          type="button"
+        >
+          go to…
+        </button>
+
         {currentSetId && (
           <nav className="bar-views" aria-label="view">
             {VIEW_KINDS.map((candidate) => (
@@ -232,6 +348,23 @@ export function App() {
           // Following a connection is the same primitive as anywhere else:
           // a place takes you there, a thing swaps the focus to it.
           onGoTo={goTo}
+        />
+      )}
+
+      {commanding && <CommandBar onClose={() => setCommanding(false)} onPick={goToPicked} />}
+
+      <SelectionBar onAddToSet={() => setPicking(true)} />
+
+      {picking && (
+        <CommandBar
+          mode="sets"
+          onClose={() => setPicking(false)}
+          onCreate={addPickedToNew}
+          onPick={(id) => {
+            const target = pool.getItem(id);
+            if (target) void addPickedTo(target);
+          }}
+          prompt="add to which set…"
         />
       )}
 

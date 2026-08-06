@@ -50,6 +50,18 @@ export function formatOf(item: Item): Format {
   return formatOfResource(item.resources[0]);
 }
 
+/** A glyph per format, the counterpart of VIEW_GLYPH: where that says
+ * which kind of place something is, this says which kind of thing. */
+export const FORMAT_GLYPH: Record<Format, string> = {
+  bare: "·",
+  image: "▣",
+  markdown: "¶",
+  book: "▤",
+  video: "▶",
+  link: "↗",
+  file: "▢",
+};
+
 export function primaryResource(item: Item): Resource | undefined {
   return item.resources[0];
 }

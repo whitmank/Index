@@ -107,21 +107,61 @@ export async function listPlacesAmong(ids: string[]): Promise<string[]> {
   return rows.map(idToString);
 }
 
-/** Name/display-name prefix search — the tag composer's and the set
- * switcher's lookup. */
-export async function searchItems(prefix: string, limit = 20): Promise<Item[]> {
+/**
+ * Name/display-name search — the command bar's and the tag composer's
+ * lookup. Substring, not prefix: you rarely remember how a thing's name
+ * *starts*, and a bar you must spell into from the left is a bar you stop
+ * reaching for.
+ *
+ * The database narrows, then JS ranks: exact name over prefix over
+ * substring, shorter names before longer ones at the same rank (the term
+ * is a larger share of them), alphabetical last. Ranking has to happen
+ * over the whole match population, so the LIMIT is applied after it — at
+ * personal scale a scan over freeform names is free (DESIGN-CONCEPT §8),
+ * and limiting first would cut good matches off alphabetically.
+ */
+export async function searchItems(term: string, limit = 20): Promise<Item[]> {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return [];
+
   const db = getDb();
   const [rows] = await db
     .query<[ItemRow[]]>(
       `SELECT * FROM items
        WHERE ${LIVE}
-         AND (string::starts_with(string::lowercase(name), $prefix)
-           OR string::starts_with(string::lowercase(display_name ?? ""), $prefix))
-       ORDER BY name ASC LIMIT $limit`,
-      { prefix: prefix.trim().toLowerCase(), limit },
+         AND (string::contains(string::lowercase(name), $term)
+           OR string::contains(string::lowercase(display_name ?? ""), $term))`,
+      { term: needle },
     )
     .collect();
-  return rows.map(serializeItem);
+
+  return rows
+    .map(serializeItem)
+    .sort((a, b) => {
+      const byRank = matchRank(a, needle) - matchRank(b, needle);
+      if (byRank !== 0) return byRank;
+      const byLength = captionOf(a).length - captionOf(b).length;
+      if (byLength !== 0) return byLength;
+      return captionOf(a).localeCompare(captionOf(b));
+    })
+    .slice(0, limit);
+}
+
+/** What the caption reads as — the same choice the views draw. */
+function captionOf(item: Item): string {
+  return item.display_name ?? item.name;
+}
+
+/** 0 exact, 1 prefix, 2 substring — the best of the two names. */
+function matchRank(item: Item, needle: string): number {
+  return Math.min(
+    ...[item.name, item.display_name ?? ""].map((name) => {
+      const lowered = name.toLowerCase();
+      if (lowered === needle) return 0;
+      if (lowered.startsWith(needle)) return 1;
+      return lowered.includes(needle) ? 2 : 3;
+    }),
+  );
 }
 
 /**
