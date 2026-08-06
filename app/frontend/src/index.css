@@ -23,6 +23,7 @@
   --accent: #268bd2; /* blue   — links, connection labels, selection */
   --good: #859900; /* green  — membership, the primary resource */
   --danger: #dc322f; /* red    — destructive, errors */
+  --warn: #cb4b16; /* orange — undoes a belonging, not the thing itself */
   --violet: #6c71c5; /* violet — a chosen override */
 
   --shadow-pop: 0 12px 32px rgb(88 110 117 / 0.2);

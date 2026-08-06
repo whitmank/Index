@@ -7,6 +7,13 @@
 // is the moment an opinion appears: `order` materialises on the arrows to
 // this set, and the chip that appears says so — with an ✕ that clears
 // every one of them in a single change.
+//
+// A row answers to the clicks a row has always answered to: one selects
+// it, two open it, ⇧ takes the range, ⌘ toggles. This is the one place
+// the shell's "a single click goes" rule is set aside, and deliberately
+// — a list is a place for choosing among things, and every list anyone
+// has used works this way. The canvas, where you are aiming at one thing
+// at a time, still goes on a single click.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ViewKind } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
@@ -23,6 +30,10 @@ export interface ListProps {
   itemIds: string[];
   /** The shell's one navigation primitive. */
   onGoTo: (item: Item, isNew?: boolean) => void;
+  /** Someone left the set; who is in it has to be read again, since
+   * membership is the union of a query and the arrows, and only the
+   * backend knows the first half. */
+  onMembersChanged?: () => void;
 }
 
 interface Row {
@@ -34,7 +45,7 @@ interface Row {
   place: ViewKind | null;
 }
 
-export function List({ setId, itemIds, onGoTo }: ListProps) {
+export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     key: "date",
     ascending: false,
@@ -148,14 +159,13 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
   );
 
   /**
-   * A click with a modifier picks the row out instead of going to it —
-   * the same rule the canvas follows, so the two views never disagree
-   * about what a plain click means. ⇧ takes everything between the last
-   * pick and this one, which is the whole reason a list is easier to
-   * select in than a canvas.
+   * What a click on a row means. ⇧ takes everything between the last
+   * pick and this one — the whole reason a list is easier to select in
+   * than a canvas — ⌘ toggles one, and a plain click takes just this
+   * one. Opening is the double click.
    */
   const pick = useCallback(
-    (event: React.MouseEvent | React.KeyboardEvent, item: Item): boolean => {
+    (event: React.MouseEvent | React.KeyboardEvent, item: Item): void => {
       if (event.shiftKey) {
         const from = sorted.findIndex((row) => row.item.id === anchor.current);
         const to = sorted.findIndex((row) => row.item.id === item.id);
@@ -166,14 +176,15 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
           selection.add([item.id]);
         }
         anchor.current = item.id;
-        return true;
+        return;
       }
       if (event.metaKey || event.ctrlKey) {
         selection.toggle(item.id);
         anchor.current = item.id;
-        return true;
+        return;
       }
-      return false;
+      selection.replace([item.id]);
+      anchor.current = item.id;
     },
     [sorted],
   );
@@ -228,17 +239,19 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
               event.preventDefault();
               setMenu({ anchor: { x: event.clientX, y: event.clientY }, item: row.item });
             }}
-            // One click, the same as everywhere else. A row is not a
-            // different kind of object because it is drawn as a line.
-            onClick={(event) => {
-              if (pick(event, row.item)) return;
-              onGoTo(row.item);
-            }}
+            // One click chooses, two open it — and the keyboard keeps
+            // both: space chooses where the pointer would click, Enter
+            // opens where it would double click.
+            onClick={(event) => pick(event, row.item)}
+            onDoubleClick={() => onGoTo(row.item)}
             onKeyDown={(event) => {
-              if (event.key !== "Enter" && event.key !== " ") return;
-              event.preventDefault();
-              if (pick(event, row.item)) return;
-              onGoTo(row.item);
+              if (event.key === " ") {
+                event.preventDefault();
+                pick(event, row.item);
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                onGoTo(row.item);
+              }
             }}
             role="button"
             tabIndex={0}
@@ -271,7 +284,7 @@ export function List({ setId, itemIds, onGoTo }: ListProps) {
       {menu && (
         <ContextMenu
           anchor={menu.anchor}
-          items={itemMenu(menu.item, { onGoTo })}
+          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, setId })}
           onDismiss={() => setMenu(null)}
         />
       )}

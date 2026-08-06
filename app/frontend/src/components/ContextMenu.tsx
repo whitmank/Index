@@ -7,9 +7,15 @@ import { useEffect, useRef, type ReactNode } from "react";
 export interface MenuItem {
   label: string;
   onChoose: () => void;
-  /** Draws the entry as the destructive one. */
-  danger?: boolean;
+  /**
+   * How much the entry takes away. `warn` severs a relationship and
+   * leaves the thing standing; `danger` takes the thing itself. They are
+   * different colours because they are different losses.
+   */
+  tone?: "warn" | "danger";
   disabled?: boolean;
+  /** Why it is disabled, or anything else the label has no room for. */
+  title?: string;
 }
 
 export interface MenuAnchor {
@@ -56,9 +62,10 @@ export function ContextMenu({
     <div className="menu" ref={ref} style={{ left: anchor.x, top: anchor.y }} role="menu">
       {items.map((item) => (
         <button
-          className={item.danger ? "menu-item danger" : "menu-item"}
+          className={item.tone ? `menu-item ${item.tone}` : "menu-item"}
           disabled={item.disabled}
           key={item.label}
+          title={item.title}
           onClick={() => {
             item.onChoose();
             onDismiss();

@@ -11,7 +11,7 @@ import type { Item } from "@index/database/types";
 import { CalendarPopover } from "../../components/CalendarPopover.tsx";
 import { useDayPager } from "../../hooks/useDayPager.js";
 import { adjacentDate, readableDate, todayISO } from "../../lib/dates.js";
-import { loadSet, loadSetDates } from "../../store/index.js";
+import { loadSet, loadSetDates, pool, usePool } from "../../store/index.js";
 import { Canvas } from "../canvas/Canvas.tsx";
 import { DayPager } from "./DayPager.tsx";
 
@@ -34,9 +34,20 @@ export function Timeline({ setId, onGoTo }: TimelineProps) {
     setPopulated(await loadSetDates(setId));
   }, [setId]);
 
+  /** Who holds an arrow into this set — see the shell for why the pages
+   * follow it. A day can empty out or fill up when this changes, so the
+   * marked dates are read again with them. */
+  const membership = usePool(() =>
+    pool
+      .arrowsInto(setId)
+      .map((arrow) => arrow.source)
+      .sort()
+      .join(" "),
+  );
+
   useEffect(() => {
     void refreshDates();
-  }, [refreshDates]);
+  }, [refreshDates, membership]);
 
   /** Load one day's page into the pool and remember its member order. */
   const loadPage = useCallback(
@@ -55,7 +66,9 @@ export function Timeline({ setId, onGoTo }: TimelineProps) {
     const behind = adjacentDate(populated, selected, -1, today);
     if (ahead) void loadPage(ahead);
     if (behind) void loadPage(behind);
-  }, [selected, populated, today, loadPage]);
+    // `membership` is a dependency, not a value read here: a change to
+    // who is in the set is a change to what these pages contain.
+  }, [selected, populated, today, loadPage, membership]);
 
   // ← and → turn the page, unless the user is typing.
   useEffect(() => {
@@ -95,12 +108,19 @@ export function Timeline({ setId, onGoTo }: TimelineProps) {
             itemIds={pages[date] ?? []}
             key={date}
             onGoTo={isActive ? onGoTo : () => undefined}
+            // Leaving the set can also empty the day, so the marked dates
+            // are read again with it — a page nobody can reach is worse
+            // than a stale one.
+            onMembersChanged={() => {
+              void loadPage(date);
+              void refreshDates();
+            }}
             setId={setId}
           />
         </div>
       </section>
     ),
-    [pages, onGoTo, setId, today],
+    [pages, onGoTo, setId, today, loadPage, refreshDates],
   );
 
   return (

@@ -224,6 +224,24 @@ export function tagMany(items: Item[], target: Item, targetIsNew = false): Chang
 }
 
 /**
+ * Take many items out of one set at once. Only an arrow can be withdrawn
+ * — an item the set's query matches is there by description, not by
+ * anyone's opinion — so items without one contribute no pair, and a
+ * change with no pairs is the caller's signal that nothing could be done.
+ */
+export function untagMany(items: Item[], target: Item): Change {
+  const pairs = items.flatMap((item) => {
+    const arrow = pool.findConnection(item.id, target.id, null);
+    return arrow ? [{ before: arrow, after: { ...arrow, deleted_at: now() } }] : [];
+  });
+
+  return {
+    description: `Remove ${countOf(pairs.length, "item")} from '${nameOf(target)}'`,
+    pairs,
+  };
+}
+
+/**
  * Delete many items and everything touching them, in one change. System
  * items refuse deletion here exactly as they do one at a time — the batch
  * simply passes over them rather than failing whole.
@@ -261,7 +279,7 @@ export function untag(item: Item, target: Item): Change | null {
   if (!arrow) return null;
 
   return {
-    description: `Untag ${describe(item)} from '${nameOf(target)}'`,
+    description: `Remove ${describe(item)} from '${nameOf(target)}'`,
     pairs: [{ before: arrow, after: { ...arrow, deleted_at: now() } }],
   };
 }

@@ -26,16 +26,40 @@
   overflow: hidden;
 }
 
-.command-input {
+/* The field is the verb chip and the input on one line, so the sentence
+   reads left to right as it is being built. */
+.command-field {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The verb already said, held while its argument is being typed. */
+.command-verb {
+  flex: none;
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--paper));
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  white-space: nowrap;
+}
+
+.command-input {
+  flex: 1;
+  min-width: 0;
   font: inherit;
   font-size: var(--text-xl);
   letter-spacing: var(--tracking-wide);
   color: var(--ink);
   background: none;
   border: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 0;
 }
 
 .command-input::placeholder {
@@ -44,7 +68,6 @@
 
 .command-input:focus {
   outline: none;
-  border-bottom-color: var(--line-strong);
 }
 
 .command-list {
@@ -125,6 +148,21 @@
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wider);
   text-transform: lowercase;
+}
+
+/* A verb reads as an action: the accent this app already uses for the
+   thing you are about to do, and a disabled one says so by going quiet. */
+.command-row.is-verb .command-row-mark {
+  color: var(--accent);
+}
+
+.command-row.is-verb:disabled {
+  cursor: default;
+}
+
+.command-row.is-verb:disabled .command-row-name,
+.command-row.is-verb:disabled .command-row-mark {
+  color: var(--ink-faint);
 }
 
 /* The offer to make a set that does not exist yet. Quieter than a real

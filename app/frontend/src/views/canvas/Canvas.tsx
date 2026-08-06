@@ -1,5 +1,11 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 // The canvas: a set's members as spatial nodes (PRODUCT-SPEC §3.4).
+//
+// Pointing at a node picks it out, and looking away puts it down — the
+// canvas is a place where things sit still and the pointer is already
+// the thing you aim with, so making you click to say "this one" was a
+// step that bought nothing. Clicking still goes, and a deliberate
+// selection silences the pointer until it is escaped.
 // Positions come from the arrows into the set and go back the same way —
 // dropping a node commits a `place` change, so where you put something is
 // recorded as an opinion about *this* set, not a property of the item.
@@ -43,18 +49,32 @@ export interface CanvasProps {
   /** The shell's one navigation primitive. `isNew` is true when this
    * gesture created the item it hands over. */
   onGoTo: (item: Item, isNew?: boolean) => void;
+  /** Someone left the set; who is in it has to be read again, since
+   * membership is the union of a query and the arrows, and only the
+   * backend knows the first half. */
+  onMembersChanged?: () => void;
 }
 
 /** A band smaller than this is a click on the background, not a sweep. */
 const MARQUEE_THRESHOLD = 6;
 
-export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasProps) {
+export function Canvas({
+  setId,
+  itemIds,
+  date,
+  active = true,
+  onGoTo,
+  onMembersChanged,
+}: CanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const elements = useRef(new Map<string, HTMLElement>());
   const simulation = useRef<Simulation | null>(null);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
   /** The live rubber band, in client coordinates, while one is being drawn. */
   const [band, setBand] = useState<Band | null>(null);
+  /** True while a gesture owns the pointer. Passing over a node on the
+   * way to somewhere else is not pointing at it. */
+  const gesturing = useRef(false);
 
   const items = usePool(() =>
     itemIds.flatMap((id) => {
@@ -141,6 +161,7 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
       // Plain clicking still goes — the one promise the whole shell makes
       // about a click is not worth a selection feature.
       const picking = event.metaKey || event.ctrlKey || event.shiftKey;
+      gesturing.current = true;
       const bounds = box.getBoundingClientRect();
       const origin = { x: event.clientX, y: event.clientY };
       let moved = false;
@@ -164,6 +185,7 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         sim.hold(null);
+        gesturing.current = false;
 
         const node = sim.nodes.find((candidate) => candidate.id === item.id);
         if (!moved) {
@@ -197,6 +219,7 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
     if (!box) return;
 
     const extending = event.metaKey || event.ctrlKey || event.shiftKey;
+    gesturing.current = true;
     const origin = { x: event.clientX, y: event.clientY };
     let swept = false;
 
@@ -210,6 +233,7 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       setBand(null);
+      gesturing.current = false;
 
       // A press on the background that never became a sweep is how you
       // put the selection down.
@@ -229,6 +253,29 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+  }, []);
+
+  /**
+   * Pointing at a node picks it out, and looking away puts it down. The
+   * lightest way to say "this one": no click, no modifier, nothing to
+   * learn, and nothing left behind. The selection store decides whether
+   * the pointer still has a voice — once something is picked
+   * deliberately it does not, or crossing the canvas would undo the
+   * marquee you just drew.
+   */
+  const point = useCallback(
+    (id: string) => {
+      if (!active || gesturing.current) return;
+      selection.hover(id);
+    },
+    [active],
+  );
+
+  const unpoint = useCallback((id: string) => {
+    // A drag carries the pointer off the node it is holding; that is not
+    // looking away from it.
+    if (gesturing.current) return;
+    selection.unhover(id);
   }, []);
 
   const createHere = useCallback(() => {
@@ -278,6 +325,8 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
           key={item.id}
           onContextMenu={(anchor) => setMenu({ anchor, item })}
           onPointerDown={(event) => startDrag(event, item)}
+          onPointerEnter={() => point(item.id)}
+          onPointerLeave={() => unpoint(item.id)}
           register={(element) => {
             if (element) elements.current.set(item.id, element);
             else elements.current.delete(item.id);
@@ -302,7 +351,7 @@ export function Canvas({ setId, itemIds, date, active = true, onGoTo }: CanvasPr
       {menu && (
         <ContextMenu
           anchor={menu.anchor}
-          items={itemMenu(menu.item, { onGoTo })}
+          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, setId })}
           onDismiss={() => setMenu(null)}
         />
       )}
@@ -350,6 +399,8 @@ function Node({
   onBox,
   onContextMenu,
   onPointerDown,
+  onPointerEnter,
+  onPointerLeave,
   register,
 }: {
   chosen: boolean;
@@ -357,6 +408,8 @@ function Node({
   onBox: (width: number, height: number) => void;
   onContextMenu: (anchor: MenuAnchor) => void;
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
   register: (element: HTMLElement | null) => void;
 }) {
   const image = usePool(() => nodeImageUrl(item));
@@ -410,6 +463,8 @@ function Node({
         onContextMenu({ x: event.clientX, y: event.clientY });
       }}
       onPointerDown={onPointerDown}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       ref={register}
       style={style}
       title={place ? `${caption || "untitled"} — a ${place}, click to go in` : undefined}

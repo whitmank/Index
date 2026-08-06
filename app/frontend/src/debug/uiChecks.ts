@@ -8,7 +8,9 @@
 // Set VITE_INDEX_UICHECK=1 to run them on launch; results go to the
 // console, which the dev runner forwards to the terminal.
 import type { Item } from "@index/database/types";
-import { undo } from "../changes/index.js";
+import { apply, changes, undo } from "../changes/index.js";
+import { captionOf } from "../lib/derive.js";
+import { HOME_SET_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { history, pool, selection } from "../store/index.js";
 
 export interface CheckLine {
@@ -432,6 +434,26 @@ function historyDepth(): number {
 }
 
 /**
+ * Wait for a change to be *recorded*, not merely applied. The pool moves
+ * optimistically, so a check that reads the pool and then undoes can beat
+ * `history.record` to it and undo the change before — which looks exactly
+ * like a broken undo.
+ */
+async function settledChange(depthBefore: number, timeoutMs = 4000): Promise<void> {
+  await waitUntil(() => historyDepth() > depthBefore, timeoutMs);
+  await sleep(150);
+}
+
+/** Switch to the canvas and wait for the timeline to be gone: its pages
+ * are canvases too, and sampling across the swap hands back nodes that
+ * are about to be unmounted. */
+async function intoCanvas(setKind: (kind: "timeline" | "canvas" | "list") => void): Promise<void> {
+  setKind("canvas");
+  await waitUntil(() => !document.querySelector(".pager-viewport"), 4000);
+  await settled(".canvas .node");
+}
+
+/**
  * Selection and the batch it enables. The half no unit test can see is
  * that picking things out and *going* somewhere are the same click with
  * and without a modifier — and that twenty items added to a set is one
@@ -449,13 +471,12 @@ export async function checkSelection(
   }
 
   const nodes = () => [...document.querySelectorAll<HTMLElement>(".canvas .node")];
-  const countLabel = () => document.querySelector(".selected-count")?.textContent ?? "";
 
   // ⌘-click picks out rather than navigating — the one gesture that has
   // to differ from a plain click, and the one that must not navigate.
   for (const node of nodes().slice(0, 2)) await pickAt(node);
   const picked = await waitUntil(() => selection.count() === 2, 3000);
-  checks.say(picked, `⌘-click picks out without navigating — ${countLabel() || "no bar"}`);
+  checks.say(picked, `⌘-click picks out without navigating — ${selection.count()} picked`);
   checks.say(!document.querySelector(".focus"), "picking did not open the item instead");
   checks.say(
     document.querySelectorAll(".canvas .node.is-chosen").length === 2,
@@ -467,13 +488,16 @@ export async function checkSelection(
     new KeyboardEvent("keydown", { key: "a", metaKey: true, bubbles: true, cancelable: true }),
   );
   const all = await waitUntil(() => selection.count() === nodeCount, 3000);
-  checks.say(all, `⌘A takes all ${nodeCount} on screen (${countLabel()})`);
+  checks.say(all, `⌘A takes all ${nodeCount} on screen`);
 
   // Escape puts it down.
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   const cleared = await waitUntil(() => selection.count() === 0, 3000);
   checks.say(cleared, "Escape puts the selection down");
-  checks.say(!document.querySelector(".selected-bar"), "and the batch bar goes with it");
+  checks.say(
+    document.querySelectorAll(".canvas .node.is-chosen").length === 0,
+    "and nothing is drawn as picked any more",
+  );
 
   // A sweep across the whole canvas catches what it covers.
   const surface = document.querySelector<HTMLElement>(".canvas");
@@ -504,21 +528,44 @@ export async function checkSelection(
   // is not part of what this expects to land.
   const members = selection.ids().filter((id) => id !== target.id);
   const selfCaught = selection.count() - members.length;
-  const before = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+  // Asked of the database, not the pool. The pool only holds arrows into
+  // sets it has loaded, so reading "who is already in there" from it —
+  // for a set this view has never opened — answers a confident zero and
+  // makes a correct skip look like a lost write.
+  const already = await window.index.sets.members(target.id);
+  const before =
+    "ok" in already
+      ? members.filter((id) => already.ok.items.some((member) => member.id === id)).length
+      : 0;
 
-  const addButton = [...document.querySelectorAll<HTMLButtonElement>(".selected-action")].find(
-    (button) => button.textContent?.includes("add to set"),
+  // The verb, said in the bar: ⌘K, type it, ⇥ to take it, then complete
+  // the target — the whole grammar, driven from the keyboard.
+  const beforeBatch = historyDepth();
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }),
   );
-  addButton?.click();
-
   const field = await waitFor<HTMLInputElement>(".command-input");
-  checks.say(Boolean(field), "'add to set…' opens the set picker");
+  checks.say(Boolean(field), "⌘K opens the bar with something picked out");
   if (!field) return;
+
+  typeInto(field, "add to");
+  const offered = await waitUntil(
+    () => document.querySelector(".command-row.is-verb .command-row-name") !== null,
+    4000,
+  );
+  const verbName =
+    document.querySelector(".command-row.is-verb .command-row-name")?.textContent ?? "";
+  checks.say(offered, `typing "add to" offers the verb — "${verbName}"`);
+
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+  const stagedChip = await waitFor(".command-verb", 3000);
+  checks.say(Boolean(stagedChip), `⇥ takes the verb and holds it — "${stagedChip?.textContent ?? ""}"`);
+  checks.say(field.value === "", "and clears the field for its argument");
 
   const onlyPlaces = [...document.querySelectorAll(".command-row-kind")].every((kind) =>
     ["timeline", "canvas", "list", "new"].includes(kind.textContent ?? ""),
   );
-  checks.say(onlyPlaces, "the picker offers only places — a thing cannot hold things");
+  checks.say(onlyPlaces, "the argument offers only places — a thing cannot hold things");
 
   typeInto(field, targetName.toLowerCase());
   await waitUntil(
@@ -544,11 +591,402 @@ export async function checkSelection(
     "ok" in stored && members.every((id) => stored.ok.items.some((item) => item.id === id));
   checks.say(persisted, "the database has the same members");
 
-  // One decision, one undo.
+  // One decision, one undo — once that decision is actually recorded.
+  await settledChange(beforeBatch);
+  // One decision is one entry, however many things it touched — and it
+  // touches only the ones that needed it.
+  const stack = history.entries().done;
+  const top = stack[stack.length - 1];
+  checks.say(
+    (top?.pairs.length ?? 0) === members.length - before,
+    `the batch is a single history entry of ${top?.pairs.length ?? 0} pairs — "${top?.description ?? "none"}"`,
+  );
   await undo();
   await sleep(500);
   const afterUndo = members.filter((id) => pool.findConnection(id, target.id, null)).length;
   checks.say(afterUndo === before, `one undo takes the whole batch back out (${afterUndo} left)`);
+}
+
+/**
+ * Leaving a set without being deleted. Two halves, and the refusal is
+ * the more important one: a set that holds its members by query cannot
+ * have them taken out, and the menu has to say so rather than remove an
+ * arrow and let the query put the item straight back.
+ */
+export async function checkRemoveFromSet(
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  setKind("canvas");
+  await settled(".canvas .node");
+
+  const openMenuOn = async (element: Element): Promise<void> => {
+    const box = element.getBoundingClientRect();
+    element.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true, cancelable: true, clientX: box.left, clientY: box.top,
+      }),
+    );
+    await waitFor(".menu");
+  };
+  const entryNamed = (fragment: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((entry) =>
+      entry.textContent?.startsWith(fragment),
+    );
+
+  // In `~`, which holds everything, the entry is there and refuses.
+  const node = document.querySelector<HTMLElement>(".canvas .node:not(.is-place)");
+  if (!node) {
+    checks.say(false, "remove — no thing on the canvas to try it on");
+    return;
+  }
+  await openMenuOn(node);
+  const refused = entryNamed("Remove from");
+  checks.say(Boolean(refused), `the menu offers "${refused?.textContent ?? "nothing"}"`);
+  checks.say(refused?.classList.contains("warn") ?? false, "it is drawn as a severing, not a delete");
+  checks.say(
+    (refused?.disabled ?? false) && (refused?.title ?? "").includes("holds everything"),
+    `in a set that holds everything it refuses, and says why — "${refused?.title ?? ""}"`,
+  );
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(200);
+
+  // Now the other half, in a set whose membership is arrows alone.
+  const itemId = node.dataset.item ?? "";
+  const item = pool.getItem(itemId);
+  const target = pool.getItem(PUBLIC_SET_ID);
+  if (!item || !target) {
+    checks.say(false, "remove — no arrow-only set seeded to try it in");
+    return;
+  }
+  const already = Boolean(pool.findConnection(itemId, target.id, null));
+  if (!already) await apply(changes.tag(item, target));
+  await sleep(300);
+
+  selection.clear();
+  await goToByName(captionOf(target));
+  setKind("canvas");
+  await settled(".canvas .node");
+
+  const there = document.querySelector<HTMLElement>(`.canvas .node[data-item="${cssId(itemId)}"]`);
+  if (!there) {
+    checks.say(false, `remove — '${captionOf(item)}' never appeared in '${captionOf(target)}'`);
+    return;
+  }
+
+  const beforeRemove = historyDepth();
+  await openMenuOn(there);
+  const remove = entryNamed("Remove from");
+  checks.say(
+    Boolean(remove) && !remove?.disabled,
+    `in '${captionOf(target)}' the same entry is live — "${remove?.textContent ?? ""}"`,
+  );
+  remove?.click();
+  await sleep(600);
+
+  checks.say(
+    !pool.findConnection(itemId, target.id, null),
+    "removing takes the arrow away",
+  );
+  checks.say(Boolean(pool.getItem(itemId)), "and leaves the item itself standing");
+
+  const gone = await waitUntil(
+    () => !document.querySelector(`.canvas .node[data-item="${cssId(itemId)}"]`),
+    4000,
+  );
+  checks.say(gone, "the view read the set again, so it actually left");
+
+  const stored = await window.index.sets.members(target.id);
+  checks.say(
+    "ok" in stored && !stored.ok.items.some((member) => member.id === itemId),
+    "the database agrees it is out",
+  );
+
+  await settledChange(beforeRemove);
+
+  await undo();
+  await sleep(500);
+  checks.say(
+    Boolean(pool.findConnection(itemId, target.id, null)),
+    "undo puts it back in the set",
+  );
+
+  // The half that a pool assertion cannot see: undo is a change the view
+  // did not make, so nothing tells it to read the set again unless the
+  // view is watching membership itself. Without that the row is restored
+  // in the data and still missing from the screen, which reads exactly
+  // like a broken undo.
+  const backOnScreen = await waitUntil(
+    () => Boolean(document.querySelector(`.canvas .node[data-item="${cssId(itemId)}"]`)),
+    5000,
+  );
+  checks.say(backOnScreen, "and the view shows it again without being told to look");
+
+  // Leave the set as we found it, then go home.
+  if (!already) {
+    await undo();
+    await sleep(400);
+  }
+  await goToByName(captionOf(pool.getItem(HOME_SET_ID) ?? item));
+}
+
+/** Walk somewhere through the command bar — the way a person would. */
+async function goToByName(name: string): Promise<void> {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }),
+  );
+  const field = await waitFor<HTMLInputElement>(".command-input");
+  if (!field) return;
+  typeInto(field, name.toLowerCase());
+  await waitUntil(
+    () =>
+      [...document.querySelectorAll(".command-row-name")].some((row) => row.textContent === name),
+    4000,
+  );
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  await sleep(500);
+}
+
+/** Record ids carry characters a selector cannot take raw. */
+function cssId(id: string): string {
+  return id.replace(/["\\]/g, "\\$&");
+}
+
+/**
+ * The two delete keys, which have to mean two different things: ⌫ takes
+ * the picked items out of the set and asks nothing, ⌘⌫ takes the items
+ * themselves and asks first. Getting these the wrong way round is the
+ * kind of mistake a person only has to make once to lose something, so
+ * the check watches what each one leaves behind.
+ */
+export async function checkDeleteKeys(
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  const target = pool.getItem(PUBLIC_SET_ID);
+  if (!target) {
+    checks.say(false, "delete keys — no arrow-only set to work in");
+    return;
+  }
+  const press = (key: string, meta = false) =>
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key, metaKey: meta, bubbles: true, cancelable: true }),
+    );
+
+  // ⌫ in `~`, which holds everything, must refuse and say so rather than
+  // look broken.
+  await intoCanvas(setKind);
+  const first = document.querySelector<HTMLElement>(".canvas .node:not(.is-place)");
+  if (!first) {
+    checks.say(false, "delete keys — nothing on the canvas to pick");
+    return;
+  }
+  await pickAt(first);
+  const picked1 = await waitUntil(() => selection.count() === 1, 3000);
+  checks.say(picked1, "a thing is picked out to try the keys on");
+  press("Backspace");
+  const complained = await waitFor(".troubles li", 3000);
+  checks.say(
+    Boolean(complained) && (complained?.textContent ?? "").includes("holds everything"),
+    `⌫ in a set that holds everything says why instead — "${complained?.textContent?.replace("✕", "") ?? "nothing"}"`,
+  );
+  checks.say(selection.count() === 1, "and it keeps the selection, having done nothing");
+  document.querySelector<HTMLButtonElement>(".troubles button")?.click();
+
+  // Put two items somewhere they can actually leave from.
+  const items = [...document.querySelectorAll<HTMLElement>(".canvas .node:not(.is-place)")]
+    .slice(0, 2)
+    .flatMap((element) => {
+      const found = pool.getItem(element.dataset.item ?? "");
+      return found ? [found] : [];
+    });
+  if (items.length < 2) {
+    checks.say(false, "delete keys — not enough things to work with");
+    return;
+  }
+  const restore = items.filter((item) => !pool.findConnection(item.id, target.id, null));
+  await apply(changes.tagMany(items, target));
+  await sleep(400);
+
+  selection.clear();
+  await goToByName(captionOf(target));
+  await intoCanvas(setKind);
+
+  // ⌫ where the arrows are real: out of the set, no questions asked.
+  press("a", true);
+  const took = await waitUntil(() => selection.count() > 0, 3000);
+  if (!took) {
+    checks.say(false, "delete keys — ⌘A took nothing in the target set");
+    return;
+  }
+  const picked = selection.ids();
+  const beforeRemoval = historyDepth();
+  press("Backspace");
+  const left = await waitUntil(
+    () => picked.every((id) => !pool.findConnection(id, target.id, null)),
+    4000,
+  );
+  checks.say(left, `⌫ takes all ${picked.length} out of '${captionOf(target)}' with no prompt`);
+  checks.say(!document.querySelector(".confirm"), "and it asked nothing, because undo is enough");
+  checks.say(
+    picked.every((id) => Boolean(pool.getItem(id))),
+    "the items themselves are untouched",
+  );
+
+  await settledChange(beforeRemoval);
+  await undo();
+  await sleep(500);
+  checks.say(
+    picked.every((id) => Boolean(pool.findConnection(id, target.id, null))),
+    "one undo puts them all back in",
+  );
+
+  // ⌘⌫ asks, and ↵ answers.
+  selection.replace([items[0]?.id ?? ""]);
+  await sleep(200);
+  press("Backspace", true);
+  const prompt = await waitFor<HTMLElement>(".confirm", 3000);
+  checks.say(Boolean(prompt), "⌘⌫ asks first");
+  checks.say(
+    (prompt?.textContent ?? "").includes("Delete"),
+    `it names what it would take — "${prompt?.querySelector(".confirm-question")?.textContent ?? ""}"`,
+  );
+
+  // Escape leaves everything standing.
+  prompt?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await sleep(300);
+  checks.say(!document.querySelector(".confirm"), "Escape dismisses the prompt");
+  checks.say(Boolean(pool.getItem(items[0]?.id ?? "")), "and nothing was deleted");
+
+  // And ↵ goes through with it.
+  const beforeDelete = historyDepth();
+  press("Backspace", true);
+  const again = await waitFor<HTMLElement>(".confirm", 3000);
+  again?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const deleted = await waitUntil(() => !pool.getItem(items[0]?.id ?? ""), 4000);
+  checks.say(deleted, "↵ confirms, and the item is gone");
+  checks.say(selection.count() === 0, "the selection goes with what it held");
+
+  await settledChange(beforeDelete);
+  await undo();
+  await sleep(500);
+  checks.say(Boolean(pool.getItem(items[0]?.id ?? "")), "one undo brings it back");
+
+  // Leave the set as we found it.
+  if (restore.length > 0) {
+    await apply(changes.untagMany(restore, target));
+    await sleep(300);
+  }
+  await goToByName(captionOf(pool.getItem(HOME_SET_ID) ?? target));
+}
+
+/**
+ * The two ways of saying "this one" that need no modifier: pointing at a
+ * node on the canvas, and clicking a row in the list. What has to hold is
+ * that pointing yields — once something is picked deliberately, crossing
+ * the canvas must not undo it — and that a list row still opens, on the
+ * second click rather than the first.
+ */
+export async function checkPointing(
+  checks: Checks,
+  setKind: (kind: "timeline" | "canvas" | "list") => void,
+): Promise<void> {
+  selection.clear();
+  await intoCanvas(setKind);
+  const nodes = [...document.querySelectorAll<HTMLElement>(".canvas .node")];
+  const [first, second] = nodes;
+  if (!first || !second) {
+    checks.say(false, "pointing — not enough nodes on the canvas");
+    return;
+  }
+
+  await pointAt(first);
+  const pointed = await waitUntil(() => selection.has(first.dataset.item ?? ""), 3000);
+  checks.say(pointed, "pointing at a node picks it out, with no click at all");
+  checks.say(selection.count() === 1, "and only it");
+
+  await pointAt(second);
+  const moved = await waitUntil(() => selection.has(second.dataset.item ?? ""), 3000);
+  checks.say(moved && selection.count() === 1, "pointing elsewhere moves the pick, rather than adding");
+
+  // Looking away puts it down: the pointer's pick lasts exactly as long
+  // as the pointer is on it.
+  await pointAwayFrom(second);
+  const dropped = await waitUntil(() => selection.count() === 0, 3000);
+  checks.say(dropped, "and leaving the node puts it down again");
+
+  // Something picked on purpose silences the pointer.
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "a", metaKey: true, bubbles: true, cancelable: true }),
+  );
+  const deliberate = await waitUntil(() => selection.count() === nodes.length, 3000);
+  checks.say(deliberate, `⌘A picks all ${nodes.length} deliberately`);
+
+  await pointAt(first);
+  await sleep(200);
+  checks.say(
+    selection.count() === nodes.length,
+    "and pointing no longer speaks — the deliberate pick survives crossing the canvas",
+  );
+
+  // Escape hands the voice back.
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await waitUntil(() => selection.count() === 0, 3000);
+  await pointAt(first);
+  const restored = await waitUntil(() => selection.count() === 1, 3000);
+  checks.say(restored, "Escape empties it, and pointing picks again");
+  await pointAwayFrom(first);
+
+  // The list: one click chooses, two open.
+  selection.clear();
+  setKind("list");
+  await waitUntil(() => document.querySelectorAll(".row").length > 1, 6000);
+  const row = document.querySelector<HTMLElement>(".row");
+  const rowId = row?.dataset.item ?? "";
+  if (!row) {
+    checks.say(false, "pointing — no rows to click");
+    return;
+  }
+
+  row.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  const chose = await waitUntil(() => selection.has(rowId), 3000);
+  checks.say(chose && selection.count() === 1, "one click on a row chooses it");
+  checks.say(!document.querySelector(".focus"), "and does not open it");
+  checks.say(
+    document.querySelectorAll(".row.is-chosen").length === 1,
+    "the row is drawn as chosen",
+  );
+
+  row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+  const opened = await waitFor(".focus", 4000);
+  checks.say(Boolean(opened), "two clicks open it");
+
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(300);
+  selection.clear();
+  setKind("timeline");
+}
+
+/** Move the pointer off something, the way React hears it. */
+async function pointAwayFrom(element: Element): Promise<void> {
+  element.dispatchEvent(
+    new PointerEvent("pointerout", {
+      bubbles: true, cancelable: true, pointerId: 5, relatedTarget: document.body,
+    }),
+  );
+  await sleep(80);
+}
+
+/** Move the pointer over something, the way React hears it. */
+async function pointAt(element: Element): Promise<void> {
+  const box = element.getBoundingClientRect();
+  element.dispatchEvent(
+    new PointerEvent("pointerover", {
+      bubbles: true, cancelable: true, pointerId: 5,
+      clientX: box.left, clientY: box.top, relatedTarget: null,
+    }),
+  );
+  await sleep(80);
 }
 
 /** A click with ⌘ held — the gesture that picks out instead of going. */

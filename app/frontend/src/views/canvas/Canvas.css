@@ -173,6 +173,12 @@
   color: var(--danger);
 }
 
+/* Severing a belonging is not deleting a thing, so it does not wear the
+   colour that means gone for good. */
+.menu-item.warn {
+  color: var(--warn);
+}
+
 /* Picked out. The ring rides outside the shape so it reads the same on a
    bare circle and on one grown into an image preview, and it uses the
    accent — the colour this app already reserves for selection. */
