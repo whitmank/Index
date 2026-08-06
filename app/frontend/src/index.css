@@ -23,7 +23,12 @@
   --accent: #268bd2; /* blue   — links, connection labels, selection */
   --good: #859900; /* green  — membership, the primary resource */
   --danger: #dc322f; /* red    — destructive, errors */
-  --warn: #cb4b16; /* orange — undoes a belonging, not the thing itself */
+  /* yellow — undoes a belonging, not the thing itself. Neither Solarized
+     accent would do: its orange (#cb4b16) reads as the red beside it, and
+     its yellow (#b58900) goes olive on this paper. So this one leaves the
+     palette, because being unmistakable from --danger at a glance matters
+     more here than being in the set. */
+  --warn: #d4af0f;
   --violet: #6c71c5; /* violet — a chosen override */
 
   --shadow-pop: 0 12px 32px rgb(88 110 117 / 0.2);
