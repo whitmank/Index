@@ -1,0 +1,72 @@
+// Authored by Karter Whitman using Claude Opus 4.8
+// Handlers validate what crosses the bridge (PRODUCT-SPEC §2.2). The
+// renderer is ours, so this is not a trust boundary so much as a place
+// for a malformed change to fail loudly and locally instead of becoming a
+// confusing SurrealDB error three layers down.
+import type { Change, ChangePair, MembersOptions, StoredRecord } from "@index/database/types";
+
+export class InvalidInput extends Error {}
+
+function fail(what: string): never {
+  throw new InvalidInput(what);
+}
+
+export function asString(value: unknown, what: string): string {
+  if (typeof value !== "string") fail(`${what} must be a string`);
+  return value;
+}
+
+export function asStringArray(value: unknown, what: string): string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    fail(`${what} must be an array of strings`);
+  }
+  return value as string[];
+}
+
+export function asOptionalNumber(value: unknown, what: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) fail(`${what} must be a number`);
+  return value;
+}
+
+export function asMembersOptions(value: unknown): MembersOptions {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object") fail("options must be an object");
+
+  const { partition } = value as { partition?: unknown };
+  if (partition === undefined) return {};
+  if (typeof partition !== "object" || partition === null) fail("partition must be an object");
+
+  return { partition: { date: asString((partition as { date: unknown }).date, "partition.date") } };
+}
+
+function asRecord(value: unknown, what: string): StoredRecord | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object") fail(`${what} must be a record or null`);
+  const { id } = value as { id?: unknown };
+  if (typeof id !== "string" || !/^(items|connections):/.test(id)) {
+    fail(`${what}.id must name an item or a connection`);
+  }
+  return value as StoredRecord;
+}
+
+export function asChange(value: unknown): Change {
+  if (typeof value !== "object" || value === null) fail("change must be an object");
+  const { description, pairs } = value as { description?: unknown; pairs?: unknown };
+  if (!Array.isArray(pairs) || pairs.length === 0) fail("change.pairs must be a non-empty array");
+
+  const validated: ChangePair[] = pairs.map((pair, index) => {
+    if (typeof pair !== "object" || pair === null) fail(`change.pairs[${index}] must be an object`);
+    const { before, after } = pair as { before?: unknown; after?: unknown };
+    const validatedPair: ChangePair = {
+      before: asRecord(before, `change.pairs[${index}].before`),
+      after: asRecord(after, `change.pairs[${index}].after`),
+    };
+    if (!validatedPair.before && !validatedPair.after) {
+      fail(`change.pairs[${index}] says nothing: both sides are null`);
+    }
+    return validatedPair;
+  });
+
+  return { description: asString(description, "change.description"), pairs: validated };
+}

@@ -1,0 +1,175 @@
+/* Authored by Karter Whitman using Claude Opus 4.8 */
+
+.list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-base);
+}
+
+.list-head,
+.row {
+  display: grid;
+  grid-template-columns: 1.5rem 1.75rem minmax(0, 2.2fr) 6.5rem minmax(0, 1.4fr) 5rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0 1rem;
+}
+
+.list-head {
+  flex: none;
+  height: 2rem;
+  color: var(--ink-quiet);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  border-bottom: 1px solid var(--line);
+}
+
+.list-head button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list-head button:hover {
+  color: var(--ink);
+}
+
+.list-manual {
+  flex: none;
+  padding: 0.4rem 1rem 0;
+}
+
+.list-manual .chip button {
+  font: inherit;
+  font-size: var(--text-2xs);
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 0.2rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.list-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+}
+
+.row {
+  height: 2.25rem;
+  border-radius: 4px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface);
+}
+
+/* The row is reachable by keyboard now that clicking it navigates. */
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.row.is-dragging {
+  background: var(--surface-hi);
+  opacity: 0.75;
+}
+
+.col-handle {
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: grab;
+  text-align: left;
+}
+
+.row:hover .col-handle {
+  color: var(--ink-quiet);
+}
+
+.col-thumb {
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+/* The same mark the canvas puts on a node, at row scale: this one is
+   somewhere you go, not something you open. */
+.row-place {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-none);
+  pointer-events: none;
+}
+
+.col-thumb img,
+.thumb-blank {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb-blank {
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.col-name,
+.col-tags {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-date,
+.col-device,
+.col-tags {
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+}
+
+.col-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.list-empty {
+  margin: 3rem 0 0;
+  text-align: center;
+  color: var(--ink-quiet);
+}
+
+/* Picked out: a filled row with the accent on its leading edge, so a
+   selection is legible down the left margin without reading a word. */
+.row.is-chosen {
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.row.is-chosen:hover {
+  background: color-mix(in srgb, var(--accent) 16%, var(--paper));
+}

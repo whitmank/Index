@@ -1,0 +1,31 @@
+{
+  "name": "@index/frontend",
+  "version": "0.7.0",
+  "description": "Index's renderer: views, store, changes, layouts, renderers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "Karter Whitman",
+  "license": "ISC",
+  "dependencies": {
+    "dompurify": "^3.4.12",
+    "epubjs": "^0.3.93",
+    "marked": "^15.0.12",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@index/backend": "*",
+    "@index/database": "*",
+    "@types/dompurify": "^3.0.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

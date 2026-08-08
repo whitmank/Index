@@ -1,0 +1,81 @@
+/* Authored by Karter Whitman using Claude Opus 5 */
+
+/* Above everything, including the command bar: it is a question, and
+   nothing else should be answerable while it stands. */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+}
+
+.confirm {
+  width: min(22rem, 100%);
+  padding: 1.1rem 1.2rem 0.9rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+}
+
+.confirm-question {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+
+.confirm-note {
+  margin: 0.35rem 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+}
+
+.confirm-answers {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.confirm-no,
+.confirm-yes {
+  font: inherit;
+  font-size: var(--text-sm);
+  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.confirm-no {
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+}
+
+.confirm-no:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* The destructive answer is the focused one, so it wears the ring that
+   says ↵ will take it. */
+.confirm-yes {
+  color: var(--paper);
+  background: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.confirm-yes:hover {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+}
+
+.confirm-yes:focus-visible,
+.confirm-yes:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 30%, transparent);
+}

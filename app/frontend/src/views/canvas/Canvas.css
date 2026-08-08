@@ -1,0 +1,203 @@
+/* Authored by Karter Whitman using Claude Opus 4.8 */
+
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  color: var(--ink-quiet);
+  font-size: var(--text-base);
+  pointer-events: none;
+}
+
+.canvas-add {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-content: center;
+  font-size: var(--text-xl);
+  line-height: var(--leading-none);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.canvas-add:hover {
+  background: var(--surface-hi);
+  border-color: var(--line-strong);
+}
+
+/* A node sits at the origin and is moved by a transform the simulation
+   writes each tick; everything inside is positioned around that point. */
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  --hw: var(--radius);
+  --hh: var(--radius);
+}
+
+.node-shape {
+  position: absolute;
+  width: calc(var(--radius) * 2);
+  height: calc(var(--radius) * 2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition:
+    width 160ms ease,
+    height 160ms ease,
+    border-radius 160ms ease;
+}
+
+.node-shape img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+/* Hover grows an image-bearing node into its bounded preview. The
+   simulation already keeps half that box clear of every edge, so the
+   node never has to move to make room. */
+.node.can-grow:hover .node-shape,
+.node.dragging .node-shape {
+  width: var(--hw);
+  height: var(--hh);
+  border-radius: 6px;
+}
+
+.node.can-grow:hover,
+.node.dragging {
+  z-index: 2;
+}
+
+.node.can-grow:hover .node-shape img,
+.node.dragging .node-shape img {
+  object-fit: contain;
+}
+
+/* A place wears its view kind on the rim, so the click that goes *into*
+   it is never a guess. Outside .node-shape, which clips to a circle. */
+.node-place {
+  position: absolute;
+  top: calc(var(--radius) * 0.68);
+  left: calc(var(--radius) * 0.68);
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  line-height: var(--leading-none);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.node-caption {
+  position: absolute;
+  top: calc(var(--radius) + 0.5rem);
+  left: 0;
+  transform: translateX(-50%);
+  max-width: 12rem;
+  text-align: center;
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  pointer-events: none;
+}
+
+.menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 11rem;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: var(--shadow-pop);
+}
+
+.menu-item {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--surface-hi);
+}
+
+.menu-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+/* Severing a belonging is not deleting a thing, so it does not wear the
+   colour that means gone for good. */
+.menu-item.warn {
+  color: var(--warn);
+}
+
+/* Picked out. The ring rides outside the shape so it reads the same on a
+   bare circle and on one grown into an image preview, and it uses the
+   accent — the colour this app already reserves for selection. */
+.node.is-chosen .node-shape {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.node.is-chosen .node-caption {
+  color: var(--ink);
+}
+
+/* The sweep itself. Fixed, because it is drawn in the same client frame
+   the gesture is measured in — no conversion, nothing to get wrong. */
+.marquee {
+  position: fixed;
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 2px;
+}

@@ -1,0 +1,98 @@
+// Authored by Karter Whitman using Claude Opus 4.8
+// The query-predicate compiler (PRODUCT-SPEC §1.5): a structured
+// predicate object becomes a SurrealQL boolean expression plus bindings.
+//
+// [pinned here] `format` does not compile to SurrealQL. It is a ladder of
+// mime/extension/url-shape tests (§1.6) whose only authoritative
+// implementation is `derive.ts`; expressing it a second time in SurrealQL
+// would guarantee the two drift. Format predicates are therefore applied
+// in JS after the read, over the rows the other predicates already
+// narrowed. Personal scale makes this free (DESIGN-CONCEPT §8 blesses
+// full scans over freeform fields); revisit if a format-only set over a
+// large store ever feels slow.
+import { devicePrefix } from "../derive.js";
+import type { Format, Predicate, SetQuery } from "../types.js";
+import { recordId } from "./serialize.js";
+
+export interface CompiledQuery {
+  /** A boolean expression over an `items` row. Never empty. */
+  where: string;
+  bindings: Record<string, unknown>;
+  /** Applied in JS after the read; empty when the query names no format. */
+  formats: Format[];
+}
+
+class Bindings {
+  private readonly values: Record<string, unknown> = {};
+  private next = 0;
+
+  add(value: unknown): string {
+    const name = `q${this.next}`;
+    this.next += 1;
+    this.values[name] = value;
+    return `$${name}`;
+  }
+
+  all(): Record<string, unknown> {
+    return this.values;
+  }
+}
+
+function compareTerm(kind: string, left: string, operator: string, bound: string): string {
+  // `number` compares numerically, `string` and `date` lexically — and
+  // ISO dates sort lexically by construction, which is why `date` needs
+  // no cast.
+  return kind === "number"
+    ? `<float> ${left} ${operator} <float> ${bound}`
+    : `${left} ${operator} ${bound}`;
+}
+
+function compilePredicate(predicate: Predicate, bindings: Bindings, formats: Format[]): string | null {
+  if ("date" in predicate) {
+    const terms: string[] = [];
+    if (predicate.date.gte !== undefined) terms.push(`date >= ${bindings.add(predicate.date.gte)}`);
+    if (predicate.date.lte !== undefined) terms.push(`date <= ${bindings.add(predicate.date.lte)}`);
+    return terms.length ? `(${terms.join(" AND ")})` : null;
+  }
+
+  if ("device" in predicate) {
+    const prefix = bindings.add(devicePrefix(predicate.device));
+    return `array::len(resources[WHERE string::starts_with(uri, ${prefix})]) > 0`;
+  }
+
+  if ("format" in predicate) {
+    formats.push(predicate.format);
+    return null;
+  }
+
+  if ("arrowTo" in predicate) {
+    const target = bindings.add(recordId(predicate.arrowTo));
+    return `id IN (SELECT VALUE in FROM connections WHERE out = ${target} AND label IS NONE AND deleted_at IS NONE)`;
+  }
+
+  const { name, kind, gte, lte, eq } = predicate.field;
+  const terms = [`name = ${bindings.add(name)}`];
+  if (eq !== undefined) terms.push(compareTerm(kind, "value", "=", bindings.add(eq)));
+  if (gte !== undefined) terms.push(compareTerm(kind, "value", ">=", bindings.add(gte)));
+  if (lte !== undefined) terms.push(compareTerm(kind, "value", "<=", bindings.add(lte)));
+  return `array::len(fields[WHERE ${terms.join(" AND ")}]) > 0`;
+}
+
+export function compileQuery(query: SetQuery): CompiledQuery {
+  const bindings = new Bindings();
+  const formats: Format[] = [];
+
+  if ("all" in query) {
+    return { where: "true", bindings: bindings.all(), formats };
+  }
+
+  const clauses = query.and
+    .map((predicate) => compilePredicate(predicate, bindings, formats))
+    .filter((clause): clause is string => clause !== null);
+
+  return {
+    where: clauses.length ? clauses.join(" AND ") : "true",
+    bindings: bindings.all(),
+    formats,
+  };
+}

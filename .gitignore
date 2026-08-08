@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-electron/
+.DS_Store
+*.log
+
+# SurrealDB SQL shell history (created by `surreal sql` probes)
+history.txt

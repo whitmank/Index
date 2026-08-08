@@ -1,0 +1,29 @@
+{
+  "name": "@index/backend",
+  "version": "0.7.0",
+  "description": "Index's Electron main process: database lifecycle, IPC, resolver, derivations, GC",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "exports": {
+    ".": "./dist/main.js",
+    "./bridge": "./src/bridge.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node build.js"
+  },
+  "author": "Karter Whitman",
+  "license": "ISC",
+  "dependencies": {
+    "@index/database": "*",
+    "cheerio": "^1.2.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "electron": "^39.2.7",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}

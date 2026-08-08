@@ -1,0 +1,257 @@
+---
+title: Build Log
+authors: Authored by Karter Whitman using Claude Opus 4.8
+date: 2026-07-20
+---
+
+# Index — Build Log
+
+One paragraph per phase: what was built, what was pinned, what surprised
+us. The design-log habit from the parent repo, kept.
+
+## Phase 0 — Scaffold
+
+The monorepo per ARCHITECTURE: root `package.json` with the three
+workspaces, TS strict everywhere (plus `noUncheckedIndexedAccess`),
+React 19 + Vite 6 for the renderer, Electron 39 for the main process.
+`npm run dev` builds the backend with esbuild, starts Vite on 5273, waits
+for it, then launches Electron; the window opens on a placeholder and
+quitting takes everything down. **Pinned:** the main process is bundled
+ESM (`dist/main.js`) and the preload bundled CJS (`dist/preload.cjs`) — a
+sandboxed preload has no module loader, so it cannot be ESM; devtools
+open only when `INDEX_DEVTOOLS` is set, because a detached inspector on
+every launch buries the window. **Surprised us:** npm 11's `allowScripts`
+gate meant Electron never unpacked; its bundled `extract-zip` then
+extracted one file and silently stopped, so the binary was laid down with
+`unzip` and `path.txt` written by hand. If `node_modules` is ever blown
+away, expect to repeat that.
+
+## Phase 1 — app/database
+
+`types.ts` (the wire shapes), `schema.surql` (§1.1–1.3), the connection
+lifecycle (spawn / poll / connect / stop, Electron-free so tests can use
+it), the repository under `records/` with soft-delete filtering baked
+into every read, `changes.ts` (all pairs in one transaction, undo = the
+same change with pairs swapped), idempotent seeds, and the query-predicate
+compiler. `npm run test:db` spins up a throwaway store on port 8499 and
+walks create → rename → tag → place → delete → undo → undo → undo,
+asserting the reads at each step: 20 assertions, all green.
+
+**Pinned here:**
+
+- The wire shape calls a connection's endpoints `source`/`target`
+  (the glossary's words); only the repository knows they are stored as
+  SurrealDB's `in`/`out`.
+- `format` predicates are **not** compiled to SurrealQL. The format ladder
+  (§1.6) has one authoritative implementation in `derive.ts`, and writing
+  it a second time in SurrealQL would guarantee drift; format predicates
+  filter in JS over rows the other predicates already narrowed. Personal
+  scale makes this free — DESIGN-CONCEPT §8 blesses full scans.
+- Query-matched membership skips `system` items, so `~` (`{ all: true }`)
+  does not list itself and `public` among the user's things. An explicit
+  arrow still admits them.
+- The timeline parameters on a set live in fields named
+  `timeline_partition` (`date` | `created_at`) and `timeline_direction`
+  (`forward` | `backward`), matching §1.4's table.
+- Labels sit outside the change model. They carry no user-visible state
+  of their own, so there is nothing about one to undo; `ensureLabel`
+  upserts on first use.
+
+**Surprised us:** three places where SurrealDB 3.0.4 disagrees with the
+spec's SurrealQL, none of them design changes —
+
+1. `FLEXIBLE` must follow `TYPE`, not precede it (`TYPE option<object>
+   FLEXIBLE`). The spec's 2.x ordering is a parse error.
+2. `query` needs `FLEXIBLE` at all. Without it a `SCHEMAFULL` object field
+   silently drops the predicate's contents; the spec only marks
+   `resources.*.cached`.
+3. A relation record must be *born* a relation. `UPSERT connections:x
+   CONTENT {…}` mints an ordinary record and then fails the table's
+   `TYPE RELATION … ENFORCED` check, so creation goes through
+   `INSERT RELATION INTO connections`, and updates through
+   `UPDATE … CONTENT`. `changes.ts` tells the two apart by `before ===
+   null`, which it already knows.
+
+`created_at` survives an UPSERT that re-sends it, so `READONLY` stayed in
+the schema as written.
+
+## Phase 2 — app/backend
+
+The main process end to end: directories and device config, the SurrealDB
+child, `res://` and `thumb://`, the §2.2 handlers behind a typed preload,
+and the services — resolver, derivations (sharp thumbnails; the
+kwhitman.xyz link scrape ported with the spec's 10 s / 1 MB caps), intake,
+gc. Verified from the renderer: intake stamps a uri and derives
+`thumbnail, mime`; a change applies and reads back through
+`sets.members`; `res://` streams 9.3 MB of a real photo and `thumb://`
+mints and serves a 20 KB cache file; the launch sweep logs; quitting
+SIGTERMs the database and everything exits.
+
+**Pinned here:**
+
+- **`res://uri/<encoded>`, not `res://<encoded>`.** The spec's form puts
+  the encoded uri in the URL's authority. That cannot work: a scheme must
+  be registered `standard` for the renderer to `fetch()` it at all (a
+  non-standard scheme is blocked by CORS outright), a standard scheme
+  requires a non-empty host, and Chromium normalises hosts — while
+  resource paths are case-sensitive. A fixed `uri` host with the encoded
+  uri in the path survives normalisation. The handler still accepts the
+  spec's shape.
+- `pathsToResources` also takes an http(s) url. A pasted link is the same
+  gesture as a dropped file, and §2.2 gives the renderer exactly one way
+  to turn something handed over into a resource; overloading it beat
+  inventing a second handler. It also *awaits* derivations rather than
+  only warming them, so §2.4's "written into `resources[].cached` by the
+  same change" holds.
+- `intake.pathForFile` was added to the bridge. Electron removed
+  `File.path`, so only the preload (via `webUtils`) can turn a dropped
+  File into a path — phase 5's OS drop needs it and nothing else can
+  provide it.
+- The device table is a hand-rolled ~30-line TOML reader. It parses one
+  `self` key and a `[mounts]` section of strings, which is shorter and
+  easier to trust than a dependency, and it ignores anything it doesn't
+  understand.
+- Only workspace code is bundled into `dist/main.js`; third-party packages
+  stay external. Bundling them put cheerio's CommonJS `iconv-lite` inside
+  an ESM bundle, where its dynamic `require` died on load.
+- Renderer console messages are forwarded to the main process's stdout in
+  development, so one log tells the whole story.
+
+**Surprised us:**
+
+1. **A websocket connect never settles in Electron's main process when
+   nothing is listening yet.** The readiness poll from §2.1 — open a
+   throwaway SDK connection, catch, retry — hung forever instead of
+   timing out after 10 s: no window, no error, nothing in the log.
+   Readiness is now polled over plain HTTP against `/health`, which is
+   what that endpoint is for.
+2. **`items:⟨public⟩` is really `items:public`.** SurrealDB brackets only
+   the ids that need it, and the wire id has to be what the SDK renders
+   or ids silently stop matching across the bridge. `~` keeps its
+   brackets; `public` does not. The test now asserts both. (Confusingly,
+   the `surreal` CLI prints these same ids with backticks — a different
+   renderer, not a different id. That cost a detour.)
+3. `~/.index/surreal` already holds 0.6's store, so 0.7 shares a
+   RocksDB directory with the previous version. Different table names, so
+   nothing collides today — but it is worth a decision before this is
+   anyone's real data.
+
+## Phase 3 — store, changes, history
+
+The record pool with its selectors, the full §3.3 change catalog, the
+optimistic apply path with revert-on-error, and session history on
+`⌘Z`/`⇧⌘Z` with the text-input guard. The debug panel replaces phase 2's
+bridge check and does what the plan asked for: it drives create → rename
+→ tag → place → delete and then undoes each in turn, checking after every
+single step that the pool, the database (read back through the same
+bridge paths a view uses) and the history stack still agree. Seventeen
+checks, all green, and the panel leaves the database with nothing but its
+two seeds.
+
+**Pinned here:**
+
+- **The pool is versioned, not snapshotted.** Subscription is a counter;
+  views read what they need from the map on render. At personal scale a
+  re-render on any change is cheaper than per-selector memoisation, and
+  far less machinery to be wrong.
+- **The pool holds only what is live.** A record arriving with
+  `deleted_at` — from a load or from a write's own answer — is removed
+  rather than stored.
+- **A change that fails to persist is not recorded in history.** The
+  stack has to describe the database; a change that never landed
+  describes nothing. A failed undo or redo is pushed back where it came
+  from for the same reason.
+- `changes/catalog.ts` is the only place in the renderer that decides what
+  a gesture *means*. Constructors ask the pool for the live arrow before
+  making one, which is what keeps the upsert rule true from this side.
+- `lib/ids.ts` and `lib/derive.ts` mirror their counterparts in
+  `app/database` rather than importing them — ARCHITECTURE's dependency
+  rule says the renderer takes types from that package, not values. If the
+  format ladder changes, both change. Same for the seed ids in
+  `lib/seeds.ts`.
+
+**Surprised us:** the soft delete undid itself. `applyPairs` correctly
+removed the record from the pool, and then `send` merged the write's
+answer — which, for a soft-deleted record, is the record — and put it
+straight back. Two functions each doing something reasonable, adding up
+to a delete that didn't. It only showed up because the panel checks the
+pool *and* the database after every step rather than at the end; a
+final-state check would have missed it entirely. That is the argument for
+keeping this panel around.
+
+The other stumble was self-inflicted: StrictMode fires effects twice, so
+the autorun ran two interleaved sequences over shared state and reported
+nonsense history depths. The panel now refuses to run re-entrantly.
+
+## Phase 4 — the views
+
+Four views, each usable before the next was started, all against the real
+database, every mutation undoing cleanly. Verification is a set of
+synthetic-gesture UI checks (`VITE_INDEX_UICHECK=1`) that drive the live
+interface — a real drag, a real click, real typing into the composer —
+and then ask the pool *and* the database what happened: 28 checks, all
+green, covering the done-when of every view.
+
+**Canvas.** A set's members as spatial nodes; images from the thumbnail
+derivation, hover previews bounded and kept clear of the edges, drag to
+place, click to open, right-click for the shared item menu, a `+` that
+creates on the day. The physics is ported from the parent repo's settled
+decisions — one spring per node toward `centre + offset`, no node-to-node
+forces — but runs its own rAF loop, so d3 never entered the tree.
+
+**Timeline.** Day pages over any set, each page a canvas of that day's
+members, so placing on a day writes the same arrow as placing anywhere.
+Swipe / arrows / calendar turn the page; empty days are skipped and today
+is always reachable; the two reachable days are prefetched. The pager,
+its swipe recogniser, and its slide transition are ported wholesale. This
+is the launch surface.
+
+**Focus.** Layout × renderer, the two machines that never override each
+other: the renderer is chosen by format, the layout by the presentation
+cascade. Renderers for image / markdown / video / book / link / file /
+bare; layouts for default / movie / photo / note / video. The editing
+surface commits on settle and a new-but-empty item is discarded untracked
+on dismissal.
+
+**List.** Rows sortable by their intrinsic columns; a drag-handle reorder
+writes `order` onto the arrows and raises the "sorted manually" chip,
+whose ✕ clears every one of them in a single change.
+
+**Pinned here:**
+
+- **Two mirrors grew a third.** `lib/derive.ts` already mirrored the
+  format ladder; the views also needed the seed ids (`lib/seeds.ts`) and
+  client-side ULIDs (`lib/ids.ts`), each mirrored from `@index/database`
+  for the same reason — the renderer takes types from that package, never
+  values. Three files now restate database constants. If that ever grows
+  a fourth, a shared value-only package is the answer; it is not worth one
+  yet.
+- **Nodes carry no id in the DOM.** The simulation addresses them by
+  index, so a node's `<div>` gets a `data-item` only for the checks (and,
+  soon, whatever else needs to find a node by its item). Position is
+  written straight to the element transform each tick, never through
+  React state.
+- **The canvas adopts positions it did not write.** A node stays where a
+  drag put it, but an undo, a redo, or another view moving the same item
+  changes the arrow without this canvas doing it — so `syncPlacements`
+  reconciles the ring against the set's opinion on every position change,
+  and can tell its own write (already matching) from a foreign one.
+- The view-kind switcher lives in the shell already, ahead of phase 5: a
+  view nobody can reach isn't finished. The set switcher, undo indicators
+  and `⌘N` are still phase 5's.
+
+**Surprised us:** the soft-delete-undoes-itself shape from phase 3 has a
+sibling in the pool's merge, and the same discipline fixed both — the
+pool holds only what is live, so a record arriving with `deleted_at`, from
+any direction, is removed rather than stored. The canvas found the other
+half: a view has to *follow* a change it didn't make, not just hold the
+data. A final-state assertion would have missed both; checking the pool
+and the database after every single step is what caught them, which is
+the whole argument for how these checks are written.
+
+**A note on tooling, not the app:** the UI checks and screenshots are
+driven headlessly. `osascript`-based window control needs macOS
+accessibility permission this environment doesn't grant, and reaching for
+it once popped a permission dialog over unrelated apps — so the checks
+dispatch synthetic DOM events instead, and screenshots use a dev-only
+always-on-top flag (`INDEX_TOP`). None of that is shipped behaviour.
