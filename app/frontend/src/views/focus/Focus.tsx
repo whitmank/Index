@@ -35,6 +35,21 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [openAsOpen, setOpenAsOpen] = useState(false);
 
+  // The scrim fades in rather than snapping to full dark — two rAFs so
+  // the hidden state paints first, or the transition has nothing to
+  // animate from.
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setVisible(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, []);
+
   const item = usePool(() => pool.getItem(itemId));
 
   useEffect(() => {
@@ -164,9 +179,12 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   );
 
   return (
-    <div className="focus-backdrop" onPointerDown={(event) => {
-      if (event.target === event.currentTarget) dismiss();
-    }}>
+    <div
+      className={visible ? "focus-backdrop visible" : "focus-backdrop"}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) dismiss();
+      }}
+    >
       <div className="focus" role="dialog">
         <header className="focus-bar">
           <SettleInput

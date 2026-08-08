@@ -7,8 +7,12 @@
   display: grid;
   place-items: center;
   padding: 2.5rem 2rem;
-  background: var(--scrim);
-  backdrop-filter: blur(3px);
+  background: rgb(10 10 14 / 0);
+  transition: background 320ms ease;
+}
+
+.focus-backdrop.visible {
+  background: var(--scrim-focus);
 }
 
 .focus {

@@ -197,6 +197,22 @@ export function inboundTo(itemId: string): Connection[] {
   );
 }
 
+/** Every live connection strictly between two ids in the given set — the
+ * relations a canvas draws as edges. Excludes the placement arrow that
+ * anchors a member to the set containing it (that arrow's other end is
+ * the set itself, which is never a member of its own canvas), so this
+ * only surfaces relations the user actually drew between two things. */
+export function connectionsAmong(itemIds: readonly string[]): Connection[] {
+  const ids = new Set(itemIds);
+  return connections().filter(
+    (connection) =>
+      !connection.deleted_at &&
+      connection.source !== connection.target &&
+      ids.has(connection.source) &&
+      ids.has(connection.target),
+  );
+}
+
 /** The arrows into a set, in the order a list view reads them: manual
  * `order` first where it exists, then by when they were made. */
 export function arrowsInto(setId: string): Connection[] {

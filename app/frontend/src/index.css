@@ -34,6 +34,11 @@
   --shadow-pop: 0 12px 32px rgb(88 110 117 / 0.2);
   --shadow-modal: 0 24px 64px rgb(88 110 117 / 0.26);
   --scrim: rgb(101 123 131 / 0.24);
+  /* A darker, near-black scrim reserved for Focus — looking at one thing
+     wants the room to go quiet around it, which the paper-toned --scrim
+     (shared with CommandBar and Confirm, both quick in-and-out) doesn't
+     ask for. */
+  --scrim-focus: rgb(10 10 14 / 0.7);
 }
 
 * {

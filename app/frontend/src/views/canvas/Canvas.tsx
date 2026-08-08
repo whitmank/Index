@@ -68,6 +68,7 @@ export function Canvas({
 }: CanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const elements = useRef(new Map<string, HTMLElement>());
+  const edgeElements = useRef(new Map<string, { el: SVGLineElement; source: string; target: string }>());
   const simulation = useRef<Simulation | null>(null);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
   /** The live rubber band, in client coordinates, while one is being drawn. */
@@ -93,6 +94,12 @@ export function Canvas({
     return positions;
   });
 
+  // The relations between two members of this canvas — what gets drawn
+  // as an edge. Distinct from `placed`: that reads the arrow anchoring a
+  // member to *this* set, this reads arrows members hold *between each
+  // other*, wherever both ends happen to be visible here.
+  const edges = usePool(() => pool.connectionsAmong(itemIds));
+
   // The identity of the member list, so the simulation is rebuilt when
   // *which* items are shown changes — not when one of them is renamed.
   const membership = items.map((item) => item.id).join(" ");
@@ -107,9 +114,23 @@ export function Canvas({
 
   const paint = useCallback(() => {
     const simulated = simulation.current?.nodes ?? [];
+    const positions = new Map<string, { x: number; y: number }>();
     for (const node of simulated) {
       const element = elements.current.get(node.id);
       if (element) element.style.transform = `translate(${node.x}px, ${node.y}px)`;
+      positions.set(node.id, { x: node.x, y: node.y });
+    }
+    // Edges ride the same tick, straight to attributes for the same
+    // reason node positions bypass React — a line an undo or a drag
+    // moves has to follow at 60fps, not at render speed.
+    for (const edge of edgeElements.current.values()) {
+      const from = positions.get(edge.source);
+      const to = positions.get(edge.target);
+      if (!from || !to) continue;
+      edge.el.setAttribute("x1", String(from.x));
+      edge.el.setAttribute("y1", String(from.y));
+      edge.el.setAttribute("x2", String(to.x));
+      edge.el.setAttribute("y2", String(to.y));
     }
   }, []);
 
@@ -318,6 +339,19 @@ export function Canvas({
       onPointerDown={startMarquee}
       ref={container}
     >
+      <svg aria-hidden="true" className="canvas-edges">
+        {edges.map((edge) => (
+          <line
+            className="canvas-edge"
+            key={edge.id}
+            ref={(el) => {
+              if (el) edgeElements.current.set(edge.id, { el, source: edge.source, target: edge.target });
+              else edgeElements.current.delete(edge.id);
+            }}
+          />
+        ))}
+      </svg>
+
       {items.map((item) => (
         <Node
           chosen={chosen.has(item.id)}
