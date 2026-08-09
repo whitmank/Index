@@ -9,9 +9,10 @@
 import { useState } from "react";
 import type { Item, Resource } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
+import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { deviceOf } from "../../lib/derive.js";
-import { errors } from "../../store/index.js";
+import { deviceKindOf, deviceOf } from "../../lib/derive.js";
+import { errors, useSelfDevice } from "../../store/index.js";
 
 /** Where the resource actually is: the absolute path for a local file,
  * the url as-is for a web resource — the location, not the name. */
@@ -25,6 +26,7 @@ function locationOf(resource: Resource): string {
 export function ResourcesEditor({ item }: { item: Item }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const selfDevice = useSelfDevice();
 
   const attach = async (inputs: string[]): Promise<void> => {
     if (inputs.length === 0) return;
@@ -84,9 +86,14 @@ export function ResourcesEditor({ item }: { item: Item }) {
             <span className="resource-name" title={resource.name}>
               {locationOf(resource)}
             </span>
-            <span className="chip">{deviceOf(resource.uri)}</span>
 
+            {/* The location's device and the way to open it are one
+                fact, not two — a chip naming it beside a button that
+                repeats what the chip already implied. The icon alone
+                both says where it is and, clicked, takes you there. */}
             <button
+              aria-label={deviceOf(resource.uri) === "web" ? "open" : "reveal"}
+              className="resource-device"
               onClick={() => {
                 const local = deviceOf(resource.uri) !== "web";
                 const answer = local
@@ -96,9 +103,10 @@ export function ResourcesEditor({ item }: { item: Item }) {
                   if ("err" in result) errors.surface(result.err);
                 });
               }}
+              title={deviceOf(resource.uri) === "web" ? "open" : "reveal"}
               type="button"
             >
-              {deviceOf(resource.uri) === "web" ? "open" : "reveal"}
+              <DeviceIcon kind={deviceKindOf(resource.uri, selfDevice)} />
             </button>
 
             <button

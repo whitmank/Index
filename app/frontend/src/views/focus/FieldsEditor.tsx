@@ -1,17 +1,19 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 // The fields editor: name/value rows with a kind picker on the value
 // cell. Blank rows vanish on commit — an empty name and value is a row
-// the user abandoned, not a fact about anything.
+// the user abandoned, not a fact about anything. `list` is the one kind
+// whose value is several strings rather than one (lib/fields.ts spells
+// out the shape switch; ListValueInput is its chip editor).
 import { useState } from "react";
 import type { Field, FieldKind, Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
+import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
+import { blankFieldValue, coerceFieldValue, isBlankFieldValue } from "../../lib/fields.js";
 
-const KINDS: FieldKind[] = ["string", "number", "date"];
+const KINDS: FieldKind[] = ["string", "number", "date", "list"];
 
 export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: string[] }) {
-  // One blank row is always offered at the end, so adding a field is
-  // typing rather than pressing something first.
   const [draftRow, setDraftRow] = useState<Field>({ name: "", value: "", kind: "string" });
   // SettleInput only clears its own typed text when its `value` prop
   // changes, and the draft row's value is "" both before and after a
@@ -37,7 +39,7 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
 
   const addDraft = (patch: Partial<Field>): void => {
     const row = { ...draftRow, ...patch };
-    if (row.name.trim() === "" && row.value.trim() === "") {
+    if (row.name.trim() === "" && isBlankFieldValue(row.value)) {
       setDraftRow(row);
       return;
     }
@@ -58,15 +60,26 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
               placeholder="name"
               value={field.name}
             />
-            <SettleInput
-              ariaLabel="field value"
-              onCommit={(value) => update(index, { value })}
-              placeholder="value"
-              value={field.value}
-            />
+            {field.kind === "list" ? (
+              <ListValueInput
+                ariaLabel="field value"
+                onCommit={(value) => update(index, { value })}
+                value={Array.isArray(field.value) ? field.value : []}
+              />
+            ) : (
+              <SettleInput
+                ariaLabel="field value"
+                onCommit={(value) => update(index, { value })}
+                placeholder="value"
+                value={typeof field.value === "string" ? field.value : ""}
+              />
+            )}
             <select
               aria-label="value kind"
-              onChange={(event) => update(index, { kind: event.target.value as FieldKind })}
+              onChange={(event) => {
+                const kind = event.target.value as FieldKind;
+                update(index, { kind, value: coerceFieldValue(field.value, kind) });
+              }}
               value={field.kind}
             >
               {KINDS.map((kind) => (
@@ -93,15 +106,26 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
             placeholder="name"
             value={draftRow.name}
           />
-          <SettleInput
-            ariaLabel="new field value"
-            onCommit={(value) => addDraft({ value })}
-            placeholder="value"
-            value={draftRow.value}
-          />
+          {draftRow.kind === "list" ? (
+            <ListValueInput
+              ariaLabel="new field value"
+              onCommit={(value) => addDraft({ value })}
+              value={Array.isArray(draftRow.value) ? draftRow.value : []}
+            />
+          ) : (
+            <SettleInput
+              ariaLabel="new field value"
+              onCommit={(value) => addDraft({ value })}
+              placeholder="value"
+              value={typeof draftRow.value === "string" ? draftRow.value : ""}
+            />
+          )}
           <select
             aria-label="new value kind"
-            onChange={(event) => setDraftRow({ ...draftRow, kind: event.target.value as FieldKind })}
+            onChange={(event) => {
+              const kind = event.target.value as FieldKind;
+              setDraftRow({ ...draftRow, kind, value: blankFieldValue(kind) });
+            }}
             value={draftRow.kind}
           >
             {KINDS.map((kind) => (

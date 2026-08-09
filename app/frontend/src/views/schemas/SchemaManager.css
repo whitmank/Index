@@ -108,8 +108,121 @@
   overflow-y: auto;
 }
 
-.schema-manager-label {
-  display: block;
-  width: 100%;
-  margin: 0.35rem 0 0.9rem;
+/* ── Fields — bare underline controls, light (Focus's own .field-row is
+   dark and scoped to .focus; this editor sits on --paper, so it earns
+   the same bare-underline idea in the shell's own light tokens rather
+   than borrowing Focus's, and its own class names so neither styling
+   ever leaks into the other). ─────────────────────────────────────── */
+
+.schema-editor-block h3 {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-quiet);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.schema-fields {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.schema-field-row {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.schema-field-row.is-draft {
+  opacity: 0.55;
+}
+
+.schema-field-row.is-draft:focus-within {
+  opacity: 1;
+}
+
+.schema-field-row.is-dragging {
+  background: var(--surface-hi);
+  opacity: 0.75;
+}
+
+/* A field's position is dragged by this handle, not the row — the row
+   itself holds text inputs, which a click has to reach untouched. */
+.schema-field-handle {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: grab;
+  text-align: left;
+}
+
+.schema-field-row:hover .schema-field-handle {
+  color: var(--ink-quiet);
+}
+
+.schema-field-row input {
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 0.3rem 0.1rem;
+  min-width: 0;
+  transition: border-color 120ms ease;
+}
+
+.schema-field-row input::placeholder {
+  color: var(--ink-faint);
+}
+
+.schema-field-row input:hover {
+  border-bottom-color: var(--ink-faint);
+}
+
+.schema-field-row input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.schema-field-row select {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+}
+
+.schema-field-row select:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.schema-editor-block .field-remove {
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+  cursor: pointer;
+}
+
+.schema-editor-block .field-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }

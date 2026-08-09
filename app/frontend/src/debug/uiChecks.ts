@@ -322,6 +322,9 @@ export async function checkNavigation(
     `a place wears its view kind (${name || "untitled"})`,
   );
 
+  // `~` is the floor of every trail but wears no crumb of its own — ⌂
+  // already says it — so the trail this reads only ever lists what's
+  // beyond it.
   const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
   const before = trail();
 
@@ -331,11 +334,15 @@ export async function checkNavigation(
   checks.say(trail()[trail().length - 1] === name, `the last crumb is the place you entered`);
   checks.say(!document.querySelector(".focus"), "walking in did not open the focus view instead");
 
-  // And back out again, by the crumb behind you.
-  const back = document.querySelectorAll<HTMLButtonElement>(".bar-crumb")[before.length - 1];
+  // Back out again, by the crumb behind you — ⌂ itself when that crumb
+  // is `~`, which owns no crumb to click.
+  const back =
+    before.length === 0
+      ? document.querySelector<HTMLButtonElement>(".bar-home")
+      : document.querySelectorAll<HTMLButtonElement>(".bar-crumb")[before.length - 1];
   back?.click();
   const walkedOut = await waitUntil(() => trail().length === before.length, 4000);
-  checks.say(walkedOut, "clicking an earlier crumb walks back out");
+  checks.say(walkedOut, "the crumb behind you walks back out");
   checks.say(trail().join(" / ") === before.join(" / "), "the trail is where it started");
 }
 

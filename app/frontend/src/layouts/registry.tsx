@@ -11,10 +11,12 @@
 // "book" now does the same, through data (a schemas row) instead of a
 // code file per type — see KnownFields below. The `opens` override
 // exists only to record disagreement with either.
-import type { Field, Item, Schema } from "@index/database/types";
+import type { Field, FieldKind, Item, Schema } from "@index/database/types";
 import type { ReactNode } from "react";
 import { apply, changes } from "../changes/index.js";
+import { ListValueInput } from "../components/ListValueInput.tsx";
 import { SettleInput } from "../components/SettleInput.tsx";
+import { blankFieldValue } from "../lib/fields.js";
 
 export interface ClaimedConnection {
   label: string;
@@ -33,19 +35,27 @@ export interface LayoutProps {
   connections: ClaimedConnection[];
 }
 
+/** A layout's own field: its name, and the kind its value editor should
+ * present as — `list` gets chips (ListValueInput), everything else a
+ * single line (SettleInput). */
+export interface KnownField {
+  name: string;
+  kind: FieldKind;
+}
+
 export interface LayoutEntry {
-  /** Field names this layout pulls out of the generic list into their
-   * own always-present, editable rows. */
-  fields?: string[];
+  /** Fields this layout pulls out of the generic list into their own
+   * always-present, editable rows. */
+  fields?: KnownField[];
   /** Label names this layout pulls out of the generic chips. */
   labels?: string[];
   Component: (props: LayoutProps) => ReactNode;
 }
 
-function upsertByName(fields: Field[], name: string, value: string): Field[] {
+function upsertByName(fields: Field[], name: string, value: Field["value"], kind: FieldKind): Field[] {
   const at = fields.findIndex((field) => field.name.toLowerCase() === name.toLowerCase());
-  if (at === -1) return [...fields, { name, value, kind: "string" }];
-  return fields.map((field, index) => (index === at ? { ...field, value } : field));
+  if (at === -1) return [...fields, { name, value, kind }];
+  return fields.map((field, index) => (index === at ? { ...field, value, kind } : field));
 }
 
 /**
@@ -57,24 +67,34 @@ function upsertByName(fields: Field[], name: string, value: string): Field[] {
  * aren't user-editable and there's no add/remove — the layout itself is
  * what decides which rows exist.
  */
-export function KnownFields({ item, names }: { item: Item; names: string[] }) {
-  if (names.length === 0) return null;
+export function KnownFields({ item, fields }: { item: Item; fields: KnownField[] }) {
+  if (fields.length === 0) return null;
   return (
     <ul className="fields-list fields-list-unlabeled">
-      {names.map((name) => {
+      {fields.map(({ name, kind }) => {
         const field = item.fields.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
+        const value = field?.value ?? blankFieldValue(kind);
+        const commit = (next: Field["value"]) =>
+          void apply(changes.setFields(item, upsertByName(item.fields, name, next, kind)));
         return (
           <li className="fields-row" key={name}>
             <span className="known-fields-name">{name}</span>
-            <SettleInput
-              ariaLabel={name}
-              className="fields-value-input"
-              onCommit={(value) =>
-                void apply(changes.setFields(item, upsertByName(item.fields, name, value)))
-              }
-              placeholder="value"
-              value={field?.value ?? ""}
-            />
+            {kind === "list" ? (
+              <ListValueInput
+                ariaLabel={name}
+                className="fields-value-input"
+                onCommit={commit}
+                value={Array.isArray(value) ? value : []}
+              />
+            ) : (
+              <SettleInput
+                ariaLabel={name}
+                className="fields-value-input"
+                onCommit={commit}
+                placeholder="value"
+                value={typeof value === "string" ? value : ""}
+              />
+            )}
           </li>
         );
       })}
@@ -149,11 +169,11 @@ function VideoLayout({ content, editor, connections }: LayoutProps) {
 export const layouts: Record<string, LayoutEntry> = {
   default: { Component: DefaultLayout },
   movie: {
-    fields: ["year"],
+    fields: [{ name: "year", kind: "string" }],
     labels: ["author", "director"],
     Component: TwoColumnLayout,
   },
-  photo: { fields: ["exif"], Component: TwoColumnLayout },
+  photo: { fields: [{ name: "exif", kind: "string" }], Component: TwoColumnLayout },
   note: { Component: NoteLayout },
   video: { Component: VideoLayout },
 };
@@ -194,7 +214,10 @@ export function resolveLayout(item: Item, tags: { name: string }[], schemas: Sch
     if (schema && schema.fields.length > 0) {
       return {
         key: item.type,
-        entry: { fields: schema.fields.map((field) => field.name), Component: TwoColumnLayout },
+        entry: {
+          fields: schema.fields.map((field) => ({ name: field.name, kind: field.kind })),
+          Component: TwoColumnLayout,
+        },
         source: "type",
         inferred,
       };

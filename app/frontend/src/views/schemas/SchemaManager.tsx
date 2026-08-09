@@ -4,11 +4,15 @@
 // written, the same relationship FieldsEditor has to an item's fields.
 // Schemas sit outside the Change model, like labels: there is nothing
 // about a type's shape to undo, only its current shape.
-import { useEffect, useState } from "react";
+//
+// `SchemaEditor` is the list-and-editor itself; `SchemaManager` is that
+// plus a standalone modal's backdrop and header — Settings' Types tab
+// wants the first without the second.
+import { useEffect, useRef, useState } from "react";
 import type { FieldKind, Schema, SchemaField } from "@index/database/types";
 import { SettleInput } from "../../components/SettleInput.tsx";
 
-const KINDS: FieldKind[] = ["string", "number", "date"];
+const KINDS: FieldKind[] = ["string", "number", "date", "list"];
 
 export interface SchemaManagerProps {
   onClose: () => void;
@@ -16,7 +20,13 @@ export interface SchemaManagerProps {
 
 type Draft = Pick<Schema, "name" | "label" | "fields">;
 
-export function SchemaManager({ onClose }: SchemaManagerProps) {
+/**
+ * The list-and-editor body on its own, without a surface of its own to
+ * sit in — the standalone modal below wraps it in one, and Settings'
+ * Types tab wraps it in another (PRODUCT-SPEC-style reuse: one place
+ * this data gets read and written, shown wherever it's asked for).
+ */
+export function SchemaEditor() {
   const [schemas, setSchemas] = useState<Schema[] | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -26,18 +36,6 @@ export function SchemaManager({ onClose }: SchemaManagerProps) {
       if ("ok" in answer) setSchemas(answer.ok.schemas);
     });
   }, []);
-
-  // Caught here, not left to bubble: Focus (if it is open behind this)
-  // must not also close.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      onClose();
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [onClose]);
 
   const selected = schemas?.find((schema) => schema.name === selectedName) ?? null;
 
@@ -61,6 +59,61 @@ export function SchemaManager({ onClose }: SchemaManagerProps) {
   };
 
   return (
+    <div className="schema-manager-body">
+      <nav className="schema-manager-list">
+        {schemas === null && <p className="renderer-quiet">loading…</p>}
+        {schemas?.length === 0 && <p className="renderer-quiet">No types yet.</p>}
+        {schemas?.map((schema) => (
+          <button
+            className={
+              schema.name === selectedName ? "schema-manager-item is-current" : "schema-manager-item"
+            }
+            key={schema.id}
+            onClick={() => setSelectedName(schema.name)}
+            type="button"
+          >
+            {schema.label ?? schema.name}
+          </button>
+        ))}
+
+        <div className="schema-manager-new">
+          <input
+            aria-label="new type name"
+            onChange={(event) => setNewName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") createType();
+            }}
+            placeholder="new type…"
+            value={newName}
+          />
+          <button disabled={!newName.trim()} onClick={createType} type="button">
+            add
+          </button>
+        </div>
+      </nav>
+
+      <div className="schema-manager-editor">
+        {!selected && <p className="renderer-quiet">Pick a type, or add one.</p>}
+        {selected && <FieldsList key={selected.id} onSave={save} schema={selected} />}
+      </div>
+    </div>
+  );
+}
+
+export function SchemaManager({ onClose }: SchemaManagerProps) {
+  // Caught here, not left to bubble: Focus (if it is open behind this)
+  // must not also close.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onClose();
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [onClose]);
+
+  return (
     <div className="confirm-backdrop" onMouseDown={onClose}>
       <div
         aria-label="Types"
@@ -75,43 +128,7 @@ export function SchemaManager({ onClose }: SchemaManagerProps) {
           </button>
         </header>
 
-        <div className="schema-manager-body">
-          <nav className="schema-manager-list">
-            {schemas === null && <p className="renderer-quiet">loading…</p>}
-            {schemas?.map((schema) => (
-              <button
-                className={
-                  schema.name === selectedName ? "schema-manager-item is-current" : "schema-manager-item"
-                }
-                key={schema.id}
-                onClick={() => setSelectedName(schema.name)}
-                type="button"
-              >
-                {schema.label ?? schema.name}
-              </button>
-            ))}
-
-            <div className="schema-manager-new">
-              <input
-                aria-label="new type name"
-                onChange={(event) => setNewName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") createType();
-                }}
-                placeholder="new type…"
-                value={newName}
-              />
-              <button disabled={!newName.trim()} onClick={createType} type="button">
-                add
-              </button>
-            </div>
-          </nav>
-
-          <div className="schema-manager-editor">
-            {!selected && <p className="renderer-quiet">Pick a type, or add one.</p>}
-            {selected && <FieldsList key={selected.id} onSave={save} schema={selected} />}
-          </div>
-        </div>
+        <SchemaEditor />
       </div>
     </div>
   );
@@ -127,6 +144,8 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
   // after commit, so committing never actually changes it. Remounting
   // the row on a fresh key is what makes it forget what was typed.
   const [draftGeneration, setDraftGeneration] = useState(0);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const fieldsRef = useRef<HTMLDivElement>(null);
 
   const commitFields = (fields: SchemaField[]): void => {
     onSave({ name: schema.name, label: schema.label, fields: fields.filter((f) => f.name.trim() !== "") });
@@ -148,32 +167,68 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
     commitFields([...schema.fields, row]);
   };
 
+  /** Which real field the pointer is over — the standing draft row at
+   * the end is never itself a drop target. */
+  const indexAt = (clientY: number): number => {
+    const rows = [
+      ...(fieldsRef.current?.querySelectorAll<HTMLElement>(".schema-field-row:not(.is-draft)") ?? []),
+    ];
+    for (const [index, row] of rows.entries()) {
+      const box = row.getBoundingClientRect();
+      if (clientY < box.top + box.height / 2) return index;
+    }
+    return rows.length;
+  };
+
+  /** A field's order is the array's order — there is no arrow to move,
+   * so this writes the whole reordered list back in one save, the same
+   * as any other field edit. */
+  const startReorder = (event: React.PointerEvent, from: number): void => {
+    event.preventDefault();
+    setDragging(from);
+
+    const onMove = (move: PointerEvent): void => move.preventDefault();
+    const onUp = (up: PointerEvent): void => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setDragging(null);
+
+      const target = indexAt(up.clientY);
+      const to = target > from ? target - 1 : target;
+      if (to === from) return;
+      const next = [...schema.fields];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved as SchemaField);
+      commitFields(next);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+  };
+
   return (
-    <section className="editor-block">
+    <section className="schema-editor-block">
       <h3>{schema.name}</h3>
 
-      <SettleInput
-        ariaLabel="display label"
-        className="schema-manager-label"
-        onCommit={(label) => onSave({ name: schema.name, label: label.trim() || null, fields: schema.fields })}
-        placeholder={schema.name}
-        value={schema.label ?? ""}
-      />
-
-      <div className="fields">
+      <div className="schema-fields" ref={fieldsRef}>
         {schema.fields.map((field, index) => (
-          <div className="field-row" key={`${field.name}-${index}`}>
+          <div
+            className={dragging === index ? "schema-field-row is-dragging" : "schema-field-row"}
+            key={`${field.name}-${index}`}
+          >
+            <button
+              aria-label="reorder"
+              className="schema-field-handle"
+              onPointerDown={(event) => startReorder(event, index)}
+              type="button"
+            >
+              ⠿
+            </button>
             <SettleInput
               ariaLabel="field name"
               onCommit={(name) => updateField(index, { name })}
               placeholder="name"
               value={field.name}
-            />
-            <SettleInput
-              ariaLabel="field label"
-              onCommit={(label) => updateField(index, { label: label.trim() || null })}
-              placeholder="label (optional)"
-              value={field.label ?? ""}
             />
             <select
               aria-label="field kind"
@@ -197,18 +252,13 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
           </div>
         ))}
 
-        <div className="field-row is-draft" key={draftGeneration}>
+        <div className="schema-field-row is-draft" key={draftGeneration}>
+          <span />
           <SettleInput
             ariaLabel="new field name"
             onCommit={(name) => addDraft({ name })}
             placeholder="name"
             value={draftRow.name}
-          />
-          <SettleInput
-            ariaLabel="new field label"
-            onCommit={(label) => addDraft({ label: label.trim() || null })}
-            placeholder="label (optional)"
-            value={draftRow.label ?? ""}
           />
           <select
             aria-label="new field kind"

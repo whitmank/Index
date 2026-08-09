@@ -16,9 +16,9 @@ DEFINE FIELD OVERWRITE is_set       ON items TYPE bool DEFAULT false;  -- delibe
 DEFINE FIELD OVERWRITE type         ON items TYPE option<string>;  -- classification, names a schemas row
 DEFINE FIELD OVERWRITE fields       ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE fields.*.name  ON items TYPE string;
-DEFINE FIELD OVERWRITE fields.*.value ON items TYPE string;
+DEFINE FIELD OVERWRITE fields.*.value ON items TYPE string | array<string>;  -- array: the "list" kind
 DEFINE FIELD OVERWRITE fields.*.kind  ON items TYPE string DEFAULT "string"
-    ASSERT $value IN ["string", "number", "date"];
+    ASSERT $value IN ["string", "number", "date", "list"];
 DEFINE FIELD OVERWRITE resources    ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE resources.*.uri    ON items TYPE string;
 DEFINE FIELD OVERWRITE resources.*.name   ON items TYPE string;
@@ -52,5 +52,5 @@ DEFINE FIELD OVERWRITE fields ON schemas TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE fields.*.name  ON schemas TYPE string;
 DEFINE FIELD OVERWRITE fields.*.label ON schemas TYPE option<string>;
 DEFINE FIELD OVERWRITE fields.*.kind  ON schemas TYPE string DEFAULT "string"
-    ASSERT $value IN ["string", "number", "date"];
+    ASSERT $value IN ["string", "number", "date", "list"];
 DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;

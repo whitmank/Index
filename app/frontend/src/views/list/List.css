@@ -139,7 +139,7 @@
 }
 
 .col-name,
-.col-tags {
+.col-type {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -147,7 +147,7 @@
 
 .col-date,
 .col-device,
-.col-tags {
+.col-type {
   color: var(--ink-quiet);
   font-size: var(--text-sm);
 }

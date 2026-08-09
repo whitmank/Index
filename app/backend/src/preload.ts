@@ -10,6 +10,9 @@ import { resUrl, thumbUrl } from "./urls.js";
 const invoke = (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args);
 
 const bridge: IndexBridge = {
+  device: {
+    self: () => invoke(CHANNELS.deviceSelf),
+  },
   sets: {
     list: () => invoke(CHANNELS.setsList),
     members: (setId, options) => invoke(CHANNELS.setsMembers, setId, options),

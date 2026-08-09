@@ -18,10 +18,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
+import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
-import { captionOf, deviceOf, nodeImageUrl } from "../../lib/derive.js";
+import { captionOf, deviceKindOf, deviceOf, type DeviceKind, nodeImageUrl } from "../../lib/derive.js";
 import { PLACE_GLYPH } from "../../lib/sets.js";
-import { pool, selection, usePool, useSelection } from "../../store/index.js";
+import { pool, selection, usePool, useSelection, useSelfDevice } from "../../store/index.js";
 
 type SortKey = "name" | "date" | "device";
 
@@ -38,8 +39,13 @@ export interface ListProps {
 
 interface Row {
   item: Item;
-  tags: string[];
+  type: string | null;
+  /** The raw device label — what "device" sorts by; finer-grained than
+   * `kind` (a mounted device's own name, not just "remote"). */
   device: string;
+  /** What the device column draws — null when there is no resource to
+   * have a location at all. */
+  kind: DeviceKind | null;
   order: number | null;
   /** Whether this row is a place (enterable) rather than a thing (opens). */
   place: boolean;
@@ -57,6 +63,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   const anchor = useRef<string | null>(null);
 
   const chosen = useSelection(() => new Set(selection.ids()));
+  const selfDevice = useSelfDevice();
 
   useEffect(() => {
     selection.setScope(itemIds);
@@ -67,22 +74,15 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       const item = pool.getItem(id);
       if (!item) return [];
       const arrow = pool.findConnection(id, setId, null);
+      const uri = item.resources[0]?.uri;
       return [
         {
           item,
           order: arrow?.order ?? null,
-          device: item.resources[0] ? deviceOf(item.resources[0].uri) : "—",
+          device: uri ? deviceOf(uri) : "—",
+          kind: uri ? deviceKindOf(uri, selfDevice) : null,
           place: pool.isPlace(id),
-          // Belonging to the set you are already looking at is not a fact
-          // about the item — every row would carry it. Only the other
-          // arrows say anything here.
-          tags: pool
-            .outboundFrom(id)
-            .filter((connection) => connection.label === null && connection.target !== setId)
-            .flatMap((connection) => {
-              const target = pool.getItem(connection.target);
-              return target ? [captionOf(target)] : [];
-            }),
+          type: item.type,
         },
       ];
     }),
@@ -108,7 +108,14 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     copy.sort((a, b) => {
       if (sort.key === "name") return captionOf(a.item).localeCompare(captionOf(b.item)) * direction;
       if (sort.key === "device") return a.device.localeCompare(b.device) * direction;
-      return a.item.date.localeCompare(b.item.date) * direction;
+      // `date` is the journal day (PRODUCT-SPEC §1.1) — several items
+      // land on the same one, and a plain stable sort would then leave
+      // them in whatever order they arrived from the backend, not the
+      // order they were made in. `created_at` breaks that tie, same as
+      // the manual-order branch above already does.
+      const day = a.item.date.localeCompare(b.item.date);
+      if (day !== 0) return day * direction;
+      return a.item.created_at.localeCompare(b.item.created_at) * direction;
     });
     return copy;
   }, [rows, manual, sort]);
@@ -200,7 +207,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         <button className="col-date" onClick={() => toggleSort("date")} type="button">
           date{sortMark(sort, "date", manual)}
         </button>
-        <span className="col-tags">tags</span>
+        <span className="col-type">type</span>
         <button className="col-device" onClick={() => toggleSort("device")} type="button">
           device{sortMark(sort, "device", manual)}
         </button>
@@ -273,8 +280,8 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
             </span>
             <span className="col-name">{captionOf(row.item) || "unnamed"}</span>
             <span className="col-date">{row.item.date}</span>
-            <span className="col-tags">{row.tags.join(", ")}</span>
-            <span className="col-device">{row.device}</span>
+            <span className="col-type">{row.type ?? "—"}</span>
+            <span className="col-device">{row.kind ? <DeviceIcon kind={row.kind} /> : "—"}</span>
           </div>
         ))}
 

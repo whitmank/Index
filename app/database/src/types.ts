@@ -7,12 +7,14 @@
 // is what a SurrealDB relation calls its endpoints. The wire shape says
 // `source`/`target`, which is what the glossary calls them.
 
-export type FieldKind = "string" | "number" | "date";
+export type FieldKind = "string" | "number" | "date" | "list";
 
-/** A scalar name/value statement on an item. */
+/** A name/value statement on an item. `list` is the one kind whose
+ * value is several strings rather than one — a cast, say — everything
+ * else is scalar. */
 export interface Field {
   name: string;
-  value: string;
+  value: string | string[];
   kind: FieldKind;
 }
 

@@ -695,6 +695,51 @@
   min-width: 0;
 }
 
+/* A `list`-kind field's value (ListValueInput) — chips wrapping onto as
+   many lines as they need, with the add-input trailing them rather than
+   sitting apart, so typing the next one reads like continuing the row. */
+.list-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.list-value-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--is-ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--is-line-strong);
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
+  white-space: nowrap;
+}
+
+.list-value-chip button {
+  font-size: 9px;
+  line-height: 1;
+  color: var(--is-ink-dim);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.list-value-chip button:hover {
+  color: var(--is-danger-icon);
+  background: var(--is-danger-wash);
+}
+
+.list-value-input {
+  flex: 1;
+  min-width: 6em;
+}
+
 .field-remove,
 .resource-promote {
   font: inherit;
@@ -752,6 +797,19 @@
 
 .resource-move {
   font-size: 11px !important;
+}
+
+/* The one control that both says where a resource lives and opens it
+   there — an icon button, not a chip beside a second button repeating
+   the same fact in words. Colour comes from `.resource-row button`
+   above (currentColor inheritance reaches the SVG the same way it
+   reaches text), so hovering it shifts to --is-accent same as any
+   other row button. */
+.resource-row .resource-device {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
 }
 
 .resource-move-down {

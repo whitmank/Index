@@ -18,6 +18,7 @@ import type {
   Resource,
 } from "@index/database/types";
 import { today } from "../lib/dates.js";
+import { isBlankFieldValue } from "../lib/fields.js";
 import { connectionId, itemId } from "../lib/ids.js";
 import { PUBLIC_SET_ID } from "../lib/seeds.js";
 import * as pool from "../store/pool.js";
@@ -125,7 +126,7 @@ export function setType(item: Item, type: string | null): Change {
 /** Blank rows vanish on commit — an empty name and value is a row the
  * user abandoned, not a fact. */
 export function setFields(item: Item, fields: Field[]): Change {
-  const kept = fields.filter((field) => field.name.trim() !== "" || field.value.trim() !== "");
+  const kept = fields.filter((field) => field.name.trim() !== "" || !isBlankFieldValue(field.value));
   return swap(item, { ...item, fields: kept }, `Edit fields on ${describe(item)}`);
 }
 

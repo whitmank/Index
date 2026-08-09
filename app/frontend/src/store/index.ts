@@ -6,6 +6,7 @@ export * as selection from "./selection.js";
 export * as history from "./history.js";
 export * as errors from "./errors.js";
 
+export { useSelfDevice } from "./device.js";
 export { loadItem, loadSet, loadSetDates, loadSets, searchItems } from "./load.js";
 export { listen as listenForRemoteChanges } from "./remote.js";
 export { useHistory, usePool, useSelection, useTroubles } from "./hooks.js";

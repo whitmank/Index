@@ -18,6 +18,7 @@ import {
 } from "@index/database";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
+import { selfDevice } from "../config.js";
 import { pathsToResources } from "../services/intake.js";
 import { isLocalUri, resolve } from "../services/resolver.js";
 import { broadcast } from "../windowBehavior/index.js";
@@ -49,6 +50,8 @@ function handle<T>(channel: string, body: (...args: unknown[]) => Promise<T>): v
 }
 
 export function registerHandlers(): void {
+  handle(CHANNELS.deviceSelf, async () => ({ id: selfDevice() }));
+
   handle(CHANNELS.setsList, async () => ({ sets: await listSets() }));
 
   handle(CHANNELS.setsMembers, async (setId, options) =>

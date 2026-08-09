@@ -19,6 +19,24 @@ export function deviceOf(uri: string): string {
   return scheme || "local";
 }
 
+/** The three ways a resource's location reads, at a glance: out on the
+ * open web, on the machine you're using right now, or on some other
+ * device (a mount, a synced folder) that happens to be reachable. */
+export type DeviceKind = "web" | "local" | "remote";
+
+/** `deviceOf`'s raw scheme, resolved against this machine's own device
+ * id — only the bridge knows that id, so it comes in as an argument
+ * (store/device.ts's `useSelfDevice`) rather than being read here.
+ * `null` means it hasn't answered yet; guessing "local" for that beat
+ * is right far more often than "remote" would be, and self-corrects the
+ * moment it does. */
+export function deviceKindOf(uri: string, selfDevice: string | null): DeviceKind {
+  const device = deviceOf(uri);
+  if (device === "web") return "web";
+  if (selfDevice === null) return "local";
+  return device === selfDevice ? "local" : "remote";
+}
+
 function extensionOf(uri: string): string {
   const withoutQuery = uri.split(/[?#]/, 1)[0] ?? uri;
   const basename = withoutQuery.slice(withoutQuery.lastIndexOf("/") + 1);

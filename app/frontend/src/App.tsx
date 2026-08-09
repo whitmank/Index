@@ -1,8 +1,11 @@
-// Authored by Karter Whitman using Claude Opus 5
+// Authored by Karter Whitman using Claude Sonnet 5
 // The shell: a trail that says where you are (top-left), a view switcher
 // that says how you're looking at it (top-right), and one surface at a
-// time on the stage — the home screen when you are nowhere in particular,
-// otherwise the place you walked to, plus the focus overlay above either.
+// time on the stage — wherever you've walked to, plus the focus overlay
+// above it. There is no separate home screen (DESIGN-CONCEPT §7,
+// PRODUCT-SPEC §3.1): launching the app *is* opening `~`, the set of
+// everything, and the trail never runs out from under you — the floor
+// beneath every jump is `~`, not nothing.
 //
 // There is one navigation primitive: `goTo`. A place you enter, a thing
 // you open. Which one an item is comes from the pool, and the views draw
@@ -26,8 +29,9 @@ import {
   checkRemoveFromSet,
   checkSelection,
 } from "./debug/uiChecks.js";
+import { useArrowNav } from "./hooks/useArrowNav.ts";
 import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
-import { useUndoRedo } from "./hooks/useUndoRedo.ts";
+import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { createItemsFromPaths } from "./lib/intake.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
@@ -42,35 +46,35 @@ import {
   useSelection,
   useTroubles,
   useViewMode,
+  type ViewMode,
+  VIEW_MODE_GLYPH,
   VIEW_MODES,
 } from "./store/index.js";
 import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
-import { Home } from "./views/home/Home.tsx";
 import { List } from "./views/list/List.tsx";
 import { SchemaManager } from "./views/schemas/SchemaManager.tsx";
+import { Settings, type SettingsTab } from "./views/settings/Settings.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
-import "./views/home/Home.css";
 import "./views/list/List.css";
 import "./views/schemas/SchemaManager.css";
+import "./views/settings/Settings.css";
 
 export function App() {
   useUndoRedo();
 
-  // VITE_INDEX_VIEW forces a view (and, with it, entry into `~`) for
-  // looking at one without clicking; the ui checks likewise expect to run
-  // inside `~`. Both bypass the home screen the ordinary launch lands on.
+  // VITE_INDEX_VIEW forces a view for looking at one without clicking; the
+  // ui checks likewise expect a particular one running.
   const forcedView = (VIEW_MODES as string[]).includes(import.meta.env.VITE_INDEX_VIEW ?? "")
     ? (import.meta.env.VITE_INDEX_VIEW as (typeof VIEW_MODES)[number])
     : null;
-  const startsInHomeSet = forcedView !== null || Boolean(import.meta.env.VITE_INDEX_UICHECK);
 
-  // The trail of places walked into. Empty means the home screen — you are
-  // nowhere in particular, looking at the list of everywhere you could go.
-  const [path, setPath] = useState<string[]>(startsInHomeSet ? [HOME_SET_ID] : []);
+  // The trail of places walked into, `~` always at the bottom of it — the
+  // launch state and the floor every `goBack` eventually lands on.
+  const [path, setPath] = useState<string[]>([HOME_SET_ID]);
   // How you look at a set's members — canvas or list — is one persisted,
   // application-level choice (store/viewMode.ts), not anything a set
   // remembers about itself; it follows you from set to set.
@@ -86,12 +90,16 @@ export function App() {
   const [commanding, setCommanding] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [managingTypes, setManagingTypes] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const troubles = useTroubles();
 
-  const currentSetId = path[path.length - 1] ?? null;
+  // Never empty: `enter` and `jump` are the only ways to move it, and
+  // both always land on the id they were given.
+  const currentSetId = path[path.length - 1] as string;
 
-  /** The set on the stage, when there is one — what "remove from" means. */
-  const currentSet = usePool(() => (currentSetId ? (pool.getItem(currentSetId) ?? null) : null));
+  /** The set on the stage — what "remove from" means. */
+  const currentSet = usePool(() => pool.getItem(currentSetId) ?? null);
 
   // The trail, resolved to records so the crumbs can name themselves.
   const crumbs = usePool(() => path.map((id) => ({ id, item: pool.getItem(id) })));
@@ -105,20 +113,16 @@ export function App() {
    * not reload the canvas out from under the hand doing the dragging.
    */
   const membership = usePool(() =>
-    currentSetId
-      ? pool
-          .arrowsInto(currentSetId)
-          .map((arrow) => arrow.source)
-          .sort()
-          .join(" ")
-      : "",
+    pool
+      .arrowsInto(currentSetId)
+      .map((arrow) => arrow.source)
+      .sort()
+      .join(" "),
   );
 
-  // Canvas and list both show the whole set at once. Nothing to load on
-  // the home screen — and the actions below need it too, since taking
-  // members out means reading who is left.
+  // Canvas and list both show the whole set at once; the actions below
+  // need it too, since taking members out means reading who is left.
   const readMembers = useCallback(() => {
-    if (!currentSetId) return;
     void loadSet(currentSetId).then(setMemberIds);
     // `membership` is not read here; it is a dependency so that a change
     // to who is in the set re-runs this, whoever made that change.
@@ -169,12 +173,36 @@ export function App() {
     [enter],
   );
 
-  const goHome = useCallback(() => setPath([]), []);
+  /** ⌘/ and ⌂ — `~` is titled "All" and holds everything by query
+   * (PRODUCT-SPEC §1.4); going there is this shell's whole notion of
+   * "root", and the floor every trail now starts and ends on. */
+  const goAll = useCallback(() => jump(HOME_SET_ID), [jump]);
+
+  /** ← — one step back on the trail: the same place clicking the crumb
+   * behind the current one would land you. `~` is the floor — back from
+   * it, or from a trail a jump started elsewhere, lands on All rather
+   * than going anywhere stranger. */
+  const goBack = useCallback(() => {
+    if (currentSetId === HOME_SET_ID) return;
+    const previous = path[path.length - 2];
+    if (previous) enter(previous);
+    else goAll();
+  }, [path, currentSetId, enter, goAll]);
+
+  /** → — the same primitive as a click or an ↵, aimed at whatever is
+   * picked out. Ambiguous with more than one picked, so it does nothing
+   * rather than guess which. */
+  const goForward = useCallback(() => {
+    const ids = selection.ids();
+    if (ids.length !== 1) return;
+    const item = pool.getItem(ids[0] as string);
+    if (item) goTo(item);
+  }, [goTo]);
 
   /**
    * OS file drop, wherever it isn't already claimed. Canvas has its own
-   * onDrop for the pages that need a position; everywhere else — Home,
-   * Timeline, List — nothing until now handled a drop at all. Checking
+   * onDrop for the pages that need a position; everywhere else — Timeline,
+   * List — nothing until now handled a drop at all. Checking
    * `defaultPrevented` is how a nested handler says "mine": Canvas's own
    * onDrop calls `preventDefault` before this ever sees the event.
    *
@@ -283,9 +311,9 @@ export function App() {
    * query keeps them: rather than let the key look broken, say why.
    */
   const removePickedFromSet = useCallback(() => {
-    const set = currentSetId ? pool.getItem(currentSetId) : null;
+    const set = pool.getItem(currentSetId);
     if (!set) {
-      errors.surface("You are not in a set, so there is nothing to remove these from.");
+      errors.surface("This set hasn't loaded yet — try again in a moment.");
       return;
     }
 
@@ -331,27 +359,62 @@ export function App() {
     setConfirmingDelete(true);
   }, [pickedItems]);
 
+  // Everything on this list is over the stage in the same sense: while
+  // any of them is up, the surface underneath stops answering to keys
+  // that would otherwise reach it.
+  const overlayOpen = opened !== null || commanding || confirmingDelete || managingTypes || settingsOpen;
+
   // The selection's keys are live only while nothing is over the stage:
   // an open focus view, command bar or prompt asked for them first.
-  useSelectionKeys(!opened && !commanding && !confirmingDelete && !managingTypes, {
+  useSelectionKeys(!overlayOpen, {
     onAskToDelete: askToDeletePicked,
     onRemoveFromSet: removePickedFromSet,
   });
 
+  // ← and → walk the trail — back a crumb, forward into what is picked
+  // out — the same guard as the selection's own keys, plus a text field
+  // of its own: a bare arrow in an input has to move the caret, not you.
+  useArrowNav(!overlayOpen, { onBack: goBack, onForward: goForward });
+
+  // V — the same toggle as clicking the view button, bare key like the
+  // arrows above: a text field owns the letter it types, an overlay owns
+  // the keys under it.
+  useEffect(() => {
+    if (overlayOpen) return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditing(event.target)) return;
+      if (event.key.toLowerCase() !== "v") return;
+      event.preventDefault();
+      setViewMode(otherViewMode(viewMode));
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [overlayOpen, viewMode, setViewMode]);
+
   // ⌘K opens the bar; ⌘F is the same door under the name the spec gave it
-  // (§3.7). Both work while typing — reaching for the bar is exactly what
-  // you do when what is under your cursor is not what you wanted.
+  // (§3.7). ⌘, opens Settings and ⌘/ goes straight to All (PRODUCT-SPEC
+  // §1.4's `~`) — all four work while typing, same as ⌘K/⌘F already did:
+  // reaching for one of these is exactly what you do when what is under
+  // your cursor is not what you wanted.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
-      if (key !== "k" && key !== "f") return;
-      event.preventDefault();
-      setCommanding((open) => !open);
+      if (key === "k" || key === "f") {
+        event.preventDefault();
+        setCommanding((open) => !open);
+      } else if (key === ",") {
+        event.preventDefault();
+        setSettingsOpen((open) => !open);
+      } else if (key === "/") {
+        event.preventDefault();
+        goAll();
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [goAll]);
 
   // Every crumb has to be able to name itself, however you arrived —
   // walked in, forced by an env var, or restored on the trail.
@@ -436,16 +499,18 @@ export function App() {
       <header className="bar">
         <nav className="bar-address" aria-label="trail">
           <button
-            className={currentSetId ? "bar-home" : "bar-home is-here"}
-            onClick={goHome}
-            title="All sets"
+            className={currentSetId === HOME_SET_ID ? "bar-home is-here" : "bar-home"}
+            onClick={goAll}
+            title="All (⌘/)"
             type="button"
           >
             ⌂
           </button>
 
-          {crumbs.map(({ id, item }, index) => {
-            const last = index === crumbs.length - 1;
+          {/* `~` is already said by ⌂ — shown as a crumb of its own only
+              when a jump left it out of the trail. */}
+          {(path[0] === HOME_SET_ID ? crumbs.slice(1) : crumbs).map(({ id, item }, index, all) => {
+            const last = index === all.length - 1;
             const name = item ? captionOf(item) || "untitled" : "…";
             return (
               <Fragment key={id}>
@@ -482,26 +547,31 @@ export function App() {
           types
         </button>
 
-        {currentSetId && (
-          <nav aria-label="view" className="bar-views">
-            {VIEW_MODES.map((candidate) => (
-              <button
-                aria-pressed={candidate === viewMode}
-                className={candidate === viewMode ? "is-current" : ""}
-                key={candidate}
-                onClick={() => setViewMode(candidate)}
-                type="button"
-              >
-                {candidate}
-              </button>
-            ))}
-          </nav>
-        )}
+        <button
+          className="bar-goto"
+          onClick={() => setSettingsOpen(true)}
+          title="Settings (⌘,)"
+          type="button"
+        >
+          settings
+        </button>
+
+        <button
+          aria-label={`Viewing as ${viewMode} — switch to ${otherViewMode(viewMode)}`}
+          className="bar-view-toggle"
+          onClick={() => setViewMode(otherViewMode(viewMode))}
+          title={`${viewMode} view — press V to switch`}
+          type="button"
+        >
+          <span aria-hidden="true" className="bar-view-toggle-glyph">
+            {VIEW_MODE_GLYPH[viewMode]}
+          </span>
+          {viewMode}
+        </button>
       </header>
 
       <div className="stage">
-        {!currentSetId && <Home onEnter={enter} />}
-        {currentSetId && viewMode === "canvas" && (
+        {viewMode === "canvas" && (
           <Canvas
             itemIds={memberIds}
             onGoTo={goTo}
@@ -509,7 +579,7 @@ export function App() {
             setId={currentSetId}
           />
         )}
-        {currentSetId && viewMode === "list" && (
+        {viewMode === "list" && (
           <List
             itemIds={memberIds}
             onGoTo={goTo}
@@ -532,6 +602,10 @@ export function App() {
       )}
 
       {managingTypes && <SchemaManager onClose={() => setManagingTypes(false)} />}
+
+      {settingsOpen && (
+        <Settings onClose={() => setSettingsOpen(false)} onTabChange={setSettingsTab} tab={settingsTab} />
+      )}
 
       {commanding && (
         <CommandBar
@@ -566,6 +640,11 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** The view a toggle lands on — there are only ever two. */
+function otherViewMode(mode: ViewMode): ViewMode {
+  return mode === "canvas" ? "list" : "canvas";
 }
 
 /**

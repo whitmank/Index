@@ -48,7 +48,7 @@ export function asMembersOptions(value: unknown): MembersOptions {
   return { partition: { date: asString((partition as { date: unknown }).date, "partition.date") } };
 }
 
-const FIELD_KINDS: FieldKind[] = ["string", "number", "date"];
+const FIELD_KINDS: FieldKind[] = ["string", "number", "date", "list"];
 
 function asFieldKind(value: unknown, what: string): FieldKind {
   if (typeof value !== "string" || !FIELD_KINDS.includes(value as FieldKind)) {

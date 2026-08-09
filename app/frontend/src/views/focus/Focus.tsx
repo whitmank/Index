@@ -166,7 +166,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const renderer = rendererFor(format);
   const Layout = resolution.entry.Component;
   const Content = renderer.Component;
-  const knownNames = resolution.entry.fields ?? [];
+  const knownFields = resolution.entry.fields ?? [];
 
   const content = (
     <div className={`content-slot fit-${renderer.fit}`}>
@@ -190,8 +190,8 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           value={item.name}
         />
       </label>
-      <KnownFields item={item} names={knownNames} />
-      <FieldsEditor exclude={knownNames} item={item} />
+      <KnownFields fields={knownFields} item={item} />
+      <FieldsEditor exclude={knownFields.map((field) => field.name)} item={item} />
       <ResourcesEditor item={item} />
       <ConnectionComposer
         item={item}

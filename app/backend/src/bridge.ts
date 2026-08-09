@@ -35,6 +35,12 @@ export interface BridgeEvents {
 }
 
 export interface IndexBridge {
+  device: {
+    /** This machine's device id (config.ts's `DeviceConfig.self`) — the
+     * authority a resource's own uri scheme is checked against to tell
+     * "on this device" from "on some other, mounted one". */
+    self(): Promise<Result<{ id: string }>>;
+  };
   sets: {
     /** Every item that plays the set role — the home screen's listing. */
     list(): Promise<Result<{ sets: Item[] }>>;

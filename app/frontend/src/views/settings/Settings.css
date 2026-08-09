@@ -1,0 +1,189 @@
+/* Authored by Karter Whitman using Claude Sonnet 5 */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  width: min(38rem, 100%);
+  max-height: min(34rem, 100%);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.settings-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.settings-tab {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.4rem 0.4rem 0.5rem;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.settings-tab:hover {
+  color: var(--ink);
+}
+
+.settings-tab.is-current {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.settings-close {
+  flex: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+}
+
+.settings-close:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.settings-section-title {
+  margin: 0 0 0.3rem;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-quiet);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.settings-section-title:not(:first-child) {
+  margin-top: 0.4rem;
+}
+
+/* ── General ────────────────────────────────────────────────────────── */
+
+.settings-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-label {
+  flex: none;
+  width: 6.5rem;
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+}
+
+.settings-row-value {
+  font-size: var(--text-base);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ── Keybindings ────────────────────────────────────────────────────── */
+
+.keybind-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.keybind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.keybind-row:last-child {
+  border-bottom: none;
+}
+
+.keybind-description {
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+
+.keybind-combos {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.keybind-keys {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.keybind-or {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.settings kbd,
+.keybind-keys kbd {
+  display: inline-block;
+  min-width: 1.1em;
+  text-align: center;
+  padding: 0.1rem 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+  line-height: 1.4;
+}
