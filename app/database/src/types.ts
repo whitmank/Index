@@ -140,6 +140,11 @@ export interface Connection {
   position: Position | null;
   /** Arrows only: the item's manual place in a list of the target set. */
   order: number | null;
+  /** `target` is a child of `source` — a third, orthogonal state on top
+   * of `label`/unlabelled: a connection can be both a labelled relation
+   * and a child at once. Drives hierarchy (nesting under a parent in the
+   * canvas and list), not membership or `isPlace`. */
+  child: boolean;
   created_at: string;
   deleted_at: string | null;
 }

@@ -193,6 +193,7 @@ function blankConnection(
     label,
     position: null,
     order: null,
+    child: false,
     created_at: now(),
     deleted_at: null,
   };
@@ -298,10 +299,23 @@ export function untag(item: Item, target: Item): Change | null {
 }
 
 /** A labelled statement: `novel —author→ hemingway`. The label record is
- * minted by the backend on first use, outside the change model. */
-export function connect(item: Item, labelId: string, labelName: string, target: Item): Change {
+ * minted by the backend on first use, outside the change model.
+ * `options.child` marks `target` as a child of `item` (hierarchy,
+ * orthogonal to the label); `options.order` sets its manual place among
+ * that parent's children — both applied over the existing/blank
+ * connection, so re-connecting the same pair upserts rather than
+ * duplicating. */
+export function connect(
+  item: Item,
+  labelId: string,
+  labelName: string,
+  target: Item,
+  options: { child?: boolean; order?: number } = {},
+): Change {
   const existing = pool.findConnection(item.id, target.id, labelId);
-  const connection = existing ?? blankConnection(item.id, target.id, labelId);
+  const connection = { ...(existing ?? blankConnection(item.id, target.id, labelId)) };
+  if (options.child !== undefined) connection.child = options.child;
+  if (options.order !== undefined) connection.order = options.order;
 
   return {
     description: `${describe(item)} —${labelName}→ '${nameOf(target)}'`,

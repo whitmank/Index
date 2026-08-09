@@ -14,6 +14,14 @@
 // — a list is a place for choosing among things, and every list anyone
 // has used works this way. The canvas, where you are aiming at one thing
 // at a time, still goes on a single click.
+//
+// A child item — a song under its album, say — never appears as its own
+// top-level row (Canvas hides it the same way). It's drawn nested under
+// its parent instead, one level deep, shown only once the parent is
+// expanded. `visible` is the flattened result — top-level rows with each
+// expanded parent's children spliced in right after it — and is the one
+// array every interaction (click, shift-click, arrow-nav, drag-reorder)
+// reads, exactly as `sorted` used to be before hierarchy existed.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
@@ -52,6 +60,14 @@ interface Row {
   place: boolean;
 }
 
+/** A row as actually drawn: `depth` 1 is a child, nested under the
+ * top-level row immediately above it. `hasChildren` is only ever true at
+ * depth 0 — nesting stops one level deep. */
+interface VisibleRow extends Row {
+  depth: number;
+  hasChildren: boolean;
+}
+
 export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     key: "date",
@@ -59,6 +75,8 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   });
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  /** Which top-level rows are showing their children. */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const body = useRef<HTMLDivElement>(null);
   /** Where the last pick landed, so ⇧-click knows what "to here" means. */
   const anchor = useRef<string | null>(null);
@@ -70,24 +88,46 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     selection.setScope(itemIds);
   }, [itemIds]);
 
-  const rows = usePool<Row[]>(() =>
-    itemIds.flatMap((id) => {
+  const rowFor = useCallback(
+    (item: Item, order: number | null): Row => {
+      const uri = item.resources[0]?.uri;
+      return {
+        item,
+        order,
+        device: uri ? deviceOf(uri) : "—",
+        kind: uri ? deviceKindOf(uri, selfDevice) : null,
+        place: pool.isPlace(item.id),
+        type: item.type,
+      };
+    },
+    [selfDevice],
+  );
+
+  const { rows, childrenByParent } = usePool(() => {
+    const topLevelIds = pool.topLevelAmong(itemIds);
+    const memberIds = new Set(itemIds);
+
+    const rows: Row[] = topLevelIds.flatMap((id) => {
       const item = pool.getItem(id);
       if (!item) return [];
       const arrow = pool.findConnection(id, setId, null);
-      const uri = item.resources[0]?.uri;
-      return [
-        {
-          item,
-          order: arrow?.order ?? null,
-          device: uri ? deviceOf(uri) : "—",
-          kind: uri ? deviceKindOf(uri, selfDevice) : null,
-          place: pool.isPlace(id),
-          type: item.type,
-        },
-      ];
-    }),
-  );
+      return [rowFor(item, arrow?.order ?? null)];
+    });
+
+    const childrenByParent = new Map<string, Row[]>();
+    for (const id of topLevelIds) {
+      const children = pool
+        .childrenOf(id)
+        .filter((connection) => memberIds.has(connection.target))
+        .flatMap((connection) => {
+          const child = pool.getItem(connection.target);
+          return child ? [rowFor(child, null)] : [];
+        });
+      if (children.length > 0) childrenByParent.set(id, children);
+    }
+
+    return { rows, childrenByParent };
+  });
 
   const manual = rows.some((row) => row.order !== null);
 
@@ -121,10 +161,37 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     return copy;
   }, [rows, manual, sort]);
 
+  // The single source of truth for rendering and every interaction: the
+  // top-level sort, with each expanded parent's children spliced in right
+  // behind it.
+  const visible = useMemo(() => {
+    const result: VisibleRow[] = [];
+    for (const row of sorted) {
+      const children = childrenByParent.get(row.item.id);
+      const hasChildren = (children?.length ?? 0) > 0;
+      result.push({ ...row, depth: 0, hasChildren });
+      if (hasChildren && expanded.has(row.item.id)) {
+        for (const child of children!) {
+          result.push({ ...child, depth: 1, hasChildren: false });
+        }
+      }
+    }
+    return result;
+  }, [sorted, childrenByParent, expanded]);
+
   const toggleSort = useCallback((key: SortKey) => {
     setSort((current) =>
       current.key === key ? { key, ascending: !current.ascending } : { key, ascending: true },
     );
+  }, []);
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   /** Which row index the pointer is currently over. */
@@ -153,7 +220,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         setDragging(null);
 
         const target = indexAt(up.clientY);
-        const from = sorted.findIndex((row) => row.item.id === item.id);
+        const from = visible.findIndex((row) => row.item.id === item.id);
         if (from === -1 || target === from || target === from + 1) return;
         // Dropping below its own position lands one slot higher once the
         // row is lifted out.
@@ -163,7 +230,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       window.addEventListener("pointermove", onMove, { passive: false });
       window.addEventListener("pointerup", onUp);
     },
-    [indexAt, setId, sorted],
+    [indexAt, setId, visible],
   );
 
   /**
@@ -175,11 +242,11 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   const pick = useCallback(
     (event: React.MouseEvent | React.KeyboardEvent, item: Item): void => {
       if (event.shiftKey) {
-        const from = sorted.findIndex((row) => row.item.id === anchor.current);
-        const to = sorted.findIndex((row) => row.item.id === item.id);
+        const from = visible.findIndex((row) => row.item.id === anchor.current);
+        const to = visible.findIndex((row) => row.item.id === item.id);
         if (from !== -1 && to !== -1) {
           const [start, end] = from < to ? [from, to] : [to, from];
-          selection.add(sorted.slice(start, end + 1).map((row) => row.item.id));
+          selection.add(visible.slice(start, end + 1).map((row) => row.item.id));
         } else {
           selection.add([item.id]);
         }
@@ -194,7 +261,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       selection.replace([item.id]);
       anchor.current = item.id;
     },
-    [sorted],
+    [visible],
   );
 
   // ↑ / ↓ and W / S walk the rows the way a click already can — each
@@ -206,7 +273,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     function onKeyDown(event: KeyboardEvent): void {
       if (isEditing(event.target)) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (sorted.length === 0) return;
+      if (visible.length === 0) return;
 
       const key = event.key.toLowerCase();
       const down = event.key === "ArrowDown" || key === "s";
@@ -215,13 +282,13 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       event.preventDefault();
 
       const current = anchor.current
-        ? sorted.findIndex((row) => row.item.id === anchor.current)
+        ? visible.findIndex((row) => row.item.id === anchor.current)
         : -1;
       const next =
         current === -1
           ? 0
-          : Math.min(Math.max(current + (down ? 1 : -1), 0), sorted.length - 1);
-      const row = sorted[next];
+          : Math.min(Math.max(current + (down ? 1 : -1), 0), visible.length - 1);
+      const row = visible[next];
       if (!row) return;
 
       selection.replace([row.item.id]);
@@ -234,7 +301,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sorted]);
+  }, [visible]);
 
   return (
     <div className="list">
@@ -269,11 +336,12 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       )}
 
       <div className="list-body" ref={body}>
-        {sorted.map((row) => (
+        {visible.map((row) => (
           <div
             aria-selected={chosen.has(row.item.id)}
             className={[
               "row",
+              row.depth > 0 ? "is-child" : "",
               dragging === row.item.id ? "is-dragging" : "",
               chosen.has(row.item.id) ? "is-chosen" : "",
             ]
@@ -303,29 +371,50 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
             role="button"
             tabIndex={0}
           >
-            <button
-              aria-label="reorder"
-              className="col-handle"
-              // The handle is inside the row; without this, grabbing it
-              // would also navigate away from the list you are sorting.
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => startReorder(event, row.item)}
-              type="button"
-            >
-              ⠿
-            </button>
+            {row.depth === 0 ? (
+              <button
+                aria-label="reorder"
+                className="col-handle"
+                // The handle is inside the row; without this, grabbing it
+                // would also navigate away from the list you are sorting.
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => startReorder(event, row.item)}
+                type="button"
+              >
+                ⠿
+              </button>
+            ) : (
+              // A child's order comes from Spotify, not the hand — no
+              // handle to grab, just the space it would have taken.
+              <span className="col-handle" />
+            )}
             <span className="col-thumb">
               <Thumb item={row.item} />
               {row.place && <span className="row-place">{PLACE_GLYPH}</span>}
             </span>
-            <span className="col-name">{captionOf(row.item) || "unnamed"}</span>
+            <span className="col-name">
+              {row.hasChildren && (
+                <button
+                  aria-label={expanded.has(row.item.id) ? "collapse" : "expand"}
+                  className="row-disclosure"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleExpanded(row.item.id);
+                  }}
+                  type="button"
+                >
+                  {expanded.has(row.item.id) ? "▾" : "▸"}
+                </button>
+              )}
+              <span className="col-name-text">{captionOf(row.item) || "unnamed"}</span>
+            </span>
             <span className="col-date">{row.item.date}</span>
             <span className="col-type">{row.type ?? "—"}</span>
             <span className="col-device">{row.kind ? <DeviceIcon kind={row.kind} /> : "—"}</span>
           </div>
         ))}
 
-        {sorted.length === 0 && <p className="list-empty">nothing yet</p>}
+        {visible.length === 0 && <p className="list-empty">nothing yet</p>}
       </div>
 
       {menu && (

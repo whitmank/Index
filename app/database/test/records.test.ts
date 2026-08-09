@@ -64,6 +64,7 @@ function blankArrow(source: string, target: string, overrides: Partial<Connectio
     label: null,
     position: null,
     order: null,
+    child: false,
     created_at: new Date().toISOString(),
     deleted_at: null,
     ...overrides,
@@ -347,6 +348,30 @@ async function main(): Promise<void> {
     check("undoing the connection takes the edge away, not the members", () => {
       assert.equal(withoutEdge.connections.length, 0);
       assert.equal(withoutEdge.items.length, 2);
+    });
+
+    console.log("\nchild connections (hierarchy is a client concern)");
+    const book = blankItem({ name: "a book" });
+    const chapter = blankItem({ name: "a chapter" });
+    const childLink = blankArrow(book.id, chapter.id, { child: true });
+    await applyChange({
+      description: "Seed a parent/child pair",
+      pairs: [
+        { before: null, after: book },
+        { before: null, after: chapter },
+        { before: null, after: childLink },
+      ],
+    });
+
+    const homeWithHierarchy = await listMembers(HOME_SET_ID);
+    check("a child connection leaves backend membership untouched — both are plain members", () => {
+      assert.ok(homeWithHierarchy.items.some((item) => item.id === book.id));
+      assert.ok(homeWithHierarchy.items.some((item) => item.id === chapter.id));
+    });
+
+    const readBack = await findConnection(book.id, chapter.id, null);
+    check("the connection round-trips with child: true", () => {
+      assert.equal(readBack?.child, true);
     });
 
     console.log(`\n${passed} assertions passed\n`);

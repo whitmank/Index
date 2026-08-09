@@ -35,6 +35,7 @@ DEFINE FIELD OVERWRITE position   ON connections TYPE option<object>;
 DEFINE FIELD OVERWRITE position.x ON connections TYPE float;
 DEFINE FIELD OVERWRITE position.y ON connections TYPE float;
 DEFINE FIELD OVERWRITE `order`    ON connections TYPE option<int>;
+DEFINE FIELD OVERWRITE child      ON connections TYPE bool DEFAULT false;
 DEFINE FIELD OVERWRITE created_at ON connections TYPE datetime DEFAULT time::now() READONLY;
 DEFINE FIELD OVERWRITE deleted_at ON connections TYPE option<datetime>;
 DEFINE INDEX OVERWRITE conn_in    ON connections FIELDS in;

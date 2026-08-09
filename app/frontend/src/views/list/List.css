@@ -85,6 +85,14 @@
   opacity: 0.75;
 }
 
+/* A child, nested under its parent one level deep — same columns as
+   every other row, just quieter and indented within its name cell so
+   the grid stays aligned with the header. */
+.row.is-child .col-name {
+  padding-left: 1.1rem;
+  color: var(--ink-quiet);
+}
+
 .col-handle {
   color: var(--ink-faint);
   font-size: var(--text-sm);
@@ -140,6 +148,37 @@
 
 .col-name,
 .col-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Toggles a parent row's children. Sits inline before the name rather
+   than in its own grid column, since only some rows have one. */
+.row-disclosure {
+  flex: none;
+  width: 0.9rem;
+  color: var(--ink-faint);
+  font-size: var(--text-2xs);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: center;
+  cursor: pointer;
+}
+
+.row:hover .row-disclosure {
+  color: var(--ink-quiet);
+}
+
+.col-name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

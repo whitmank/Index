@@ -49,6 +49,7 @@ export interface ConnectionRow {
   label?: unknown;
   position?: Position | null;
   order?: number | null;
+  child?: boolean;
   created_at: unknown;
   deleted_at?: unknown;
 }
@@ -109,6 +110,7 @@ export function serializeConnection(row: ConnectionRow): Connection {
     label: row.label === undefined || row.label === null ? null : idToString(row.label),
     position: row.position ?? null,
     order: row.order ?? null,
+    child: row.child ?? false,
     created_at: dateToString(row.created_at),
     deleted_at: optionalDate(row.deleted_at),
   };
@@ -181,6 +183,7 @@ export function connectionContent(
     label: connection.label === null ? undefined : recordId(connection.label),
     position: connection.position ?? undefined,
     order: connection.order ?? undefined,
+    child: connection.child,
     ...(includeCreatedAt ? { created_at: new Date(connection.created_at) } : {}),
     deleted_at: toDbDate(connection.deleted_at),
   };

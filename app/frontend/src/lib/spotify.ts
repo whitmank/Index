@@ -6,10 +6,9 @@
 // (lib/intake.ts's createItemsFromPaths, Focus.tsx's attachDropped) can
 // fold the result into whatever change they're already building and
 // apply it once, one undo for the album and every song together.
-import type { ChangePair, Connection, Item, Resource } from "@index/database/types";
+import type { ChangePair, Item, Resource } from "@index/database/types";
 import { changes } from "../changes/index.js";
 import { errors } from "../store/index.js";
-import { connectionId } from "./ids.js";
 
 const ALBUM_URL_PATTERN = /open\.spotify\.com\/album\/([A-Za-z0-9]+)/;
 
@@ -144,17 +143,16 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
     };
     extraPairs.push({ before: null, after: song });
 
-    const connection: Connection = {
-      id: connectionId(),
-      source: item.id,
-      target: song.id,
-      label: label.ok.id,
-      position: null,
-      order: track.trackNumber,
-      created_at: new Date().toISOString(),
-      deleted_at: null,
-    };
-    extraPairs.push({ before: null, after: connection });
+    // A child of the album, not just tagged into it — `track` still says
+    // *what* the relation is, `child: true` says the song nests under the
+    // album rather than standing beside it at the top level (PRODUCT-SPEC
+    // hierarchy). `connect`'s upsert-by-triple dedup applies here too.
+    extraPairs.push(
+      ...changes.connect(item, label.ok.id, label.ok.name, song, {
+        child: true,
+        order: track.trackNumber,
+      }).pairs,
+    );
   }
 
   return { itemPatch: { type: "album", fields: albumFields }, albumName: album.name, extraPairs };

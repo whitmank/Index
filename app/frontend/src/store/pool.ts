@@ -224,3 +224,29 @@ export function arrowsInto(setId: string): Connection[] {
       return a.created_at.localeCompare(b.created_at);
     });
 }
+
+/** Live child connections between two members of this set — the same
+ * "both ends visible here" rule connectionsAmong already applies. */
+export function hierarchyAmong(itemIds: readonly string[]): Connection[] {
+  return connectionsAmong(itemIds).filter((connection) => connection.child);
+}
+
+/** Which of these ids are not the child of another id in the same set —
+ * what a canvas or a list's top level actually draws. */
+export function topLevelAmong(itemIds: readonly string[]): string[] {
+  const childIds = new Set(hierarchyAmong(itemIds).map((connection) => connection.target));
+  return itemIds.filter((id) => !childIds.has(id));
+}
+
+/** A parent's live children, ordered — mirrors arrowsInto's sort
+ * (manual `order` first, then `created_at`). */
+export function childrenOf(parentId: string): Connection[] {
+  return outboundFrom(parentId)
+    .filter((connection) => connection.child)
+    .sort((a, b) => {
+      if (a.order !== null && b.order !== null) return a.order - b.order;
+      if (a.order !== null) return -1;
+      if (b.order !== null) return 1;
+      return a.created_at.localeCompare(b.created_at);
+    });
+}

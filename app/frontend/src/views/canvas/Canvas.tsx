@@ -97,8 +97,11 @@ export function Canvas({
    * through to the old behaviour. */
   const rightGesturing = useRef(false);
 
+  // A child never gets its own node — it's drawn nested under its parent
+  // in whatever view supports that (today, just List); the canvas only
+  // ever shows what's at the top level of this set.
   const items = usePool(() =>
-    itemIds.flatMap((id) => {
+    pool.topLevelAmong(itemIds).flatMap((id) => {
       const item = pool.getItem(id);
       return item ? [item] : [];
     }),
@@ -117,8 +120,11 @@ export function Canvas({
   // The relations between two members of this canvas — what gets drawn
   // as an edge. Distinct from `placed`: that reads the arrow anchoring a
   // member to *this* set, this reads arrows members hold *between each
-  // other*, wherever both ends happen to be visible here.
-  const edges = usePool(() => pool.connectionsAmong(itemIds));
+  // other*, wherever both ends happen to be visible here. Hierarchy isn't
+  // drawn as a relation line — with its child node hidden, `paint()`'s
+  // `if (!from || !to) continue` guard would no-op it anyway, but
+  // excluding it up front is more honest about what's being drawn.
+  const edges = usePool(() => pool.connectionsAmong(itemIds).filter((edge) => !edge.child));
 
   // The identity of the member list, so the simulation is rebuilt when
   // *which* items are shown changes — not when one of them is renamed.
