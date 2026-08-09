@@ -20,6 +20,7 @@ import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
+import { isEditing } from "../../hooks/useUndoRedo.ts";
 import { captionOf, deviceKindOf, deviceOf, type DeviceKind, nodeImageUrl } from "../../lib/derive.js";
 import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection, useSelfDevice } from "../../store/index.js";
@@ -195,6 +196,45 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     },
     [sorted],
   );
+
+  // ↑ / ↓ and W / S walk the rows the way a click already can — each
+  // step replaces the pick with the row beside the last one and carries
+  // focus with it, so Space/Enter on the row still land where the
+  // arrows left off. Left/right belong to the trail (useArrowNav), not
+  // to a list with only one column to move across.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (isEditing(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (sorted.length === 0) return;
+
+      const key = event.key.toLowerCase();
+      const down = event.key === "ArrowDown" || key === "s";
+      const up = event.key === "ArrowUp" || key === "w";
+      if (!down && !up) return;
+      event.preventDefault();
+
+      const current = anchor.current
+        ? sorted.findIndex((row) => row.item.id === anchor.current)
+        : -1;
+      const next =
+        current === -1
+          ? 0
+          : Math.min(Math.max(current + (down ? 1 : -1), 0), sorted.length - 1);
+      const row = sorted[next];
+      if (!row) return;
+
+      selection.replace([row.item.id]);
+      anchor.current = row.item.id;
+
+      const element = body.current?.querySelectorAll<HTMLElement>(".row")[next];
+      element?.focus();
+      element?.scrollIntoView({ block: "nearest" });
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sorted]);
 
   return (
     <div className="list">

@@ -6,6 +6,12 @@
 // The pairing is the one macOS already taught: ⌫ removes something from
 // where it is, ⌘⌫ is the one that means gone. Only the second asks.
 //
+// Escape backs out one step at a time: first whatever is picked, and
+// only once there is nothing picked does it fall through to the same
+// "back" ←/A already walk the trail with — the container you are inside
+// is the next thing to leave. One listener owns both so a single press
+// never does both at once.
+//
 // These two are the only verbs with keys of their own; everything else a
 // selection can do is said by name in the command bar. They earn the
 // shortcut by being the ones you reach for without thinking, and there
@@ -24,10 +30,12 @@ export interface SelectionKeyHandlers {
   onRemoveFromSet: () => void;
   /** Gone entirely; the shell asks before this one happens. */
   onAskToDelete: () => void;
+  /** Escape with nothing picked — the same trail-back ←/A already do. */
+  onBack: () => void;
 }
 
 export function useSelectionKeys(enabled: boolean, handlers: SelectionKeyHandlers): void {
-  const { onRemoveFromSet, onAskToDelete } = handlers;
+  const { onRemoveFromSet, onAskToDelete, onBack } = handlers;
 
   useEffect(() => {
     if (!enabled) return;
@@ -44,9 +52,10 @@ export function useSelectionKeys(enabled: boolean, handlers: SelectionKeyHandler
         return;
       }
 
-      if (event.key === "Escape" && selection.count() > 0) {
+      if (event.key === "Escape") {
         event.preventDefault();
-        selection.clear();
+        if (selection.count() > 0) selection.clear();
+        else onBack();
         return;
       }
 

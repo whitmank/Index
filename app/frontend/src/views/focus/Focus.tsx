@@ -130,9 +130,14 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      // Escape inside a text input belongs to the field — it abandons the
-      // draft there, and only a second press closes the view.
+      // ← / A back out of the view the same way Escape does — the trail's
+      // own back gesture (useArrowNav) stands down while an overlay is up,
+      // so this is the only way left/A means "back" once you're in one.
+      const isBack =
+        event.key === "ArrowLeft" || (event.key.toLowerCase() === "a" && !event.metaKey && !event.ctrlKey && !event.altKey);
+      if (event.key !== "Escape" && !isBack) return;
+      // Escape (or ←/A) inside a text input belongs to the field — it
+      // abandons the draft there, and only a second press closes the view.
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || /input|textarea/i.test(target.tagName))) {
         return;

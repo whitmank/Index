@@ -131,10 +131,15 @@ export function App() {
   /** Arrive at a place on the given trail. Every way of getting somewhere
    * ends here; they differ only in the trail they claim to have walked.
    * How it's viewed is not decided here — `viewMode` is global and
-   * follows you in, unchanged, from wherever you were. */
+   * follows you in, unchanged, from wherever you were. What was picked
+   * does not follow you in: it named something on the set left behind,
+   * and staying chosen but invisible is exactly the stale state Escape's
+   * "put it down" is supposed to mean something for.
+   */
   const arriveAt = useCallback((id: string, trail: string[]) => {
     setPath(trail);
     setOpened(null);
+    selection.clear();
   }, []);
 
   /** Walk into a place: it becomes the last crumb. Going somewhere
@@ -368,6 +373,7 @@ export function App() {
   // an open focus view, command bar or prompt asked for them first.
   useSelectionKeys(!overlayOpen, {
     onAskToDelete: askToDeletePicked,
+    onBack: goBack,
     onRemoveFromSet: removePickedFromSet,
   });
 
