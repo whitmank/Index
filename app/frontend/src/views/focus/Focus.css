@@ -26,6 +26,10 @@
   opacity: 0;
   transition: opacity 260ms ease;
   color: var(--is-ink);
+  /* Focused programmatically (Focus.tsx) so a paste right after opening
+     an existing item has something in this subtree to bubble from —
+     not a real focus ring's worth of user interaction. */
+  outline: none;
 
   --is-ink: #ffffff;
   --is-ink-dim: rgba(255, 255, 255, 0.7);
@@ -581,6 +585,48 @@
   text-transform: uppercase;
 }
 
+.editor-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-block-header h3 {
+  margin: 0;
+}
+
+/* Minimal "+ in a circle" — replaces a labelled "add a file…" row; the
+   list itself is the label now, this is just the gesture. */
+.resources-add-button {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--is-ink-dim);
+  background: none;
+  border: 1px solid var(--is-line-strong);
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+}
+
+.resources-add-button:hover {
+  color: var(--is-accent);
+  border-color: var(--is-accent);
+}
+
+.resources-add-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* Every text input/select/textarea in Focus, regardless of which editor
    subtree it lives in — KnownFields (registry.tsx) and the identity
    field sit outside .editor-block, so scoping this to that ancestor
@@ -816,6 +862,32 @@
   transform: rotate(180deg);
 }
 
+.resource-row-missing .resource-name {
+  color: var(--is-ink-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--is-line-strong);
+}
+
+.resource-missing-badge {
+  flex: none;
+  font-size: 11px;
+  color: var(--is-danger-icon);
+  background: var(--is-danger-wash);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.resource-locate {
+  flex: none;
+  font-size: 11px !important;
+}
+
+.resource-reseek {
+  flex: none;
+  font-size: 13px !important;
+}
+
 .resource-row button:disabled {
   opacity: 0.3;
   cursor: default;
@@ -849,33 +921,6 @@
 .resource-row button:hover {
   color: var(--is-accent);
   background: rgba(255, 255, 255, 0.08);
-}
-
-.resource-add {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.resource-add button {
-  font: inherit;
-  font-size: 13px;
-  color: var(--is-ink-dim);
-  background: none;
-  border: 1px solid var(--is-line-strong);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.resource-add button:hover {
-  color: var(--is-accent);
-  border-color: var(--is-accent);
-}
-
-.resource-add input {
-  flex: 1;
 }
 
 /* ── Add-field affordance ────────────────────────────────────────────── */

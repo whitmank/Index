@@ -62,6 +62,17 @@ export async function listItems(ids: string[]): Promise<Item[]> {
   return rows.map(serializeItem);
 }
 
+/** Every live item with at least one resource — the population the
+ * relink reconciler walks. A full scan is the same trade DESIGN-CONCEPT
+ * §8 already licenses for `searchItems`: personal scale, not millions. */
+export async function listItemsWithResources(): Promise<Item[]> {
+  const db = getDb();
+  const [rows] = await db
+    .query<[ItemRow[]]>(`SELECT * FROM items WHERE ${LIVE} AND array::len(resources) > 0`)
+    .collect();
+  return rows.map(serializeItem);
+}
+
 /**
  * The items that play the set role — what the home screen lists. An item
  * is a set when it carries a query, was deliberately made as one

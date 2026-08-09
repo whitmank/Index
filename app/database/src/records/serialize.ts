@@ -148,6 +148,8 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
     resources: item.resources.map((resource) => ({
       uri: resource.uri,
       name: resource.name,
+      contentHash: resource.contentHash ?? undefined,
+      size: resource.size ?? undefined,
       cached: resource.cached ?? undefined,
     })),
     deleted_at: toDbDate(item.deleted_at),

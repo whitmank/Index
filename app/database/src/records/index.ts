@@ -7,6 +7,7 @@ export {
   getItemIncludingDeleted,
   listArrowsInto,
   listItems,
+  listItemsWithResources,
   listMemberDates,
   listMembers,
   listPlacesAmong,

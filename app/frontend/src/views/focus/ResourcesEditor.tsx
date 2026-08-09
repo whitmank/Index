@@ -1,16 +1,16 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 // The resources list: ordered pointers, first is primary — which is what
-// decides the item's format, and so its renderer. Adding one is a file
-// dialog or a pasted url; both go through intake, which stamps the uri
-// and fetches the derivations before the change is built.
+// decides the item's format, and so its renderer. Adding one is the file
+// dialog behind the "+", or a drag/paste onto the focused item itself
+// (Focus.tsx) — both go through intake, which stamps the uri and fetches
+// the derivations before the change is built.
 //
 // Nothing here copies bytes. Adding a file is recording where it already
 // is.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Item, Resource } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { DeviceIcon } from "../../components/DeviceIcon.tsx";
-import { SettleInput } from "../../components/SettleInput.tsx";
 import { deviceKindOf, deviceOf } from "../../lib/derive.js";
 import { errors, useSelfDevice } from "../../store/index.js";
 
@@ -24,28 +24,73 @@ function locationOf(resource: Resource): string {
 }
 
 export function ResourcesEditor({ item }: { item: Item }) {
-  const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [missingUris, setMissingUris] = useState<Set<string>>(new Set());
+  // The uri a search is currently running for — locate (a picked folder)
+  // and reseek (the whole watch list) share this, since only one of
+  // either makes sense in flight for a given resource at a time.
+  const [searching, setSearching] = useState<string | null>(null);
   const selfDevice = useSelfDevice();
 
-  const attach = async (inputs: string[]): Promise<void> => {
-    if (inputs.length === 0) return;
-    setBusy(true);
+  // Re-checks whenever the item gets a fresh `resources` array (a relink,
+  // this window's or the background watcher's, landing via
+  // `records:changed`) and whenever the backend says some resource's
+  // availability changed shape. That second listener is the one that
+  // matters for a file going missing: moving it doesn't touch the item's
+  // own record, so `item.resources` never changes, and without a push
+  // from the backend the badge would only ever catch up on some later,
+  // unrelated re-render.
+  useEffect(() => {
+    const uris = item.resources.map((resource) => resource.uri);
+    if (uris.length === 0) {
+      setMissingUris(new Set());
+      return;
+    }
+    let cancelled = false;
+    const check = (): void => {
+      void window.index.resources.checkMissing(uris).then((answer) => {
+        if (cancelled || "err" in answer) return;
+        setMissingUris(new Set(uris.filter((uri) => answer.ok.missing[uri])));
+      });
+    };
+    check();
+    const unlisten = window.index.on("resources:availabilityChanged", check);
+    return () => {
+      cancelled = true;
+      unlisten();
+    };
+  }, [item.resources]);
+
+  const locate = async (uri: string): Promise<void> => {
+    setSearching(uri);
     try {
-      const answer = await window.index.intake.pathsToResources(inputs);
+      const answer = await window.index.resources.locate(item.id, uri);
       if ("err" in answer) {
         errors.surface(answer.err);
         return;
       }
-      // One change per resource keeps each undoable on its own. The
-      // classification and any ingested fields intake computed are
-      // ignored here — this item already exists, possibly already
-      // typed, and a second resource must not silently reclassify it.
-      for (const { resource } of answer.ok.results) {
-        await apply(changes.addResource(item, resource));
-      }
+      if (!answer.ok.found) errors.surface("Couldn't find that file in the folder you picked.");
     } finally {
-      setBusy(false);
+      setSearching(null);
+    }
+  };
+
+  // Unlike `locate`, this isn't gated on the resource being missing — a
+  // resource that still resolves but points at a bad match (a duplicate
+  // caught before an exclusion ruled it out) needs the same "search
+  // again" gesture, just without a folder dialog: it searches everywhere
+  // the watch list already covers.
+  const reseek = async (uri: string): Promise<void> => {
+    setSearching(uri);
+    try {
+      const answer = await window.index.resources.reseek(item.id, uri);
+      if ("err" in answer) {
+        errors.surface(answer.err);
+        return;
+      }
+      if (!answer.ok.found) errors.surface("No other match found in the watched folders.");
+    } finally {
+      setSearching(null);
     }
   };
 
@@ -67,11 +112,25 @@ export function ResourcesEditor({ item }: { item: Item }) {
 
   return (
     <section className="editor-block">
-      <h3>resources</h3>
+      <div className="editor-block-header">
+        <h3>resources</h3>
+        <button
+          aria-label="add a file"
+          className="resources-add-button"
+          disabled={busy}
+          onClick={() => void pick()}
+          title="add a file"
+          type="button"
+        >
+          +
+        </button>
+      </div>
 
       <ul className="resources">
-        {item.resources.map((resource, index) => (
-          <li className="resource-row" key={resource.uri}>
+        {item.resources.map((resource, index) => {
+          const isMissing = missingUris.has(resource.uri);
+          return (
+          <li className={isMissing ? "resource-row resource-row-missing" : "resource-row"} key={resource.uri}>
             {/* Fixed-width regardless of primary/not, so every row's
                 label starts at the same x — xyz's source-primary-
                 indicator convention. */}
@@ -86,6 +145,41 @@ export function ResourcesEditor({ item }: { item: Item }) {
             <span className="resource-name" title={resource.name}>
               {locationOf(resource)}
             </span>
+
+            {isMissing && (
+              <span className="resource-missing-badge" title="the file wasn't found at this location">
+                missing
+              </span>
+            )}
+
+            {deviceOf(resource.uri) !== "web" && resource.contentHash && (
+              <button
+                aria-label={`search again for ${resource.name}`}
+                className="resource-reseek"
+                disabled={searching === resource.uri}
+                onClick={() => void reseek(resource.uri)}
+                title="search the watch list again for this file's content"
+                type="button"
+              >
+                ⟳
+              </button>
+            )}
+
+            {isMissing && (
+              <button
+                className="resource-locate"
+                disabled={!resource.contentHash || searching === resource.uri}
+                onClick={() => void locate(resource.uri)}
+                title={
+                  resource.contentHash
+                    ? "search a folder for this file"
+                    : "no content record to search by — this file was already missing before relocation search existed"
+                }
+                type="button"
+              >
+                {searching === resource.uri ? "searching…" : "search a folder…"}
+              </button>
+            )}
 
             {/* The location's device and the way to open it are one
                 fact, not two — a chip naming it beside a button that
@@ -136,25 +230,9 @@ export function ResourcesEditor({ item }: { item: Item }) {
               ✕
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
-
-      <div className="resource-add">
-        <button disabled={busy} onClick={() => void pick()} type="button">
-          add a file…
-        </button>
-        <SettleInput
-          ariaLabel="paste a url"
-          onCommit={(next) => {
-            const trimmed = next.trim();
-            if (!trimmed) return;
-            setUrl("");
-            void attach([trimmed]);
-          }}
-          placeholder="or paste a url"
-          value={url}
-        />
-      </div>
     </section>
   );
 }

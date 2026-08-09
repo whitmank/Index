@@ -1,6 +1,15 @@
 /* Authored by Karter Whitman using Claude Sonnet 5 */
 
 .settings {
+  /* `.confirm-backdrop` (Confirm.css, shared) centers its child by
+     default — right for a one-line question, wrong here: a shorter
+     tab's content would shrink the box and recenter it, moving the top
+     bar every time the tab changes. Anchoring to the backdrop grid's
+     start instead pins the top edge at a fixed spot; only the bottom
+     edge moves with content, up to max-height, past which the body's
+     own scroll (below) takes over. */
+  align-self: start;
+  margin-top: 8vh;
   display: flex;
   flex-direction: column;
   width: min(38rem, 100%);
@@ -170,6 +179,105 @@
 .keybind-or {
   font-size: var(--text-xs);
   color: var(--ink-faint);
+}
+
+/* ── Watched folders ────────────────────────────────────────────────── */
+
+.settings-section-note {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+}
+
+.watchlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.watchlist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.watchlist-row:last-child {
+  border-bottom: none;
+}
+
+.watchlist-row.is-dragging {
+  opacity: 0.4;
+}
+
+.watchlist-handle {
+  flex: none;
+  color: var(--ink-faint);
+  cursor: grab;
+  line-height: 1;
+}
+
+.watchlist-handle:active {
+  cursor: grabbing;
+}
+
+.watchlist-path {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist-row button {
+  flex: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+}
+
+.watchlist-row button:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.watchlist-row button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.watchlist-row button:disabled:hover {
+  color: var(--ink-quiet);
+  background: none;
+}
+
+.watchlist-add {
+  align-self: flex-start;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.watchlist-add:hover {
+  color: var(--ink);
+  border-color: var(--accent);
 }
 
 .settings kbd,

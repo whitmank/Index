@@ -35,6 +35,11 @@ export interface CachedDerivations {
 export interface Resource {
   uri: string;
   name: string;
+  /** sha256 hex of the file's bytes, captured while it still resolved.
+   * Unlike `cached`, this can't be recomputed once the file is gone — it's
+   * what makes relocation possible, not a rebuildable convenience. */
+  contentHash?: string;
+  size?: number;
   cached?: CachedDerivations;
 }
 

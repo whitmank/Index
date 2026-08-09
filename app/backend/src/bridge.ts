@@ -32,6 +32,10 @@ export interface BridgeEvents {
    * pairs move the pool, the records are what the database actually
    * wrote. */
   "records:changed": [change: Change, records: StoredRecord[]];
+  /** Some resource's on-disk availability changed shape — one went
+   * missing, or one stopped being. No payload: it's a cue to re-check,
+   * not an account of what changed. */
+  "resources:availabilityChanged": [];
 }
 
 export interface IndexBridge {
@@ -77,6 +81,38 @@ export interface IndexBridge {
     /** The absolute path behind a dropped File. Only the preload can ask
      * this — the renderer has no filesystem of its own. */
     pathForFile(file: File): string;
+  };
+  resources: {
+    /** Which of these uris currently 404 locally — drives the missing
+     * badge in ResourcesEditor. */
+    checkMissing(uris: string[]): Promise<Result<{ missing: Record<string, boolean> }>>;
+    /** Manual fallback: pick a folder, search it for this resource's
+     * content by hash, relink+broadcast server-side if found. */
+    locate(itemId: string, uri: string): Promise<Result<{ found: boolean }>>;
+    /** Force a fresh search by content hash against the whole watch
+     * list (respecting the exclude list) — for a resource that still
+     * resolves but points somewhere wrong, not just a missing one. */
+    reseek(itemId: string, uri: string): Promise<Result<{ found: boolean }>>;
+    /** The folders relink.ts watches live and searches, in the order
+     * given — search tries each in turn and stops at the first match, so
+     * this order is search priority. Settings' Files tab. */
+    watchlist: {
+      list(): Promise<Result<{ folders: string[] }>>;
+      /** Opens a folder picker; adding restarts live watching and
+       * searches the new folder immediately. */
+      add(): Promise<Result<{ folders: string[] }>>;
+      /** Persists exactly this list/order and restarts live watching —
+       * covers both reordering and removal, computed client-side. */
+      update(folders: string[]): Promise<Result<{ folders: string[] }>>;
+    };
+    /** Folders a search must never treat as a match — a place known to
+     * hold stale duplicate content. Order doesn't matter here, so unlike
+     * `watchlist` there's no `update`, just add/remove. */
+    excludelist: {
+      list(): Promise<Result<{ folders: string[] }>>;
+      add(): Promise<Result<{ folders: string[] }>>;
+      remove(folder: string): Promise<Result<{ folders: string[] }>>;
+    };
   };
   shell: {
     /** Finder reveal; local uris only. */

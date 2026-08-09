@@ -38,6 +38,21 @@ const bridge: IndexBridge = {
     pick: () => invoke(CHANNELS.intakePick),
     pathForFile: (file) => webUtils.getPathForFile(file),
   },
+  resources: {
+    checkMissing: (uris) => invoke(CHANNELS.resourcesCheckMissing, uris),
+    locate: (itemId, uri) => invoke(CHANNELS.resourcesLocate, itemId, uri),
+    reseek: (itemId, uri) => invoke(CHANNELS.resourcesReseek, itemId, uri),
+    watchlist: {
+      list: () => invoke(CHANNELS.resourcesWatchlistList),
+      add: () => invoke(CHANNELS.resourcesWatchlistAdd),
+      update: (folders) => invoke(CHANNELS.resourcesWatchlistUpdate, folders),
+    },
+    excludelist: {
+      list: () => invoke(CHANNELS.resourcesExcludelistList),
+      add: () => invoke(CHANNELS.resourcesExcludelistAdd),
+      remove: (folder) => invoke(CHANNELS.resourcesExcludelistRemove, folder),
+    },
+  },
   shell: {
     reveal: (uri) => invoke(CHANNELS.shellReveal, uri),
     openExternal: (uri) => invoke(CHANNELS.shellOpenExternal, uri),

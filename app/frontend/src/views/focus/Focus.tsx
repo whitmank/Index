@@ -8,7 +8,7 @@
 // rather than kept: you opened something, looked at it, and closed it, and
 // nothing about that is worth remembering. That discard is deliberately
 // not undo-tracked.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, Schema } from "@index/database/types";
 import { apply, applyUntracked, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
@@ -16,7 +16,7 @@ import { isPublic } from "../../components/itemActions.ts";
 import { KnownFields, layouts, resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { formatOf } from "../../lib/derive.js";
 import { rendererFor } from "../../renderers/registry.tsx";
-import { loadItem, pool, usePool } from "../../store/index.js";
+import { errors, loadItem, pool, usePool } from "../../store/index.js";
 import { ConnectionComposer, type Outbound } from "./ConnectionComposer.tsx";
 import { FieldsEditor } from "./FieldsEditor.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
@@ -63,6 +63,18 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       cancelAnimationFrame(outer);
       cancelAnimationFrame(inner);
     };
+  }, []);
+
+  // A paste event only bubbles from whatever currently has DOM focus. A
+  // brand-new item's name field grabs it via `autoFocus` below, but
+  // opening an *existing* item moves nothing — without this, pasting
+  // right after opening one would land on whatever was focused in the
+  // view behind it, not here. Runs once per mount, which `key={itemId}`
+  // at the call site (App.tsx) makes exactly "once per item opened."
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   }, []);
 
   const item = usePool(() => pool.getItem(itemId));
@@ -162,6 +174,25 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
 
   if (!item || !resolution) return null;
 
+  /** A file dropped or pasted anywhere on the focused item, or a link
+   * dragged/pasted in the same way, becomes a resource on *this* item —
+   * the in-focus counterpart to the shell's own drop-anywhere, which
+   * mints a new item instead (App.tsx's `onDropAnywhere`). Calling
+   * `preventDefault` here is what keeps that shell handler from also
+   * firing: it only acts when the event reaches it unclaimed. */
+  const attachDropped = async (inputs: string[]): Promise<void> => {
+    const trimmed = inputs.map((entry) => entry.trim()).filter(Boolean);
+    if (trimmed.length === 0) return;
+    const answer = await window.index.intake.pathsToResources(trimmed);
+    if ("err" in answer) {
+      errors.surface(answer.err);
+      return;
+    }
+    for (const { resource } of answer.ok.results) {
+      await apply(changes.addResource(item, resource));
+    }
+  };
+
   const format = formatOf(item);
   const renderer = rendererFor(format);
   const Layout = resolution.entry.Component;
@@ -204,11 +235,44 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   return (
     <div
       className={visible ? "focus-backdrop visible" : "focus-backdrop"}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const files = [...event.dataTransfer.files];
+        if (files.length > 0) {
+          void attachDropped(files.map((file) => window.index.intake.pathForFile(file)));
+          return;
+        }
+        // A link dragged in from a browser tab or address bar carries no
+        // File — just the url as text.
+        const link = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+        if (link.trim()) void attachDropped([link]);
+      }}
+      onPaste={(event) => {
+        // An ordinary paste into a field — the name, a field value —
+        // belongs to that field; only claim it when nothing editable is
+        // where the paste landed.
+        const target = event.target;
+        if (target instanceof HTMLElement && (target.isContentEditable || /input|textarea/i.test(target.tagName))) {
+          return;
+        }
+        const files = [...event.clipboardData.files];
+        if (files.length > 0) {
+          event.preventDefault();
+          void attachDropped(files.map((file) => window.index.intake.pathForFile(file)));
+          return;
+        }
+        const text = event.clipboardData.getData("text/plain").trim();
+        if (text) {
+          event.preventDefault();
+          void attachDropped([text]);
+        }
+      }}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) dismiss();
       }}
     >
-      <div className={visible ? "focus visible" : "focus"} role="dialog">
+      <div className={visible ? "focus visible" : "focus"} ref={panelRef} role="dialog" tabIndex={-1}>
         <header className="focus-bar">
           <div className="focus-bar-spacer" aria-hidden="true" />
 

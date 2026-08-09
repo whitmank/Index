@@ -8,10 +8,13 @@
 // root" and "go to home" collapse into the one ⌘/ binding below).
 import { useEffect } from "react";
 import { SchemaEditor } from "../schemas/SchemaManager.tsx";
+import { ExcludedFolders } from "./ExcludedFolders.tsx";
+import { WatchedFolders } from "./WatchedFolders.tsx";
 
 export const SETTINGS_TABS = [
   { id: "general", label: "General" },
   { id: "types", label: "Types" },
+  { id: "files", label: "Files" },
   { id: "keybindings", label: "Keybindings" },
 ] as const;
 
@@ -150,6 +153,12 @@ export function Settings({ tab, onTabChange, onClose }: SettingsProps) {
         <div className="settings-body">
           {tab === "general" && <General />}
           {tab === "types" && <SchemaEditor />}
+          {tab === "files" && (
+            <>
+              <WatchedFolders />
+              <ExcludedFolders />
+            </>
+          )}
           {tab === "keybindings" && <Keybindings />}
         </div>
       </div>

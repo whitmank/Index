@@ -11,6 +11,7 @@ export const SURREAL_DIR = path.join(INDEX_DIR, "surreal");
 export const CACHE_DIR = path.join(INDEX_DIR, "cache");
 export const DEVICES_FILE = path.join(INDEX_DIR, "devices.toml");
 export const WINDOW_FILE = path.join(INDEX_DIR, "window.json");
+export const WATCHLIST_FILE = path.join(INDEX_DIR, "watchlist.json");
 
 export interface DeviceConfig {
   /** This machine's device id — the authority intake stamps on new uris. */
@@ -76,4 +77,63 @@ export function loadDeviceConfig(): DeviceConfig {
 
 export function selfDevice(): string {
   return loadDeviceConfig().self;
+}
+
+const DEFAULT_WATCHED_FOLDER_NAMES = ["Downloads", "Desktop", "Documents", "Pictures", "Movies"];
+
+export function defaultWatchedFolders(): string[] {
+  const home = os.homedir();
+  return DEFAULT_WATCHED_FOLDER_NAMES.map((name) => path.join(home, name));
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+/** The folders relink.ts watches live and searches for a moved file's
+ * content, in priority order. Defaults to the usual five until the user
+ * edits the list from Settings — a per-machine preference, so it lives
+ * beside `devices.toml` rather than in the database (DESIGN-CONCEPT §8). */
+export function loadWatchedFolders(): string[] {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(WATCHLIST_FILE, "utf8")) as { folders?: unknown };
+    if (isStringArray(parsed.folders)) return parsed.folders;
+  } catch {
+    // No file yet, or a hand-edited one that no longer parses — the
+    // defaults are the reasonable fallback either way.
+  }
+  return defaultWatchedFolders();
+}
+
+export function saveWatchedFolders(folders: string[]): void {
+  try {
+    fs.writeFileSync(WATCHLIST_FILE, `${JSON.stringify({ folders }, null, 2)}\n`);
+  } catch (error) {
+    console.error("[config] could not save watched folders:", error);
+  }
+}
+
+export const EXCLUDELIST_FILE = path.join(INDEX_DIR, "excludelist.json");
+
+/** Folders a relocation search must never consider a match from — an old
+ * app's own data directory, a backup, anywhere known to hold stale
+ * duplicate content rather than where a file actually belongs. No
+ * default: nothing is excluded until the user says so from Settings. */
+export function loadExcludedFolders(): string[] {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(EXCLUDELIST_FILE, "utf8")) as { folders?: unknown };
+    if (isStringArray(parsed.folders)) return parsed.folders;
+  } catch {
+    // No file yet, or a hand-edited one that no longer parses — nothing
+    // excluded is the right fallback either way.
+  }
+  return [];
+}
+
+export function saveExcludedFolders(folders: string[]): void {
+  try {
+    fs.writeFileSync(EXCLUDELIST_FILE, `${JSON.stringify({ folders }, null, 2)}\n`);
+  } catch (error) {
+    console.error("[config] could not save excluded folders:", error);
+  }
 }

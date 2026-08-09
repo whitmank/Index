@@ -9,6 +9,7 @@ import { ensureDirectories, loadDeviceConfig, SURREAL_DIR } from "./config.js";
 import { registerHandlers } from "./ipc/index.js";
 import { registerProtocols, registerSchemes } from "./protocols.js";
 import { startSweeping } from "./services/gc.js";
+import { setAvailabilityListener, setRelinkListener, startAutoRelink } from "./services/relink.js";
 import {
   broadcast,
   createWindow,
@@ -27,6 +28,7 @@ app.on("second-instance", () => showWindow());
 
 let database: DatabaseHandle | null = null;
 let stopSweeping: (() => void) | null = null;
+let stopAutoRelink: (() => void) | null = null;
 let stopWindowBehavior: (() => void) | null = null;
 let quitting = false;
 
@@ -50,6 +52,9 @@ async function main(): Promise<void> {
   stopWindowBehavior = await startWindowBehavior();
 
   stopSweeping = startSweeping((result) => broadcast("gc:swept", result));
+  setRelinkListener((change, records) => broadcast("records:changed", change, records));
+  setAvailabilityListener(() => broadcast("resources:availabilityChanged"));
+  stopAutoRelink = startAutoRelink();
 }
 
 app.on("window-all-closed", () => {
@@ -77,6 +82,7 @@ app.on("before-quit", (event) => {
 
   stopWindowBehavior?.();
   stopSweeping?.();
+  stopAutoRelink?.();
   void (async () => {
     try {
       await database?.stop();

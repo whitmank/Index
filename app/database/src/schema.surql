@@ -23,6 +23,8 @@ DEFINE FIELD OVERWRITE resources    ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE resources.*.uri    ON items TYPE string;
 DEFINE FIELD OVERWRITE resources.*.name   ON items TYPE string;
 DEFINE FIELD OVERWRITE resources.*.cached ON items TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE resources.*.contentHash ON items TYPE option<string>;
+DEFINE FIELD OVERWRITE resources.*.size        ON items TYPE option<int>;
 DEFINE FIELD OVERWRITE deleted_at   ON items TYPE option<datetime>;
 DEFINE INDEX OVERWRITE items_date    ON items FIELDS date;
 DEFINE INDEX OVERWRITE items_created ON items FIELDS created_at;

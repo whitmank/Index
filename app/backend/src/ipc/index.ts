@@ -6,6 +6,7 @@ import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
   applyChange,
   ensureLabel,
+  getItem,
   getItemDetail,
   listLabels,
   listMemberDates,
@@ -18,9 +19,16 @@ import {
 } from "@index/database";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
-import { selfDevice } from "../config.js";
+import {
+  loadExcludedFolders,
+  loadWatchedFolders,
+  saveExcludedFolders,
+  saveWatchedFolders,
+  selfDevice,
+} from "../config.js";
 import { pathsToResources } from "../services/intake.js";
-import { isLocalUri, resolve } from "../services/resolver.js";
+import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
+import { isLocalUri, resolve, resolveExistingFile } from "../services/resolver.js";
 import { broadcast } from "../windowBehavior/index.js";
 import {
   asChange,
@@ -104,6 +112,138 @@ export function registerHandlers(): void {
       : await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
     if (picked.canceled) return { results: [] };
     return { results: await pathsToResources(picked.filePaths) };
+  });
+
+  // Which of these uris currently 404 locally — ResourcesEditor's
+  // missing-badge check. Non-local/web uris always answer false; a
+  // resource on the web or another device isn't something this feature
+  // can search for.
+  handle(CHANNELS.resourcesCheckMissing, async (uris) => {
+    const list = asStringArray(uris, "uris");
+    const missing: Record<string, boolean> = {};
+    for (const uri of list) missing[uri] = isLocalUri(uri) && !resolveExistingFile(uri);
+    return { missing };
+  });
+
+  // Manual fallback for a file that landed somewhere the background
+  // watcher doesn't cover: pick a folder, search it by content hash,
+  // relink+broadcast server-side if found. `relinkOne` already broadcasts
+  // on success, so this must not do it again.
+  handle(CHANNELS.resourcesLocate, async (itemId, uri) => {
+    const id = asString(itemId, "itemId");
+    const target = asString(uri, "uri");
+
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const picked = window
+      ? await dialog.showOpenDialog(window, { properties: ["openDirectory"] })
+      : await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    const folder = picked.filePaths[0];
+    if (picked.canceled || !folder) return { found: false };
+
+    const item = await getItem(id);
+    const resource = item?.resources.find((entry) => entry.uri === target);
+    if (!item || !resource?.contentHash || resource.size === undefined) return { found: false };
+
+    const foundPath = await findByHash(resource.contentHash, resource.size, folder);
+    if (!foundPath) return { found: false };
+
+    const records = await relinkOne(
+      { itemId: id, uri: target, contentHash: resource.contentHash, size: resource.size },
+      foundPath,
+    );
+    return { found: records !== null };
+  });
+
+  // Force a fresh search by content hash against the full watch list —
+  // for a resource that still resolves but points somewhere wrong (a
+  // duplicate matched before an exclusion existed to rule it out), not
+  // just a missing one. No dialog: this searches everywhere the
+  // background watcher already covers, respecting the current watch
+  // list and exclude list, so excluding a folder and re-seeking is how
+  // a bad match gets corrected without waiting for the file to move
+  // again.
+  handle(CHANNELS.resourcesReseek, async (itemId, uri) => {
+    const id = asString(itemId, "itemId");
+    const target = asString(uri, "uri");
+
+    const item = await getItem(id);
+    const resource = item?.resources.find((entry) => entry.uri === target);
+    if (!item || !resource?.contentHash || resource.size === undefined) return { found: false };
+
+    const foundPath = await findByHash(resource.contentHash, resource.size);
+    if (!foundPath) return { found: false };
+
+    const records = await relinkOne(
+      { itemId: id, uri: target, contentHash: resource.contentHash, size: resource.size },
+      foundPath,
+    );
+    return { found: records !== null };
+  });
+
+  handle(CHANNELS.resourcesWatchlistList, async () => ({ folders: loadWatchedFolders() }));
+
+  // Adding is picking one or more folders at once — `multiSelections`,
+  // same as intakePick's file dialog — appended in the order the OS
+  // returns them; the user reorders afterward by dragging in Settings.
+  // refreshWatchList restarts live watching against the new list and
+  // runs a pass against it immediately.
+  handle(CHANNELS.resourcesWatchlistAdd, async () => {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const picked = window
+      ? await dialog.showOpenDialog(window, { properties: ["openDirectory", "multiSelections"] })
+      : await dialog.showOpenDialog({ properties: ["openDirectory", "multiSelections"] });
+    const current = loadWatchedFolders();
+    if (picked.canceled || picked.filePaths.length === 0) return { folders: current };
+
+    const additions = picked.filePaths.filter((folder) => !current.includes(folder));
+    if (additions.length === 0) return { folders: current };
+
+    const folders = [...current, ...additions];
+    saveWatchedFolders(folders);
+    refreshWatchList();
+    return { folders };
+  });
+
+  // One entry point for both reordering and removal: the frontend already
+  // holds the current list (from `list`/`add`'s own answers) and sends
+  // back exactly the array it wants persisted — a move is a swap, a
+  // removal is a filter, computed client-side either way.
+  handle(CHANNELS.resourcesWatchlistUpdate, async (folders) => {
+    const list = asStringArray(folders, "folders");
+    saveWatchedFolders(list);
+    refreshWatchList();
+    return { folders: list };
+  });
+
+  handle(CHANNELS.resourcesExcludelistList, async () => ({ folders: loadExcludedFolders() }));
+
+  // Same multi-select dialog as the watch list's add; order doesn't mean
+  // anything for exclusions, so `runNow` just re-runs the current pass —
+  // no watcher restart, since exclusions only filter search candidates,
+  // never which folders are actually watched.
+  handle(CHANNELS.resourcesExcludelistAdd, async () => {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const picked = window
+      ? await dialog.showOpenDialog(window, { properties: ["openDirectory", "multiSelections"] })
+      : await dialog.showOpenDialog({ properties: ["openDirectory", "multiSelections"] });
+    const current = loadExcludedFolders();
+    if (picked.canceled || picked.filePaths.length === 0) return { folders: current };
+
+    const additions = picked.filePaths.filter((folder) => !current.includes(folder));
+    if (additions.length === 0) return { folders: current };
+
+    const folders = [...current, ...additions];
+    saveExcludedFolders(folders);
+    runNow();
+    return { folders };
+  });
+
+  handle(CHANNELS.resourcesExcludelistRemove, async (folder) => {
+    const target = asString(folder, "folder");
+    const folders = loadExcludedFolders().filter((entry) => entry !== target);
+    saveExcludedFolders(folders);
+    runNow();
+    return { folders };
   });
 
   handle(CHANNELS.shellReveal, async (uri) => {

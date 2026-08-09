@@ -17,7 +17,8 @@
     "dev": "node scripts/dev.js",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test:db": "npm run test --workspace=@index/database"
+    "test:db": "npm run test --workspace=@index/database",
+    "test:backend": "npm run test --workspace=@index/backend"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

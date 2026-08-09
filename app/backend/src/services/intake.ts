@@ -10,11 +10,13 @@
 // gives the renderer exactly one way to turn something the user handed
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
+import fs from "node:fs";
 import path from "node:path";
 import type { Field, Resource } from "@index/database";
 import { selfDevice } from "../config.js";
 import { classifyResource } from "./classify.js";
 import { deriveForResource } from "./derivations.js";
+import { sha256File } from "./hash.js";
 import { ingestBook } from "./ingest/book.js";
 import { resolveExistingFile } from "./resolver.js";
 
@@ -35,6 +37,22 @@ async function ingest(type: string | null, resource: Resource): Promise<Field[]>
 
 function isWebUrl(input: string): boolean {
   return /^https?:\/\//i.test(input);
+}
+
+/** The content signature relink.ts searches by, captured now while the
+ * file is known to exist — best-effort, like `deriveForResource`. */
+async function withIdentity(resource: Resource): Promise<Resource> {
+  const filepath = resolveExistingFile(resource.uri);
+  if (!filepath) return resource;
+  try {
+    const [contentHash, stat] = await Promise.all([
+      sha256File(filepath),
+      fs.promises.stat(filepath),
+    ]);
+    return { ...resource, contentHash, size: stat.size };
+  } catch {
+    return resource;
+  }
 }
 
 export function pathToUri(absolutePath: string): string {
@@ -79,9 +97,10 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       };
       const cached = await deriveForResource(resource);
       const withCache = Object.keys(cached).length > 0 ? { ...resource, cached } : resource;
-      const type = classifyResource(withCache);
-      const fields = await ingest(type, withCache);
-      return { resource: withCache, type, fields };
+      const withHash = await withIdentity(withCache);
+      const type = classifyResource(withHash);
+      const fields = await ingest(type, withHash);
+      return { resource: withHash, type, fields };
     }),
   );
 }
