@@ -143,6 +143,12 @@ export const SPOTIFY_CREDENTIALS_FILE = path.join(INDEX_DIR, "spotify.json");
 export interface SpotifyCredentials {
   clientId: string;
   clientSecret: string;
+  /** The redirect URI registered for this app in Spotify's developer
+   * dashboard. The Client Credentials flow this app actually uses never
+   * sends the user through it, but the dashboard requires one to create
+   * an app at all — kept here, alongside the id/secret it was
+   * registered with, so it isn't lost if a future flow needs it. */
+  redirectUri?: string;
 }
 
 const EMPTY_SPOTIFY_CREDENTIALS: SpotifyCredentials = { clientId: "", clientSecret: "" };
@@ -158,6 +164,7 @@ export function loadSpotifyCredentials(): SpotifyCredentials {
     return {
       clientId: typeof parsed.clientId === "string" ? parsed.clientId : "",
       clientSecret: typeof parsed.clientSecret === "string" ? parsed.clientSecret : "",
+      redirectUri: typeof parsed.redirectUri === "string" ? parsed.redirectUri : undefined,
     };
   } catch {
     return { ...EMPTY_SPOTIFY_CREDENTIALS };

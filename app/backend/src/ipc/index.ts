@@ -271,7 +271,10 @@ export function registerHandlers(): void {
   handle(CHANNELS.spotifyCredentialsGet, async () => loadSpotifyCredentials());
 
   handle(CHANNELS.spotifyCredentialsSave, async (clientId, clientSecret) => {
+    // Preserve fields the Settings form doesn't edit (redirectUri) rather
+    // than clobbering them with a save of just the two it does.
     const credentials = {
+      ...loadSpotifyCredentials(),
       clientId: asString(clientId, "clientId"),
       clientSecret: asString(clientSecret, "clientSecret"),
     };

@@ -6,3 +6,16 @@ dist-electron/
 
 # SurrealDB SQL shell history (created by `surreal sql` probes)
 history.txt
+
+# Credentials and local device config normally live outside the repo,
+# in ~/.index/ (see app/backend/src/config.ts) — never written here in
+# the ordinary course of things. Ignored anyway as a backstop, in case a
+# stray copy (a manual test, a moved fixture) ever lands in the tree.
+spotify.json
+devices.toml
+window.json
+watchlist.json
+excludelist.json
+.env
+.env.*
+!.env.example
