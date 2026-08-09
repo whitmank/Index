@@ -15,6 +15,7 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { KnownFields, layouts, resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { formatOf } from "../../lib/derive.js";
+import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { rendererFor } from "../../renderers/registry.tsx";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
 import { ConnectionComposer, type Outbound } from "./ConnectionComposer.tsx";
@@ -166,8 +167,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   );
 
   const claimedConnections = useMemo<ClaimedConnection[]>(() => {
-    if (!resolution) return [];
-    const wantedLabels = resolution.entry.labels ?? [];
+    const wantedLabels = resolution?.entry.labels ?? [];
     return outbound
       .filter((connection) => connection.label && wantedLabels.includes(connection.label))
       .map((connection) => ({
@@ -175,6 +175,16 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
         targetId: connection.targetId,
         targetName: connection.targetName,
       }));
+  }, [outbound, resolution]);
+
+  // What a layout claims into its own dedicated slot — an album's
+  // tracks, a movie's author — is intrinsic to that slot, not a loose
+  // connection to also offer (and remove) from the generic composer.
+  const composerOutbound = useMemo(() => {
+    const wantedLabels = resolution?.entry.labels ?? [];
+    return outbound.filter(
+      (connection) => !(connection.label && wantedLabels.includes(connection.label)),
+    );
   }, [outbound, resolution]);
 
   if (!item || !resolution) return null;
@@ -194,7 +204,26 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       return;
     }
     for (const { resource } of answer.ok.results) {
-      await apply(changes.addResource(item, resource));
+      // A Spotify album link gets its songs bundled into the same change
+      // as the resource itself — one undo for the whole import. Unlike
+      // `lib/intake.ts`'s brand-new-item path, this deliberately leaves
+      // the item's own `name` alone: you already named it, attaching a
+      // link to it shouldn't rename it out from under you.
+      const expansion = await expandSpotifyAlbum(item, resource);
+      if (!expansion) {
+        await apply(changes.addResource(item, resource));
+        continue;
+      }
+      await apply({
+        description: `Attach '${expansion.albumName}' as an album, with its songs`,
+        pairs: [
+          {
+            before: item,
+            after: { ...item, resources: [...item.resources, resource], ...expansion.itemPatch },
+          },
+          ...expansion.extraPairs,
+        ],
+      });
     }
   };
 
@@ -232,7 +261,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       <ConnectionComposer
         item={item}
         onNavigate={(id) => onGoTo({ id })}
-        outbound={outbound}
+        outbound={composerOutbound}
       />
     </>
   );

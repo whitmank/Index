@@ -4,14 +4,21 @@
 // is never recomputed, unlike `format`, which stays a live derivation.
 import { formatOfResource } from "@index/database";
 import type { Resource } from "@index/database/types";
+import { isSpotifyAlbumUrl } from "./spotify.js";
 
 /**
  * First match wins, same shape as the format ladder — but its own
  * ladder, not a proxy for it: v1's only rule happens to coincide with
  * `format` (an epub is unambiguously a book), but a later rule need not
  * (a recipe guessed from a markdown file's content, say).
+ *
+ * The Spotify rule is a plain url match, not a network call — an item
+ * gets typed "album" (and so the album layout) the instant it's created,
+ * whether or not the heavier song-import that follows (lib/spotify.ts,
+ * frontend) ever succeeds.
  */
 export function classifyResource(resource: Resource | undefined): string | null {
   if (formatOfResource(resource) === "book") return "book";
+  if (resource && isSpotifyAlbumUrl(resource.uri)) return "album";
   return null;
 }

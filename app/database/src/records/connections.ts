@@ -58,3 +58,20 @@ export async function listConnectionsTouching(itemId: string): Promise<Connectio
     .collect();
   return rows.map(serializeConnection);
 }
+
+/** Every live connection strictly between two of these ids — what a
+ * canvas draws as an edge (the frontend's `connectionsAmong` applies the
+ * identical rule to whatever this has already put in the pool). Distinct
+ * from an arrow into a set: this is the relations members hold *between
+ * each other*. */
+export async function listConnectionsAmong(ids: string[]): Promise<Connection[]> {
+  if (ids.length === 0) return [];
+  const db = getDb();
+  const [rows] = await db
+    .query<[ConnectionRow[]]>(
+      `SELECT * FROM connections WHERE in IN $ids AND out IN $ids AND in != out AND ${LIVE}`,
+      { ids: ids.map(recordId) },
+    )
+    .collect();
+  return rows.map(serializeConnection);
+}

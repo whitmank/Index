@@ -280,6 +280,75 @@
   border-color: var(--accent);
 }
 
+/* ── Spotify (and any future single-field settings section) ──────────── */
+
+.settings-link {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.settings-link:hover {
+  text-decoration: underline;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.4rem 0;
+}
+
+.settings-field-label {
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+}
+
+.settings-field input {
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+}
+
+.settings-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-field input:disabled {
+  opacity: 0.5;
+}
+
+.settings-save {
+  align-self: flex-start;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.settings-save:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.settings-save:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .settings kbd,
 .keybind-keys kbd {
   display: inline-block;

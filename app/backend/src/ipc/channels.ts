@@ -27,4 +27,7 @@ export const CHANNELS = {
   resourcesExcludelistRemove: "resources:excludelist:remove",
   shellReveal: "shell:reveal",
   shellOpenExternal: "shell:openExternal",
+  spotifyCredentialsGet: "spotify:credentials:get",
+  spotifyCredentialsSave: "spotify:credentials:save",
+  spotifyAlbum: "spotify:album",
 } as const;

@@ -175,6 +175,10 @@ export interface Members {
   items: Item[];
   /** The live arrows into the set, carrying position and order. */
   arrows: Connection[];
+  /** The live connections between two members — what a canvas draws as
+   * edges. Distinct from `arrows`: those anchor a member to *this* set,
+   * these are relations members hold between each other. */
+  connections: Connection[];
   /**
    * Which of these members play the set role themselves — the ones the
    * shell can enter rather than open. Computed by the same rule as

@@ -57,6 +57,13 @@ const bridge: IndexBridge = {
     reveal: (uri) => invoke(CHANNELS.shellReveal, uri),
     openExternal: (uri) => invoke(CHANNELS.shellOpenExternal, uri),
   },
+  spotify: {
+    credentials: {
+      get: () => invoke(CHANNELS.spotifyCredentialsGet),
+      save: (clientId, clientSecret) => invoke(CHANNELS.spotifyCredentialsSave, clientId, clientSecret),
+    },
+    album: (url) => invoke(CHANNELS.spotifyAlbum, url),
+  },
   url: {
     res: resUrl,
     thumb: thumbUrl,

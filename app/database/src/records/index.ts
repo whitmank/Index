@@ -19,7 +19,12 @@ export {
   type TimelinePartition,
 } from "./items.js";
 
-export { findConnection, getConnection, listConnectionsTouching } from "./connections.js";
+export {
+  findConnection,
+  getConnection,
+  listConnectionsAmong,
+  listConnectionsTouching,
+} from "./connections.js";
 
 export { ensureLabel, listLabels } from "./labels.js";
 

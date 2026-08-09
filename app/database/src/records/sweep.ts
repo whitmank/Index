@@ -26,16 +26,25 @@ export async function purgeDeletedBefore(cutoff: Date): Promise<Purge> {
   return { items: items.length, connections: connections.length };
 }
 
-/** Every resource uri still pointed at by a live item — the set a cached
- * derivation has to belong to in order to be worth keeping. */
+/**
+ * Every uri a cached derivation is keyed to and still worth keeping: a
+ * resource's own uri (a device's file), and a link resource's preview
+ * image and favicon (fetched from and keyed to *their* urls, not the
+ * page's — `derivations.ts`'s `thumbnail` caches either kind the same
+ * way).
+ */
 export async function listLiveResourceUris(): Promise<string[]> {
   const db = getDb();
-  const [rows] = await db
-    .query<[string[][]]>("SELECT VALUE resources.*.uri FROM items WHERE deleted_at IS NONE")
+  const [uriRows, previewRows, faviconRows] = await db
+    .query<[string[][], (string | null)[][], (string | null)[][]]>(
+      `SELECT VALUE resources.*.uri FROM items WHERE deleted_at IS NONE;
+       SELECT VALUE resources.*.cached.preview_image FROM items WHERE deleted_at IS NONE;
+       SELECT VALUE resources.*.cached.favicon FROM items WHERE deleted_at IS NONE;`,
+    )
     .collect();
   const uris = new Set<string>();
-  for (const row of rows) {
-    for (const uri of row ?? []) uris.add(uri);
+  for (const row of [...uriRows, ...previewRows, ...faviconRows]) {
+    for (const uri of row ?? []) if (uri) uris.add(uri);
   }
   return [...uris];
 }

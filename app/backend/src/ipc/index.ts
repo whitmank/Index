@@ -21,14 +21,17 @@ import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
 import {
   loadExcludedFolders,
+  loadSpotifyCredentials,
   loadWatchedFolders,
   saveExcludedFolders,
+  saveSpotifyCredentials,
   saveWatchedFolders,
   selfDevice,
 } from "../config.js";
 import { pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
 import { isLocalUri, resolve, resolveExistingFile } from "../services/resolver.js";
+import { fetchAlbum } from "../services/spotify.js";
 import { broadcast } from "../windowBehavior/index.js";
 import {
   asChange,
@@ -264,4 +267,17 @@ export function registerHandlers(): void {
     );
     return null;
   });
+
+  handle(CHANNELS.spotifyCredentialsGet, async () => loadSpotifyCredentials());
+
+  handle(CHANNELS.spotifyCredentialsSave, async (clientId, clientSecret) => {
+    const credentials = {
+      clientId: asString(clientId, "clientId"),
+      clientSecret: asString(clientSecret, "clientSecret"),
+    };
+    saveSpotifyCredentials(credentials);
+    return credentials;
+  });
+
+  handle(CHANNELS.spotifyAlbum, async (url) => fetchAlbum(asString(url, "url")));
 }

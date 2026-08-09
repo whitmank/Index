@@ -85,13 +85,19 @@ export function primaryResource(item: Item): Resource | undefined {
 }
 
 /** What a node should draw: the best image the item can offer, or
- * nothing — in which case the canvas draws a plain circle. */
+ * nothing — in which case the canvas draws a plain circle. A link's
+ * preview image lives at whatever url the page gave it — `thumb://`
+ * fetches and caches that url the same way it thumbnails a device's own
+ * file (backend/services/derivations.ts), so it's on disk under
+ * `~/.index/cache` and keeps rendering once there's no network to fetch
+ * it fresh from. */
 export function nodeImageUrl(item: Item): string | null {
   const resource = primaryResource(item);
   if (!resource) return null;
 
   if (formatOfResource(resource) === "image") return window.index.url.thumb(resource.uri);
-  return resource.cached?.preview_image ?? resource.cached?.favicon ?? null;
+  const remote = resource.cached?.preview_image ?? resource.cached?.favicon ?? null;
+  return remote ? window.index.url.thumb(remote) : null;
 }
 
 /** The caption drawn under a node; blank means draw nothing. */

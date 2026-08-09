@@ -14,6 +14,7 @@ import type {
 } from "@index/database/types";
 import type { SchemaInput } from "@index/database";
 import type { IntakeResult } from "./services/intake.js";
+import type { SpotifyAlbum } from "./services/spotify.js";
 
 /** Every handler answers with data or a message, never a thrown error. */
 export type Result<T> = { ok: T } | { err: string };
@@ -118,6 +119,18 @@ export interface IndexBridge {
     /** Finder reveal; local uris only. */
     reveal(uri: string): Promise<Result<null>>;
     openExternal(uri: string): Promise<Result<null>>;
+  };
+  spotify: {
+    credentials: {
+      /** Empty strings, not an error, when nothing has been saved yet —
+       * Settings shows blank fields either way. */
+      get(): Promise<Result<{ clientId: string; clientSecret: string }>>;
+      save(clientId: string, clientSecret: string): Promise<Result<{ clientId: string; clientSecret: string }>>;
+    };
+    /** The real tracklist behind an `open.spotify.com/album/...` url, via
+     * the official Web API — errs with no credentials configured, a bad
+     * url, or an API/network failure; never partial. */
+    album(url: string): Promise<Result<SpotifyAlbum>>;
   };
   /** How the renderer addresses resource bytes and thumbnails. */
   url: {

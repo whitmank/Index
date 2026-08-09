@@ -15,7 +15,11 @@ export async function loadSet(setId: string, options?: MembersOptions): Promise<
     return [];
   }
 
-  const records: StoredRecord[] = [...answer.ok.items, ...answer.ok.arrows];
+  const records: StoredRecord[] = [
+    ...answer.ok.items,
+    ...answer.ok.arrows,
+    ...answer.ok.connections,
+  ];
   pool.merge(records);
   pool.markPlaces(answer.ok.places);
   return answer.ok.items.map((item) => item.id);

@@ -9,12 +9,14 @@
 import { useEffect } from "react";
 import { SchemaEditor } from "../schemas/SchemaManager.tsx";
 import { ExcludedFolders } from "./ExcludedFolders.tsx";
+import { SpotifyCredentials } from "./SpotifyCredentials.tsx";
 import { WatchedFolders } from "./WatchedFolders.tsx";
 
 export const SETTINGS_TABS = [
   { id: "general", label: "General" },
   { id: "types", label: "Types" },
   { id: "files", label: "Files" },
+  { id: "integrations", label: "Integrations" },
   { id: "keybindings", label: "Keybindings" },
 ] as const;
 
@@ -159,6 +161,7 @@ export function Settings({ tab, onTabChange, onClose }: SettingsProps) {
               <ExcludedFolders />
             </>
           )}
+          {tab === "integrations" && <SpotifyCredentials />}
           {tab === "keybindings" && <Keybindings />}
         </div>
       </div>

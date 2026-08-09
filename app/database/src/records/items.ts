@@ -12,6 +12,7 @@ import type {
   Members,
   MembersOptions,
 } from "../types.js";
+import { listConnectionsAmong } from "./connections.js";
 import { compileQuery } from "./query.js";
 import {
   idToString,
@@ -185,7 +186,7 @@ function matchRank(item: Item, needle: string): number {
  */
 export async function listMembers(setId: string, options: MembersOptions = {}): Promise<Members> {
   const set = await getItem(setId);
-  if (!set) return { items: [], arrows: [], places: [] };
+  if (!set) return { items: [], arrows: [], connections: [], places: [] };
 
   const partition = options.partition?.date;
   const partitionBy = timelinePartitionOf(set);
@@ -214,8 +215,9 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   }
 
   items.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const places = await listPlacesAmong(items.map((item) => item.id));
-  return { items, arrows, places };
+  const ids = items.map((item) => item.id);
+  const [places, connections] = await Promise.all([listPlacesAmong(ids), listConnectionsAmong(ids)]);
+  return { items, arrows, connections, places };
 }
 
 async function listByQuery(set: Item, partitionDate: string | undefined): Promise<Item[]> {

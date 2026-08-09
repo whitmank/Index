@@ -17,6 +17,7 @@ import { apply, changes } from "../changes/index.js";
 import { ListValueInput } from "../components/ListValueInput.tsx";
 import { SettleInput } from "../components/SettleInput.tsx";
 import { blankFieldValue } from "../lib/fields.js";
+import { pool, usePool } from "../store/index.js";
 
 export interface ClaimedConnection {
   label: string;
@@ -166,6 +167,59 @@ function VideoLayout({ content, editor, connections }: LayoutProps) {
   );
 }
 
+/** `Nurture —track→ Lifelike`: a labelled connection, not a tag — an
+ * album's songs are a stated relationship, never the unlabelled form that
+ * `isPlace` reads as containment (PRODUCT-SPEC §3.4). That is what lets an
+ * album hold songs without becoming somewhere you walk into instead of
+ * open; mirrored from `labelId("track")` in @index/database, the same way
+ * `lib/seeds.ts` mirrors the two system set ids. */
+const ALBUM_TRACK_LABEL = "labels:track";
+
+function durationOf(song: Item): string {
+  const field = song.fields.find((candidate) => candidate.name.toLowerCase() === "duration");
+  return typeof field?.value === "string" ? field.value : "";
+}
+
+/** Cover and tracklist beside the metadata — the lightbox a Spotify-style
+ * album page gets. The tracklist reads its own connections directly
+ * rather than through `connections` (the generic claimed-chip shape,
+ * unused here) — a track row wants the song's order and duration too,
+ * and showing the same 14 rows twice would be its own kind of clutter. */
+function AlbumLayout({ item, content, editor }: LayoutProps) {
+  const tracks = usePool(() =>
+    pool
+      .outboundFrom(item.id)
+      .filter((connection) => connection.label === ALBUM_TRACK_LABEL)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .flatMap((connection) => {
+        const song = pool.getItem(connection.target);
+        return song ? [{ id: connection.id, song }] : [];
+      }),
+  );
+
+  return (
+    <div className="layout layout-album">
+      <div className="layout-content">
+        {content}
+        {tracks.length > 0 && (
+          <ol className="album-tracklist">
+            {tracks.map(({ id, song }, index) => (
+              <li key={id}>
+                <span className="track-number">{index + 1}</span>
+                <span className="track-name">{song.display_name ?? (song.name || "untitled")}</span>
+                <span className="track-duration">{durationOf(song)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <div className="layout-side">
+        <div className="layout-editor">{editor}</div>
+      </div>
+    </div>
+  );
+}
+
 export const layouts: Record<string, LayoutEntry> = {
   default: { Component: DefaultLayout },
   movie: {
@@ -176,6 +230,7 @@ export const layouts: Record<string, LayoutEntry> = {
   photo: { fields: [{ name: "exif", kind: "string" }], Component: TwoColumnLayout },
   note: { Component: NoteLayout },
   video: { Component: VideoLayout },
+  album: { labels: ["track"], Component: AlbumLayout },
 };
 
 export interface Resolution {
@@ -191,7 +246,8 @@ export interface Resolution {
  * The cascade: an explicit `opens` wins; else the first tag (by the
  * arrow's `created_at`) whose name names a code layout; else — new —
  * the item's classified `type`, if it names a schema with fields, gets
- * a two-column layout built from that schema's field list; else
+ * that schema's field list, in a code layout of the same name if one is
+ * registered (album), or the generic two-column shape otherwise; else
  * `default`.
  *
  * `tags` must arrive oldest-first — the order the arrows were made.
@@ -212,11 +268,16 @@ export function resolveLayout(item: Item, tags: { name: string }[], schemas: Sch
   if (item.type) {
     const schema = schemas.find((candidate) => candidate.name === item.type);
     if (schema && schema.fields.length > 0) {
+      // A type can also name a real code layout — "album" pulls its own
+      // tracklist Component the same way "movie" does, rather than
+      // settling for the generic two-column shape every other type gets.
+      const named = layouts[item.type];
       return {
         key: item.type,
         entry: {
           fields: schema.fields.map((field) => ({ name: field.name, kind: field.kind })),
-          Component: TwoColumnLayout,
+          labels: named?.labels,
+          Component: named?.Component ?? TwoColumnLayout,
         },
         source: "type",
         inferred,

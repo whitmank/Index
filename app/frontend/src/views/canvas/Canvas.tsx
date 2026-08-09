@@ -37,6 +37,12 @@ import {
  * than a click. Below this, a shaky hand still opens the item. */
 const DRAG_THRESHOLD = 4;
 
+/** How long a right-button press/release can take and still count as a
+ * click rather than the start of an edge. Above this, holding still
+ * (never mind dragging) means the user is arming a connection, not
+ * asking for the menu. */
+const RAPID_CLICK_MS = 300;
+
 export interface CanvasProps {
   /** The set being viewed — the arrows that carry position point at it. */
   setId: string;
@@ -74,9 +80,22 @@ export function Canvas({
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
   /** The live rubber band, in client coordinates, while one is being drawn. */
   const [band, setBand] = useState<Band | null>(null);
+  /** The live edge preview, container-relative, while a right-button press
+   * is dragging one out of a node. */
+  const [pendingEdge, setPendingEdge] = useState<PendingEdge | null>(null);
+  /** The node a pending edge is currently over — the one release would
+   * join to. Separate from `pendingEdge` so the line and the ring it
+   * lands on can update independently. */
+  const [edgeTarget, setEdgeTarget] = useState<string | null>(null);
   /** True while a gesture owns the pointer. Passing over a node on the
    * way to somewhere else is not pointing at it. */
   const gesturing = useRef(false);
+  /** True from a right-button pointerdown on a node until its matching
+   * pointerup: the window during which the *pointer* gesture, not the
+   * browser's own `contextmenu` event, gets to decide whether the menu
+   * opens. Trackpad taps and Ctrl-click never set it, so they still fall
+   * through to the old behaviour. */
+  const rightGesturing = useRef(false);
 
   const items = usePool(() =>
     itemIds.flatMap((id) => {
@@ -225,6 +244,90 @@ export function Canvas({
   );
 
   /**
+   * A right-button press on a node arms an edge rather than opening the
+   * menu outright — the same button now has to mean two things, and only
+   * the up-stroke can tell them apart. Held and released quickly, without
+   * travelling, it is the click the context menu has always answered to.
+   * Held and dragged onto another node, it draws a connection between the
+   * two — the same kind `connectionsAmong` already knows how to render as
+   * a canvas edge (PRODUCT-SPEC §3.4). Dragged and released anywhere
+   * else — empty canvas, back on the source, or just held past the rapid
+   * window without moving — the gesture is simply let go.
+   */
+  const startEdge = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, item: Item) => {
+      if (event.button !== 2) return;
+      event.preventDefault();
+      const box = container.current;
+      const sim = simulation.current;
+      if (!box || !sim) return;
+
+      gesturing.current = true;
+      rightGesturing.current = true;
+      const bounds = box.getBoundingClientRect();
+      const origin = { x: event.clientX, y: event.clientY };
+      const startedAt = Date.now();
+      let moved = false;
+
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // As in startDrag: capture is a convenience the window listeners
+        // don't depend on.
+      }
+
+      const place = (clientX: number, clientY: number) => {
+        const from = sim.nodes.find((candidate) => candidate.id === item.id);
+        setPendingEdge({
+          x1: from ? from.x : clientX - bounds.left,
+          y1: from ? from.y : clientY - bounds.top,
+          x2: clientX - bounds.left,
+          y2: clientY - bounds.top,
+        });
+      };
+      place(origin.x, origin.y);
+
+      const onMove = (move: PointerEvent) => {
+        const travelled = Math.hypot(move.clientX - origin.x, move.clientY - origin.y);
+        if (travelled > DRAG_THRESHOLD) moved = true;
+        place(move.clientX, move.clientY);
+        setEdgeTarget(
+          moved ? (nodeUnder(elements.current, { x: move.clientX, y: move.clientY }, item.id) ?? null) : null,
+        );
+      };
+
+      const onUp = (up: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        gesturing.current = false;
+        setPendingEdge(null);
+        setEdgeTarget(null);
+
+        const rapid = !moved && Date.now() - startedAt < RAPID_CLICK_MS;
+        if (rapid) {
+          setMenu({ anchor: { x: up.clientX, y: up.clientY }, item });
+        } else if (moved) {
+          const targetId = nodeUnder(elements.current, { x: up.clientX, y: up.clientY }, item.id);
+          const target = targetId ? pool.getItem(targetId) : undefined;
+          if (target) void apply(changes.tag(item, target));
+        }
+
+        // The browser's own `contextmenu` event is still to come — it
+        // follows pointerup in the same release, before any timer fires —
+        // so the flag has to survive this turn for that handler to see it
+        // and stand down. Cleared on the next one instead of here.
+        setTimeout(() => {
+          rightGesturing.current = false;
+        }, 0);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [],
+  );
+
+  /**
    * A sweep across empty space: the rubber band, and everything whose
    * node it touches. Started on the background, so it can never be
    * confused with dragging a node — the node's own handler takes those
@@ -344,15 +447,35 @@ export function Canvas({
             }}
           />
         ))}
+        {pendingEdge && (
+          <line
+            className="canvas-edge canvas-edge-pending"
+            x1={pendingEdge.x1}
+            y1={pendingEdge.y1}
+            x2={pendingEdge.x2}
+            y2={pendingEdge.y2}
+          />
+        )}
       </svg>
 
       {items.map((item) => (
         <Node
+          armed={edgeTarget === item.id}
           chosen={chosen.has(item.id)}
           item={item}
           key={item.id}
-          onContextMenu={(anchor) => setMenu({ anchor, item })}
-          onPointerDown={(event) => startDrag(event, item)}
+          onContextMenu={(anchor) => {
+            // A real right-button drag already answered this through the
+            // pointer gesture above; this native event is only left to
+            // handle the paths that never send one, like a trackpad tap
+            // or Ctrl-click.
+            if (rightGesturing.current) return;
+            setMenu({ anchor, item });
+          }}
+          onPointerDown={(event) => {
+            if (event.button === 2) startEdge(event, item);
+            else startDrag(event, item);
+          }}
           onPointerEnter={() => point(item.id)}
           onPointerLeave={() => unpoint(item.id)}
           register={(element) => {
@@ -396,6 +519,16 @@ interface Band {
   height: number;
 }
 
+/** The edge being dragged out of a node, container-relative like `paint()`
+ * writes — the anchor end tracks the node's live simulated position, not
+ * where the press started, so the line stays put if physics moves it. */
+interface PendingEdge {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 function bandBetween(a: { x: number; y: number }, b: { x: number; y: number }): Band {
   return {
     x: Math.min(a.x, b.x),
@@ -421,7 +554,24 @@ function overlaps(band: Band, at: DOMRect): boolean {
   );
 }
 
+/** The node (other than `exclude`) whose circle a point falls within —
+ * what an edge drag releases onto. A zero-size band read through the same
+ * `overlaps` test as the marquee, so a point and a sweep hit-test the same
+ * way for the same reason. */
+function nodeUnder(
+  elements: Map<string, HTMLElement>,
+  point: { x: number; y: number },
+  exclude: string,
+): string | undefined {
+  const band: Band = { x: point.x, y: point.y, width: 0, height: 0 };
+  for (const [id, element] of elements) {
+    if (id !== exclude && overlaps(band, element.getBoundingClientRect())) return id;
+  }
+  return undefined;
+}
+
 function Node({
+  armed,
   chosen,
   item,
   onBox,
@@ -431,6 +581,8 @@ function Node({
   onPointerLeave,
   register,
 }: {
+  /** A pending edge is dragged over this node — releasing now joins it. */
+  armed: boolean;
   chosen: boolean;
   item: Item;
   onBox: (width: number, height: number) => void;
@@ -481,7 +633,12 @@ function Node({
   return (
     <div
       aria-selected={chosen}
-      className={[box ? "node can-grow" : "node", place ? "is-place" : "", chosen ? "is-chosen" : ""]
+      className={[
+        box ? "node can-grow" : "node",
+        place ? "is-place" : "",
+        chosen ? "is-chosen" : "",
+        armed ? "is-edge-target" : "",
+      ]
         .join(" ")
         .replace(/\s+/g, " ")
         .trim()}

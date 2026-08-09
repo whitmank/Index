@@ -137,3 +137,37 @@ export function saveExcludedFolders(folders: string[]): void {
     console.error("[config] could not save excluded folders:", error);
   }
 }
+
+export const SPOTIFY_CREDENTIALS_FILE = path.join(INDEX_DIR, "spotify.json");
+
+export interface SpotifyCredentials {
+  clientId: string;
+  clientSecret: string;
+}
+
+const EMPTY_SPOTIFY_CREDENTIALS: SpotifyCredentials = { clientId: "", clientSecret: "" };
+
+/** A Spotify Client Credentials app's id/secret — reachability-adjacent,
+ * so it lives beside `devices.toml`/the watchlist rather than in the
+ * database (DESIGN-CONCEPT §8). Always returns a usable object, empty
+ * strings meaning "not configured yet" rather than throwing — whether
+ * that's actually usable is for the caller asking for a token to decide. */
+export function loadSpotifyCredentials(): SpotifyCredentials {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SPOTIFY_CREDENTIALS_FILE, "utf8")) as Partial<SpotifyCredentials>;
+    return {
+      clientId: typeof parsed.clientId === "string" ? parsed.clientId : "",
+      clientSecret: typeof parsed.clientSecret === "string" ? parsed.clientSecret : "",
+    };
+  } catch {
+    return { ...EMPTY_SPOTIFY_CREDENTIALS };
+  }
+}
+
+export function saveSpotifyCredentials(credentials: SpotifyCredentials): void {
+  try {
+    fs.writeFileSync(SPOTIFY_CREDENTIALS_FILE, `${JSON.stringify(credentials, null, 2)}\n`);
+  } catch (error) {
+    console.error("[config] could not save spotify credentials:", error);
+  }
+}

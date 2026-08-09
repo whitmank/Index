@@ -299,9 +299,57 @@
   align-items: center;
 }
 
-.layout-two-column {
+.layout-two-column,
+.layout-album {
   display: flex;
   height: 100%;
+}
+
+/* The album lightbox: cover above a scrolling tracklist, rather than one
+   centred thing — there are two, and the second one is a list. */
+.layout-album .layout-content {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+
+.album-tracklist {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--is-line);
+}
+
+.album-tracklist li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--is-line);
+}
+
+.track-number {
+  flex-shrink: 0;
+  width: 1.5em;
+  color: var(--is-ink-dim);
+  font-size: 13px;
+  text-align: right;
+}
+
+.track-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--is-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-duration {
+  flex-shrink: 0;
+  color: var(--is-ink-dim);
+  font-size: 13px;
 }
 
 .layout-content {

@@ -24,11 +24,17 @@ export function LinkRenderer({ item }: RendererProps) {
       type="button"
     >
       {cached.preview_image && (
-        <img alt="" className="renderer-link-image" src={cached.preview_image} />
+        <img
+          alt=""
+          className="renderer-link-image"
+          src={window.index.url.thumb(cached.preview_image)}
+        />
       )}
       <span className="renderer-link-body">
         <span className="renderer-link-site">
-          {cached.favicon && <img alt="" className="renderer-link-favicon" src={cached.favicon} />}
+          {cached.favicon && (
+            <img alt="" className="renderer-link-favicon" src={window.index.url.thumb(cached.favicon)} />
+          )}
           {host}
         </span>
         <span className="renderer-link-title">{cached.card_title ?? resource.name}</span>

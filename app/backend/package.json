@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "node build.js",
-    "test": "tsx test/relink.test.ts"
+    "test": "tsx test/relink.test.ts && tsx test/spotify.test.ts"
   },
   "author": "Karter Whitman",
   "license": "ISC",

@@ -36,6 +36,14 @@
   stroke-width: 1.5;
 }
 
+/* The edge a right-button drag is still deciding on — dashed, so it never
+   reads as a connection already made. */
+.canvas-edge-pending {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
 .canvas-add {
   position: absolute;
   right: 1.25rem;
@@ -206,6 +214,15 @@
 
 .node.is-chosen .node-caption {
   color: var(--ink);
+}
+
+/* A pending edge is dragged over this node — releasing now joins it.
+   Dashed, to match the line reaching for it and stay distinct from a
+   deliberate selection. */
+.node.is-edge-target .node-shape {
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 /* The sweep itself. Fixed, because it is drawn in the same client frame

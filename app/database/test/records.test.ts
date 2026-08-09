@@ -306,6 +306,49 @@ async function main(): Promise<void> {
       );
     });
 
+    console.log("\nconnections between members (canvas edges)");
+    const setForEdges = blankItem({ name: "a canvas of two" });
+    const first = blankItem({ name: "first" });
+    const second = blankItem({ name: "second" });
+    const firstArrow = blankArrow(first.id, setForEdges.id);
+    const secondArrow = blankArrow(second.id, setForEdges.id);
+    await applyChange({
+      description: "Seed a set of two",
+      pairs: [
+        { before: null, after: setForEdges },
+        { before: null, after: first },
+        { before: null, after: second },
+        { before: null, after: firstArrow },
+        { before: null, after: secondArrow },
+      ],
+    });
+
+    const edge = blankArrow(first.id, second.id);
+    const connect: Change = {
+      description: "Connect the two",
+      pairs: [{ before: null, after: edge }],
+    };
+    await applyChange(connect);
+
+    const withEdge = await listMembers(setForEdges.id);
+    check("a connection between two members comes back as an edge", () => {
+      assert.equal(withEdge.connections.length, 1);
+      assert.equal(withEdge.connections[0]?.id, edge.id);
+      assert.equal(withEdge.connections[0]?.source, first.id);
+      assert.equal(withEdge.connections[0]?.target, second.id);
+    });
+    check("the set's own arrows stay just the two placements", () => {
+      assert.equal(withEdge.arrows.length, 2);
+      assert.ok(!withEdge.arrows.some((arrow) => arrow.id === edge.id));
+    });
+
+    await applyChange(invert(connect));
+    const withoutEdge = await listMembers(setForEdges.id);
+    check("undoing the connection takes the edge away, not the members", () => {
+      assert.equal(withoutEdge.connections.length, 0);
+      assert.equal(withoutEdge.items.length, 2);
+    });
+
     console.log(`\n${passed} assertions passed\n`);
   } finally {
     await handle.stop();

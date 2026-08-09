@@ -126,6 +126,51 @@ export async function clickAt(element: Element): Promise<void> {
   await sleep(50);
 }
 
+function rightPointer(type: string, x: number, y: number): PointerEvent {
+  return new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    clientX: x,
+    clientY: y,
+    pointerId: 1,
+    button: 2,
+    buttons: type === "pointerup" ? 0 : 2,
+  });
+}
+
+function centerOf(element: Element): { x: number; y: number } {
+  const box = element.getBoundingClientRect();
+  return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+}
+
+/** Right button, pressed and released without moving — what should still
+ * open a node's context menu (Canvas.tsx's startEdge). */
+export async function rightClickAt(element: Element): Promise<void> {
+  const at = centerOf(element);
+  element.dispatchEvent(rightPointer("pointerdown", at.x, at.y));
+  await sleep(16);
+  window.dispatchEvent(rightPointer("pointerup", at.x, at.y));
+  await sleep(50);
+}
+
+/** Right button, held and dragged from one node onto another — the
+ * gesture that draws a canvas edge instead of opening the menu. */
+export async function dragEdgeTo(source: Element, target: Element): Promise<void> {
+  const from = centerOf(source);
+  const to = centerOf(target);
+
+  source.dispatchEvent(rightPointer("pointerdown", from.x, from.y));
+  await sleep(16);
+  for (const step of [0.3, 0.6, 1]) {
+    window.dispatchEvent(
+      rightPointer("pointermove", from.x + (to.x - from.x) * step, from.y + (to.y - from.y) * step),
+    );
+    await sleep(16);
+  }
+  window.dispatchEvent(rightPointer("pointerup", to.x, to.y));
+  await sleep(50);
+}
+
 function readTranslate(transform: string): { x: number; y: number } {
   const match = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(transform);
   return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: 0, y: 0 };
@@ -294,6 +339,70 @@ export async function checkCanvas(
     drift < 8,
     `the node returned to where it sat, ${drift.toFixed(1)}px off`,
   );
+}
+
+/**
+ * Right-clicking a node now means two things, and only the up-stroke
+ * tells them apart (Canvas.tsx's startEdge): held and released quickly
+ * without travelling, it is still the click the context menu answers to;
+ * held and dragged onto another node, it draws an edge between the two
+ * instead — the same kind `connectionsAmong` already renders.
+ */
+export async function checkCanvasEdges(
+  checks: Checks,
+  setKind: (kind: "canvas" | "list") => void,
+): Promise<void> {
+  setKind("canvas");
+  const nodeCount = await settled(".canvas .node");
+  if (nodeCount < 2) {
+    checks.say(false, "canvas edges — fewer than two nodes to connect");
+    return;
+  }
+
+  const [a, b] = [...document.querySelectorAll<HTMLElement>(".canvas .node")];
+  if (!a || !b) {
+    checks.say(false, "canvas edges — could not find two nodes to connect");
+    return;
+  }
+  const aId = a.dataset.item ?? "";
+  const bId = b.dataset.item ?? "";
+
+  // Quick — still the click the menu has always answered to.
+  await rightClickAt(a);
+  checks.say(Boolean(document.querySelector(".menu")), "a rapid right click still opens the context menu");
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(50);
+
+  // Held past the rapid window without moving arms nothing — no menu, no
+  // edge; the gesture is simply let go.
+  a.dispatchEvent(rightPointer("pointerdown", centerOf(a).x, centerOf(a).y));
+  await sleep(400);
+  window.dispatchEvent(rightPointer("pointerup", centerOf(a).x, centerOf(a).y));
+  await sleep(50);
+  checks.say(!document.querySelector(".menu"), "holding past the rapid window does not open the menu");
+  checks.say(!pool.findConnection(aId, bId, null), "and does not connect anything either");
+
+  // Held and dragged onto another node, the same button draws an edge.
+  const before = pool.findConnection(aId, bId, null);
+  await dragEdgeTo(a, b);
+  await sleep(250);
+  checks.say(!document.querySelector(".menu"), "a dragged right click did not open the menu");
+
+  const after = pool.findConnection(aId, bId, null);
+  checks.say(Boolean(after) && !before, `the drag connected the two nodes (${after?.id ?? "none"})`);
+  checks.say(
+    Boolean(document.querySelector(".canvas-edges .canvas-edge:not(.canvas-edge-pending)")),
+    "an edge line is drawn between them",
+  );
+
+  const detail = await window.index.items.get(aId);
+  const persisted =
+    "ok" in detail && detail.ok.outbound.some((candidate) => candidate.connection.id === after?.id);
+  checks.say(persisted, "the database has the same connection");
+
+  await undo();
+  await sleep(250);
+  checks.say(!pool.findConnection(aId, bId, null), "undo removes the connection");
 }
 
 

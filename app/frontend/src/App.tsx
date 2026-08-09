@@ -20,6 +20,7 @@ import { DebugPanel } from "./debug/DebugPanel.tsx";
 import {
   Checks,
   checkCanvas,
+  checkCanvasEdges,
   checkCommandBar,
   checkDeleteKeys,
   checkFocus,
@@ -369,6 +370,42 @@ export function App() {
   // that would otherwise reach it.
   const overlayOpen = opened !== null || commanding || confirmingDelete || managingTypes || settingsOpen;
 
+  /**
+   * Paste's counterpart to `onDropAnywhere`, for a gesture that has never
+   * had one: nothing today turns a pasted file or url into a new item
+   * when nothing is focused (Focus's own `onPaste` attaches to the item
+   * already open, and only fires while one is). Gated on `overlayOpen`
+   * rather than `defaultPrevented` — nothing else on the stage listens
+   * for paste yet, so there's no nested handler to defer to — and on the
+   * target not being editable, so pasting into a text field still just
+   * pastes.
+   */
+  const onPasteAnywhere = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      if (overlayOpen) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /input|textarea/i.test(target.tagName))) {
+        return;
+      }
+
+      const files = [...event.clipboardData.files];
+      const paths =
+        files.length > 0
+          ? files.map((file) => window.index.intake.pathForFile(file))
+          : [event.clipboardData.getData("text/uri-list") || event.clipboardData.getData("text/plain")].filter(
+              (text) => text.trim(),
+            );
+      if (paths.length === 0) return;
+
+      event.preventDefault();
+      void createItemsFromPaths(paths).then((created) => {
+        const last = created[created.length - 1];
+        if (last) goTo(last, true);
+      });
+    },
+    [overlayOpen, goTo],
+  );
+
   // The selection's keys are live only while nothing is over the stage:
   // an open focus view, command bar or prompt asked for them first.
   useSelectionKeys(!overlayOpen, {
@@ -466,6 +503,7 @@ export function App() {
       // views/calendar/Calendar.tsx and is no longer part of the active
       // UI surface (see that file's header comment).
       await checkCanvas(HOME_SET_ID, checks, setViewMode);
+      await checkCanvasEdges(checks, setViewMode);
       await checkNavigation(checks, setViewMode);
       await checkFocus(checks);
       await checkList(HOME_SET_ID, checks, setViewMode);
@@ -501,7 +539,12 @@ export function App() {
   }
 
   return (
-    <div className="shell" onDragOver={(event) => event.preventDefault()} onDrop={onDropAnywhere}>
+    <div
+      className="shell"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={onDropAnywhere}
+      onPaste={onPasteAnywhere}
+    >
       <header className="bar">
         <nav className="bar-address" aria-label="trail">
           <button

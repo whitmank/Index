@@ -7,10 +7,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { formatOfResource, type CachedDerivations, type Resource } from "@index/database";
+import { deviceOf, formatOfResource, type CachedDerivations, type Resource } from "@index/database";
 import { CACHE_DIR } from "../config.js";
 import { resolveExistingFile } from "./resolver.js";
 import { fetchLinkMetadata } from "./previews/linkMetadata.js";
+import { previewFetch, withPreviewTimeout } from "./previews/fetch.js";
 
 const THUMBNAIL_MAX_DIMENSION = 480; // PRODUCT-SPEC §4
 const THUMBNAIL_SUFFIX = ".thumb.jpg";
@@ -24,15 +25,37 @@ export function thumbnailPath(uri: string): string {
 }
 
 /**
+ * A page's own preview image or favicon lives at whatever url it gave —
+ * out on the open web, not on any device this app knows how to read a
+ * file from. Fetched once and handed to the same sharp pipeline a local
+ * file goes through; a failed fetch is indistinguishable from "not an
+ * image" to the caller, which already treats either as nothing to cache.
+ */
+async function fetchRemoteImage(url: string): Promise<Buffer | null> {
+  try {
+    return await withPreviewTimeout(async (signal) => {
+      const response = await previewFetch(url, signal);
+      if (!response.ok) return null;
+      return Buffer.from(await response.arrayBuffer());
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The cached thumbnail for a resource, minting it on first request.
- * Returns null when there is nothing to thumbnail (a link, an unreachable
- * device) — the caller falls back to `res://`.
+ * Works from a device's own file when there is one, and otherwise — a
+ * link's preview image, a favicon — fetches the url itself, so the
+ * result lives on disk under `~/.index/cache` the same way either way:
+ * once minted, it renders offline. Returns null when there is nothing to
+ * thumbnail (an unreachable device, an unfetchable or unreadable url).
  */
 export async function thumbnail(uri: string): Promise<string | null> {
   const destination = thumbnailPath(uri);
   if (fs.existsSync(destination)) return destination;
 
-  const source = resolveExistingFile(uri);
+  const source = resolveExistingFile(uri) ?? (deviceOf(uri) === "web" ? await fetchRemoteImage(uri) : null);
   if (!source) return null;
 
   try {
@@ -64,8 +87,16 @@ export async function deriveForResource(resource: Resource): Promise<CachedDeriv
 
   if (format === "link" || format === "video") {
     const metadata = await fetchLinkMetadata(resource.uri);
-    if (metadata.favicon) cached.favicon = metadata.favicon;
-    if (metadata.preview_image) cached.preview_image = metadata.preview_image;
+    // Minted now, while there's definitely a network — not left for
+    // whoever opens this item first to discover there isn't one.
+    if (metadata.favicon) {
+      cached.favicon = metadata.favicon;
+      await thumbnail(metadata.favicon);
+    }
+    if (metadata.preview_image) {
+      cached.preview_image = metadata.preview_image;
+      await thumbnail(metadata.preview_image);
+    }
     if (metadata.card_title) cached.card_title = metadata.card_title;
     if (metadata.card_extract) cached.card_extract = metadata.card_extract;
     return cached;
