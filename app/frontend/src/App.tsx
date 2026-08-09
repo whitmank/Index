@@ -8,7 +8,7 @@
 // you open. Which one an item is comes from the pool, and the views draw
 // the difference so the same click never surprises you.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Item, ViewKind } from "@index/database/types";
+import type { Item } from "@index/database/types";
 import { apply, changes } from "./changes/index.js";
 import { commandsFor } from "./commands/index.js";
 import { CommandBar } from "./components/CommandBar.tsx";
@@ -25,13 +25,13 @@ import {
   checkPointing,
   checkRemoveFromSet,
   checkSelection,
-  checkTimeline,
 } from "./debug/uiChecks.js";
 import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
 import { useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
+import { createItemsFromPaths } from "./lib/intake.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
-import { holdsEverything, VIEW_KINDS, viewKindOf } from "./lib/sets.js";
+import { holdsEverything } from "./lib/sets.js";
 import {
   errors,
   loadItem,
@@ -41,19 +41,21 @@ import {
   usePool,
   useSelection,
   useTroubles,
+  useViewMode,
+  VIEW_MODES,
 } from "./store/index.js";
 import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
 import { Home } from "./views/home/Home.tsx";
 import { List } from "./views/list/List.tsx";
-import { Timeline } from "./views/timeline/Timeline.tsx";
+import { SchemaManager } from "./views/schemas/SchemaManager.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/home/Home.css";
 import "./views/list/List.css";
-import "./views/timeline/Timeline.css";
+import "./views/schemas/SchemaManager.css";
 
 export function App() {
   useUndoRedo();
@@ -61,19 +63,29 @@ export function App() {
   // VITE_INDEX_VIEW forces a view (and, with it, entry into `~`) for
   // looking at one without clicking; the ui checks likewise expect to run
   // inside `~`. Both bypass the home screen the ordinary launch lands on.
-  const forcedView = (VIEW_KINDS as string[]).includes(import.meta.env.VITE_INDEX_VIEW ?? "")
-    ? (import.meta.env.VITE_INDEX_VIEW as ViewKind)
+  const forcedView = (VIEW_MODES as string[]).includes(import.meta.env.VITE_INDEX_VIEW ?? "")
+    ? (import.meta.env.VITE_INDEX_VIEW as (typeof VIEW_MODES)[number])
     : null;
   const startsInHomeSet = forcedView !== null || Boolean(import.meta.env.VITE_INDEX_UICHECK);
 
   // The trail of places walked into. Empty means the home screen — you are
   // nowhere in particular, looking at the list of everywhere you could go.
   const [path, setPath] = useState<string[]>(startsInHomeSet ? [HOME_SET_ID] : []);
-  const [kind, setKind] = useState<ViewKind>(forcedView ?? "timeline");
+  // How you look at a set's members — canvas or list — is one persisted,
+  // application-level choice (store/viewMode.ts), not anything a set
+  // remembers about itself; it follows you from set to set.
+  const [viewMode, setViewMode] = useViewMode();
+  useEffect(() => {
+    if (forcedView) setViewMode(forcedView);
+    // Only ever forced once, at mount — a dev/test entry point, not a
+    // live binding to the env var.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
   const [commanding, setCommanding] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [managingTypes, setManagingTypes] = useState(false);
   const troubles = useTroubles();
 
   const currentSetId = path[path.length - 1] ?? null;
@@ -102,23 +114,22 @@ export function App() {
       : "",
   );
 
-  // Canvas and list show the whole set at once; the timeline loads its own
-  // pages. Nothing to load on the home screen — and the actions below
-  // need it too, since taking members out means reading who is left.
+  // Canvas and list both show the whole set at once. Nothing to load on
+  // the home screen — and the actions below need it too, since taking
+  // members out means reading who is left.
   const readMembers = useCallback(() => {
-    if (!currentSetId || kind === "timeline") return;
+    if (!currentSetId) return;
     void loadSet(currentSetId).then(setMemberIds);
     // `membership` is not read here; it is a dependency so that a change
     // to who is in the set re-runs this, whoever made that change.
-  }, [currentSetId, kind, membership]);
+  }, [currentSetId, membership]);
 
-  /** Arrive at a place on the given trail, in the view it opens into.
-   * Every way of getting somewhere ends here; they differ only in the
-   * trail they claim to have walked. */
+  /** Arrive at a place on the given trail. Every way of getting somewhere
+   * ends here; they differ only in the trail they claim to have walked.
+   * How it's viewed is not decided here — `viewMode` is global and
+   * follows you in, unchanged, from wherever you were. */
   const arriveAt = useCallback((id: string, trail: string[]) => {
     setPath(trail);
-    const item = pool.getItem(id);
-    setKind(item ? viewKindOf(item) : "timeline");
     setOpened(null);
   }, []);
 
@@ -159,6 +170,30 @@ export function App() {
   );
 
   const goHome = useCallback(() => setPath([]), []);
+
+  /**
+   * OS file drop, wherever it isn't already claimed. Canvas has its own
+   * onDrop for the pages that need a position; everywhere else — Home,
+   * Timeline, List — nothing until now handled a drop at all. Checking
+   * `defaultPrevented` is how a nested handler says "mine": Canvas's own
+   * onDrop calls `preventDefault` before this ever sees the event.
+   *
+   * Opening what just landed is the whole feedback: a drop outside a
+   * canvas has no node to appear, so without this it looks like nothing
+   * happened at all (which is exactly the confusion this fixes).
+   */
+  const onDropAnywhere = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      const paths = [...event.dataTransfer.files].map((file) => window.index.intake.pathForFile(file));
+      void createItemsFromPaths(paths).then((created) => {
+        const last = created[created.length - 1];
+        if (last) goTo(last, true);
+      });
+    },
+    [goTo],
+  );
 
   /**
    * What the command bar hands back: the same primitive as a click, on
@@ -298,7 +333,7 @@ export function App() {
 
   // The selection's keys are live only while nothing is over the stage:
   // an open focus view, command bar or prompt asked for them first.
-  useSelectionKeys(!opened && !commanding && !confirmingDelete, {
+  useSelectionKeys(!opened && !commanding && !confirmingDelete && !managingTypes, {
     onAskToDelete: askToDeletePicked,
     onRemoveFromSet: removePickedFromSet,
   });
@@ -358,16 +393,18 @@ export function App() {
     checked.current = true;
     void (async () => {
       const checks = new Checks();
-      await checkTimeline(checks);
-      await checkCanvas(HOME_SET_ID, checks, setKind);
-      await checkNavigation(checks, setKind);
+      // checkTimeline is not run — the timeline view was extracted to
+      // views/calendar/Calendar.tsx and is no longer part of the active
+      // UI surface (see that file's header comment).
+      await checkCanvas(HOME_SET_ID, checks, setViewMode);
+      await checkNavigation(checks, setViewMode);
       await checkFocus(checks);
-      await checkList(HOME_SET_ID, checks, setKind);
+      await checkList(HOME_SET_ID, checks, setViewMode);
       await checkCommandBar(HOME_SET_ID, checks);
-      await checkSelection(checks, setKind);
-      await checkRemoveFromSet(checks, setKind);
-      await checkDeleteKeys(checks, setKind);
-      await checkPointing(checks, setKind);
+      await checkSelection(checks, setViewMode);
+      await checkRemoveFromSet(checks, setViewMode);
+      await checkDeleteKeys(checks, setViewMode);
+      await checkPointing(checks, setViewMode);
       console.log(
         checks.failures
           ? `${checks.failures} of ${checks.lines.length} ui checks failed`
@@ -395,7 +432,7 @@ export function App() {
   }
 
   return (
-    <div className="shell">
+    <div className="shell" onDragOver={(event) => event.preventDefault()} onDrop={onDropAnywhere}>
       <header className="bar">
         <nav className="bar-address" aria-label="trail">
           <button
@@ -436,14 +473,23 @@ export function App() {
           go to…
         </button>
 
+        <button
+          className="bar-goto"
+          onClick={() => setManagingTypes(true)}
+          title="Create and edit types"
+          type="button"
+        >
+          types
+        </button>
+
         {currentSetId && (
-          <nav className="bar-views" aria-label="view">
-            {VIEW_KINDS.map((candidate) => (
+          <nav aria-label="view" className="bar-views">
+            {VIEW_MODES.map((candidate) => (
               <button
-                aria-pressed={candidate === kind}
-                className={candidate === kind ? "is-current" : ""}
+                aria-pressed={candidate === viewMode}
+                className={candidate === viewMode ? "is-current" : ""}
                 key={candidate}
-                onClick={() => setKind(candidate)}
+                onClick={() => setViewMode(candidate)}
                 type="button"
               >
                 {candidate}
@@ -455,8 +501,7 @@ export function App() {
 
       <div className="stage">
         {!currentSetId && <Home onEnter={enter} />}
-        {currentSetId && kind === "timeline" && <Timeline onGoTo={goTo} setId={currentSetId} />}
-        {currentSetId && kind === "canvas" && (
+        {currentSetId && viewMode === "canvas" && (
           <Canvas
             itemIds={memberIds}
             onGoTo={goTo}
@@ -464,7 +509,7 @@ export function App() {
             setId={currentSetId}
           />
         )}
-        {currentSetId && kind === "list" && (
+        {currentSetId && viewMode === "list" && (
           <List
             itemIds={memberIds}
             onGoTo={goTo}
@@ -485,6 +530,8 @@ export function App() {
           onGoTo={goTo}
         />
       )}
+
+      {managingTypes && <SchemaManager onClose={() => setManagingTypes(false)} />}
 
       {commanding && (
         <CommandBar

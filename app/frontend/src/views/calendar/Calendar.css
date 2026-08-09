@@ -1,4 +1,7 @@
-/* Authored by Karter Whitman using Claude Opus 4.8 */
+/* Authored by Karter Whitman using Claude Opus 4.8
+   UNUSED — parked alongside Calendar.tsx (view kind is now a global
+   toggle, not per-set); not imported anywhere. Class names kept as
+   `.timeline*` rather than renamed, since nothing loads this file. */
 
 .timeline {
   height: 100%;

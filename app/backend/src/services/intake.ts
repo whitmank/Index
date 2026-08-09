@@ -11,9 +11,27 @@
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
 import path from "node:path";
-import type { Resource } from "@index/database";
+import type { Field, Resource } from "@index/database";
 import { selfDevice } from "../config.js";
+import { classifyResource } from "./classify.js";
 import { deriveForResource } from "./derivations.js";
+import { ingestBook } from "./ingest/book.js";
+import { resolveExistingFile } from "./resolver.js";
+
+/** Type-specific extractors, parallel to the renderer registry: additive
+ * — a new type's ingestor is a new entry, not a change to this file's
+ * control flow. */
+const INGESTORS: Record<string, (filepath: string) => Promise<Field[]>> = {
+  book: ingestBook,
+};
+
+async function ingest(type: string | null, resource: Resource): Promise<Field[]> {
+  const ingestor = type ? INGESTORS[type] : undefined;
+  if (!ingestor) return [];
+  const filepath = resolveExistingFile(resource.uri);
+  if (!filepath) return [];
+  return ingestor(filepath);
+}
 
 function isWebUrl(input: string): boolean {
   return /^https?:\/\//i.test(input);
@@ -33,13 +51,26 @@ function nameFor(input: string): string {
   }
 }
 
+export interface IntakeResult {
+  resource: Resource;
+  /** The classifier's guess — null when nothing matched. Callers minting
+   * a brand-new item may use it; callers attaching a resource to one
+   * that already exists must not, or a second file would silently
+   * reclassify it. */
+  type: string | null;
+  /** Best-effort extraction, keyed to `type`'s ingestor; empty when
+   * there is no ingestor for the guessed type, or it found nothing. */
+  fields: Field[];
+}
+
 /**
- * Paths and urls → resources with their derivations already attached, so
- * the renderer can write them into an item with one ordinary change
- * (PRODUCT-SPEC §2.4: metadata is fetched once, at resource creation, by
- * the same change that adds the resource).
+ * Paths and urls → resources with their derivations, classification and
+ * ingested fields already attached, so the renderer can write them into
+ * an item with one ordinary change (PRODUCT-SPEC §2.4: metadata is
+ * fetched once, at resource creation, by the same change that adds the
+ * resource).
  */
-export async function pathsToResources(inputs: string[]): Promise<Resource[]> {
+export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]> {
   return Promise.all(
     inputs.map(async (input) => {
       const resource: Resource = {
@@ -47,7 +78,10 @@ export async function pathsToResources(inputs: string[]): Promise<Resource[]> {
         name: nameFor(input),
       };
       const cached = await deriveForResource(resource);
-      return Object.keys(cached).length > 0 ? { ...resource, cached } : resource;
+      const withCache = Object.keys(cached).length > 0 ? { ...resource, cached } : resource;
+      const type = classifyResource(withCache);
+      const fields = await ingest(type, withCache);
+      return { resource: withCache, type, fields };
     }),
   );
 }

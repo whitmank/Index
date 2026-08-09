@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { matches, type Command } from "../commands/index.js";
 import { captionOf, FORMAT_GLYPH, formatOf } from "../lib/derive.js";
-import { orderSets, VIEW_GLYPH, viewKindOf } from "../lib/sets.js";
+import { orderSets, PLACE_GLYPH } from "../lib/sets.js";
 import { loadSets, pool, searchItems, usePool } from "../store/index.js";
 
 /** How many hits the list shows at once. Past this you should type more,
@@ -275,13 +275,13 @@ function rowClass(row: Row, current: boolean): string {
   return parts.join(" ");
 }
 
-/** A verb wears an arrow, a place wears the view it opens into, a thing
- * wears its format. The mark says which of the three a row is before you
- * have read a word of it. */
+/** A verb wears an arrow, a place wears the place mark, a thing wears
+ * its format. The mark says which of the three a row is before you have
+ * read a word of it. */
 function markOf(row: Row): string {
   if (row.kind === "command") return "›";
   if (row.kind === "create") return "＋";
-  return row.place ? VIEW_GLYPH[viewKindOf(row.item)] : FORMAT_GLYPH[formatOf(row.item)];
+  return row.place ? PLACE_GLYPH : FORMAT_GLYPH[formatOf(row.item)];
 }
 
 function nameOf(row: Row): string {
@@ -293,5 +293,5 @@ function nameOf(row: Row): string {
 function kindOf(row: Row): string {
   if (row.kind === "command") return row.command.unavailable ? "unavailable" : "command";
   if (row.kind === "create") return "new";
-  return row.place ? viewKindOf(row.item) : formatOf(row.item);
+  return row.place ? "place" : formatOf(row.item);
 }

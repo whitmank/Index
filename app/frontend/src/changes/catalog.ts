@@ -16,7 +16,6 @@ import type {
   Item,
   Position,
   Resource,
-  ViewKind,
 } from "@index/database/types";
 import { today } from "../lib/dates.js";
 import { connectionId, itemId } from "../lib/ids.js";
@@ -53,6 +52,8 @@ export function blankItem(date = today()): Item {
     opens: null,
     query: null,
     system: false,
+    is_set: false,
+    type: null,
     fields: [],
     resources: [],
     deleted_at: null,
@@ -66,13 +67,14 @@ export function createItem(item: Item): Change {
 }
 
 /**
- * A new set. It plays the set role from birth because it declares a view
- * to open in — `opens` naming a view kind is what listSets recognises, so
- * an empty set still shows on the home screen before it has any members.
+ * A new set. It plays the set role from birth because `is_set` says so
+ * — what listSets recognises — so an empty set still shows on the home
+ * screen before it has a query or any members. How it's viewed (canvas
+ * or list) is the application's global toggle, not anything stored here.
  * The caller keeps the record: it needs the id to navigate into the set.
  */
-export function blankSet(name: string, opens: ViewKind = "canvas"): Item {
-  return { ...blankItem(), name, opens };
+export function blankSet(name: string): Item {
+  return { ...blankItem(), name, is_set: true };
 }
 
 export function createSet(set: Item): Change {
@@ -107,6 +109,16 @@ export function setOpens(item: Item, opens: string | null): Change {
     item,
     { ...item, opens },
     opens ? `Open ${describe(item)} as ${opens}` : `Let ${describe(item)} choose how it opens`,
+  );
+}
+
+/** The classification — written by the classifier's guess, or by the
+ * user correcting it. Passing null clears it, same as `setOpens`. */
+export function setType(item: Item, type: string | null): Change {
+  return swap(
+    item,
+    { ...item, type },
+    type ? `Classify ${describe(item)} as ${type}` : `Clear the type on ${describe(item)}`,
   );
 }
 

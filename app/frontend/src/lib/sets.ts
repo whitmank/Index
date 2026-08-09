@@ -1,25 +1,12 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// A set opens in one of the three view kinds. Which one is its `opens`
-// field when that names a view kind, and a fallback otherwise — the same
-// field a regular item uses for its layout, read through the set role.
-import type { Item, ViewKind } from "@index/database/types";
+import type { Item } from "@index/database/types";
 import { HOME_SET_ID, PUBLIC_SET_ID } from "./seeds.js";
 
-export const VIEW_KINDS: ViewKind[] = ["timeline", "canvas", "list"];
-
-/** A glyph per view kind, so a place reads as one — and as *which* one —
- * wherever it is drawn: the home screen, a node, a row. */
-export const VIEW_GLYPH: Record<ViewKind, string> = {
-  timeline: "▦",
-  canvas: "◍",
-  list: "≣",
-};
-
-export function viewKindOf(set: Item, fallback: ViewKind = "timeline"): ViewKind {
-  return (VIEW_KINDS as string[]).includes(set.opens ?? "")
-    ? (set.opens as ViewKind)
-    : fallback;
-}
+/** The mark a place wears, wherever one is drawn — a node, a row, a
+ * search hit. Places no longer differ by *which* view they open into
+ * (that's a global toggle, not a per-item property), so there is one
+ * mark, not one per kind. */
+export const PLACE_GLYPH = "◍";
 
 /**
  * Whether a set holds everything by description rather than by anyone

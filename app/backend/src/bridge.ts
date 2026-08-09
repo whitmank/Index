@@ -9,9 +9,11 @@ import type {
   Label,
   Members,
   MembersOptions,
-  Resource,
+  Schema,
   StoredRecord,
 } from "@index/database/types";
+import type { SchemaInput } from "@index/database";
+import type { IntakeResult } from "./services/intake.js";
 
 /** Every handler answers with data or a message, never a thrown error. */
 export type Result<T> = { ok: T } | { err: string };
@@ -52,13 +54,20 @@ export interface IndexBridge {
     /** Mint-on-first-use; labels sit outside the change model. */
     ensure(name: string): Promise<Result<Label>>;
   };
+  schemas: {
+    list(): Promise<Result<{ schemas: Schema[] }>>;
+    /** Create or edit a type; sits outside the change model like a
+     * label does. `name` is immutable — editing always targets the
+     * schema that name already minted. */
+    upsert(schema: SchemaInput): Promise<Result<Schema>>;
+  };
   changes: {
     apply(change: Change): Promise<Result<{ records: StoredRecord[] }>>;
   };
   intake: {
-    pathsToResources(paths: string[]): Promise<Result<{ resources: Resource[] }>>;
+    pathsToResources(paths: string[]): Promise<Result<{ results: IntakeResult[] }>>;
     /** The file dialog; returns the chosen paths already as resources. */
-    pick(): Promise<Result<{ resources: Resource[] }>>;
+    pick(): Promise<Result<{ results: IntakeResult[] }>>;
     /** The absolute path behind a dropped File. Only the preload can ask
      * this — the renderer has no filesystem of its own. */
     pathForFile(file: File): string;

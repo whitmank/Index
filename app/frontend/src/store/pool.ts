@@ -10,7 +10,6 @@
 // is cheaper than maintaining per-selector memoisation, and far less
 // machinery to be wrong.
 import type { ChangePair, Connection, Item, StoredRecord } from "@index/database/types";
-import { VIEW_KINDS } from "../lib/sets.js";
 
 type Listener = () => void;
 
@@ -113,7 +112,7 @@ export function isPlace(id: string): boolean {
   const item = getItem(id);
   if (!item) return false;
   if (item.query !== null) return true;
-  if ((VIEW_KINDS as string[]).includes(item.opens ?? "")) return true;
+  if (item.is_set) return true;
   return inboundTo(id).some((connection) => connection.label === null);
 }
 

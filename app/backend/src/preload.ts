@@ -23,6 +23,10 @@ const bridge: IndexBridge = {
     list: () => invoke(CHANNELS.labelsList),
     ensure: (name) => invoke(CHANNELS.labelsEnsure, name),
   },
+  schemas: {
+    list: () => invoke(CHANNELS.schemasList),
+    upsert: (schema) => invoke(CHANNELS.schemasUpsert, schema),
+  },
   changes: {
     apply: (change) => invoke(CHANNELS.changesApply, change),
   },

@@ -21,7 +21,8 @@ import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, nodeImageUrl } from "../../lib/derive.js";
-import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
+import { createItemsFromPaths } from "../../lib/intake.js";
+import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection } from "../../store/index.js";
 import {
   createSimulation,
@@ -307,28 +308,21 @@ export function Canvas({
   }, [date, onGoTo]);
 
   // OS file drop: one item per file, named from the basename, on this
-  // page's date. Nothing is copied — intake records a pointer.
+  // page's date. Nothing is copied — intake records a pointer. Claiming
+  // the drop here (preventDefault, no stopPropagation) is what tells the
+  // shell-level fallback (App.tsx) this one is already handled.
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       const paths = [...event.dataTransfer.files].map((file) =>
         window.index.intake.pathForFile(file),
       );
-      if (paths.length === 0) return;
-
-      void window.index.intake.pathsToResources(paths).then((answer) => {
-        if ("err" in answer) return;
-        for (const resource of answer.ok.resources) {
-          const item = {
-            ...changes.blankItem(date),
-            name: resource.name,
-            resources: [resource],
-          };
-          void apply(changes.createItem(item));
-        }
+      void createItemsFromPaths(paths, date).then((created) => {
+        const last = created[created.length - 1];
+        if (last) onGoTo(last, true);
       });
     },
-    [date],
+    [date, onGoTo],
   );
 
   return (
@@ -452,7 +446,7 @@ function Node({
 
   // A place is somewhere clicking takes you *into*. It has to look
   // different from a thing, or the same gesture is a coin toss.
-  const place = usePool(() => (pool.isPlace(item.id) ? viewKindOf(item) : null));
+  const place = usePool(() => pool.isPlace(item.id));
 
   // The expanded box is only knowable once the image has told us its
   // aspect; until then the node keeps the radius as its margin.
@@ -501,14 +495,14 @@ function Node({
       onPointerLeave={onPointerLeave}
       ref={register}
       style={style}
-      title={place ? `${caption || "untitled"} — a ${place}, click to go in` : undefined}
+      title={place ? `${caption || "untitled"} — a place, click to go in` : undefined}
     >
       <div className="node-shape">
         {image ? <img alt="" draggable={false} src={image} /> : null}
       </div>
       {/* Outside the shape: it clips to a circle, and the mark rides the
           edge rather than sitting under it. */}
-      {place && <span className="node-place">{VIEW_GLYPH[place]}</span>}
+      {place && <span className="node-place">{PLACE_GLYPH}</span>}
       {caption && <span className="node-caption">{caption}</span>}
     </div>
   );

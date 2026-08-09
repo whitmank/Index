@@ -7,11 +7,20 @@
 // Nothing here copies bytes. Adding a file is recording where it already
 // is.
 import { useState } from "react";
-import type { Item } from "@index/database/types";
+import type { Item, Resource } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { deviceOf } from "../../lib/derive.js";
 import { errors } from "../../store/index.js";
+
+/** Where the resource actually is: the absolute path for a local file,
+ * the url as-is for a web resource — the location, not the name. */
+function locationOf(resource: Resource): string {
+  const { uri } = resource;
+  if (deviceOf(uri) === "web") return uri;
+  const separator = uri.indexOf("://");
+  return separator === -1 ? uri : uri.slice(separator + 3);
+}
 
 export function ResourcesEditor({ item }: { item: Item }) {
   const [url, setUrl] = useState("");
@@ -26,8 +35,11 @@ export function ResourcesEditor({ item }: { item: Item }) {
         errors.surface(answer.err);
         return;
       }
-      // One change per resource keeps each undoable on its own.
-      for (const resource of answer.ok.resources) {
+      // One change per resource keeps each undoable on its own. The
+      // classification and any ingested fields intake computed are
+      // ignored here — this item already exists, possibly already
+      // typed, and a second resource must not silently reclassify it.
+      for (const { resource } of answer.ok.results) {
         await apply(changes.addResource(item, resource));
       }
     } finally {
@@ -43,7 +55,7 @@ export function ResourcesEditor({ item }: { item: Item }) {
         errors.surface(answer.err);
         return;
       }
-      for (const resource of answer.ok.resources) {
+      for (const { resource } of answer.ok.results) {
         await apply(changes.addResource(item, resource));
       }
     } finally {
@@ -58,23 +70,19 @@ export function ResourcesEditor({ item }: { item: Item }) {
       <ul className="resources">
         {item.resources.map((resource, index) => (
           <li className="resource-row" key={resource.uri}>
-            {index === 0 ? (
-              <span className="chip is-primary" title="the primary resource decides the format">
-                primary
-              </span>
-            ) : (
-              <button
-                className="resource-promote"
-                onClick={() => void apply(changes.reorderResources(item, index, 0))}
-                title="make primary"
-                type="button"
-              >
-                ↑
-              </button>
-            )}
+            {/* Fixed-width regardless of primary/not, so every row's
+                label starts at the same x — xyz's source-primary-
+                indicator convention. */}
+            <span className="resource-primary-indicator" title={index === 0 ? "primary — decides the format" : undefined}>
+              {index === 0 && (
+                <>
+                  ★<span className="sr-only">Primary</span>
+                </>
+              )}
+            </span>
 
-            <span className="resource-name" title={resource.uri}>
-              {resource.name}
+            <span className="resource-name" title={resource.name}>
+              {locationOf(resource)}
             </span>
             <span className="chip">{deviceOf(resource.uri)}</span>
 
@@ -91,6 +99,25 @@ export function ResourcesEditor({ item }: { item: Item }) {
               type="button"
             >
               {deviceOf(resource.uri) === "web" ? "open" : "reveal"}
+            </button>
+
+            <button
+              aria-label="Move up"
+              className="resource-move"
+              disabled={index === 0}
+              onClick={() => void apply(changes.reorderResources(item, index, index - 1))}
+              type="button"
+            >
+              ‹
+            </button>
+            <button
+              aria-label="Move down"
+              className="resource-move resource-move-down"
+              disabled={index === item.resources.length - 1}
+              onClick={() => void apply(changes.reorderResources(item, index, index + 1))}
+              type="button"
+            >
+              ‹
             </button>
 
             <button

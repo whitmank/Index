@@ -22,6 +22,8 @@ export { findConnection, getConnection, listConnectionsTouching } from "./connec
 
 export { ensureLabel, listLabels } from "./labels.js";
 
+export { listSchemas, upsertSchema, type SchemaInput } from "./schemas.js";
+
 export { compileQuery, type CompiledQuery } from "./query.js";
 
 export { listLiveResourceUris, purgeDeletedBefore, type Purge } from "./sweep.js";

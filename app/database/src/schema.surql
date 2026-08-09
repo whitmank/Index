@@ -12,6 +12,8 @@ DEFINE FIELD OVERWRITE created_at   ON items TYPE datetime DEFAULT time::now() R
 DEFINE FIELD OVERWRITE opens        ON items TYPE option<string>;   -- presentation override
 DEFINE FIELD OVERWRITE query        ON items TYPE option<object> FLEXIBLE;  -- set-role predicate, §1.5
 DEFINE FIELD OVERWRITE system       ON items TYPE bool DEFAULT false;
+DEFINE FIELD OVERWRITE is_set       ON items TYPE bool DEFAULT false;  -- deliberately created as a set, before it has a query or any members
+DEFINE FIELD OVERWRITE type         ON items TYPE option<string>;  -- classification, names a schemas row
 DEFINE FIELD OVERWRITE fields       ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE fields.*.name  ON items TYPE string;
 DEFINE FIELD OVERWRITE fields.*.value ON items TYPE string;
@@ -40,3 +42,15 @@ DEFINE INDEX OVERWRITE conn_label ON connections FIELDS label;
 DEFINE TABLE IF NOT EXISTS labels SCHEMAFULL;
 DEFINE FIELD OVERWRITE name ON labels TYPE string;
 DEFINE INDEX OVERWRITE labels_name ON labels FIELDS name UNIQUE;
+
+-- A type's field list, as data: adding "movie" is writing a row, not
+-- shipping code. `name` is what an item's `type` matches against.
+DEFINE TABLE IF NOT EXISTS schemas SCHEMAFULL;
+DEFINE FIELD OVERWRITE name  ON schemas TYPE string;
+DEFINE FIELD OVERWRITE label ON schemas TYPE option<string>;
+DEFINE FIELD OVERWRITE fields ON schemas TYPE array<object> DEFAULT [];
+DEFINE FIELD OVERWRITE fields.*.name  ON schemas TYPE string;
+DEFINE FIELD OVERWRITE fields.*.label ON schemas TYPE option<string>;
+DEFINE FIELD OVERWRITE fields.*.kind  ON schemas TYPE string DEFAULT "string"
+    ASSERT $value IN ["string", "number", "date"];
+DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;

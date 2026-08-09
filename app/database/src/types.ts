@@ -39,9 +39,6 @@ export interface Resource {
 /** Derived from the primary resource; selects the renderer. Never stored. */
 export type Format = "bare" | "image" | "markdown" | "book" | "video" | "link" | "file";
 
-/** The view kinds a set can open as. */
-export type ViewKind = "canvas" | "list" | "timeline";
-
 export interface DateRange {
   gte?: string;
   lte?: string;
@@ -74,14 +71,49 @@ export interface Item {
   /** The intrinsic journal day, ISO `YYYY-MM-DD`. */
   date: string;
   created_at: string;
-  /** Presentation override: a layout key, or a view kind on a set. */
+  /** Presentation override: a layout key (Focus's, not a view kind — how
+   * you view a set's members is a global, application-level toggle now,
+   * not remembered per set). */
   opens: string | null;
   query: SetQuery | null;
   system: boolean;
+  /** Set at creation by `blankSet`: marks a deliberately-made set so it
+   * stays visible on the home screen before it has a query or any
+   * members. Set-role is otherwise computed, never stored — this is the
+   * one deliberate exception, for the bootstrapping moment before either
+   * exists yet. */
+  is_set: boolean;
+  /** A classification (e.g. "book"), naming a row in `schemas`. Guessed
+   * at intake, user-overridable — the same shape as `opens`. Absence is
+   * not an error: an untyped item just has no schema fields to show. */
+  type: string | null;
   fields: Field[];
   /** Ordered; `resources[0]` is primary. */
   resources: Resource[];
   deleted_at: string | null;
+}
+
+/** One field a `type` is known to carry, and how to present it. */
+export interface SchemaField {
+  name: string;
+  /** Display label; falls back to `name` when absent. */
+  label: string | null;
+  kind: FieldKind;
+}
+
+/**
+ * A type's field list, as data — not a code table (PRODUCT-SPEC-style
+ * "schema-free" extension applied one level up: adding a type is adding a
+ * row, not shipping code). `name` is the classification key an item's
+ * `type` matches, and is immutable once created — the id is minted from
+ * it (`schemaId`), the same way a label's id is minted from its word.
+ */
+export interface Schema {
+  /** `schemas:book` — slugified from `name`. */
+  id: string;
+  name: string;
+  label: string | null;
+  fields: SchemaField[];
 }
 
 export interface Position {
@@ -166,6 +198,7 @@ export interface EndpointSummary {
 export const ITEMS_TABLE = "items";
 export const CONNECTIONS_TABLE = "connections";
 export const LABELS_TABLE = "labels";
+export const SCHEMAS_TABLE = "schemas";
 
 // The wire id is whatever the SDK renders a record id as, so that ids
 // compared in the renderer match ids read from the database. SurrealDB

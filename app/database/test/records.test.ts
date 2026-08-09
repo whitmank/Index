@@ -47,6 +47,8 @@ function blankItem(overrides: Partial<Item> = {}): Item {
     opens: null,
     query: null,
     system: false,
+    is_set: false,
+    type: null,
     fields: [],
     resources: [],
     deleted_at: null,
@@ -82,7 +84,6 @@ async function main(): Promise<void> {
       assert.equal(home.name, "All");
       assert.equal(home.system, true);
       assert.deepEqual(home.query, { all: true });
-      assert.equal(home.opens, "timeline");
     });
     check("public exists with no query", () => {
       assert.ok(publicSet, "public missing");

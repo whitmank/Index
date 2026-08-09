@@ -10,6 +10,8 @@ export const CHANNELS = {
   itemsSearch: "items:search",
   labelsList: "labels:list",
   labelsEnsure: "labels:ensure",
+  schemasList: "schemas:list",
+  schemasUpsert: "schemas:upsert",
   changesApply: "changes:apply",
   intakePathsToResources: "intake:pathsToResources",
   intakePick: "intake:pick",

@@ -12,6 +12,8 @@ import type {
   Label,
   Position,
   Resource,
+  Schema,
+  SchemaField,
   SetQuery,
   StoredRecord,
 } from "../types.js";
@@ -26,9 +28,18 @@ export interface ItemRow {
   opens?: string | null;
   query?: SetQuery | null;
   system?: boolean;
+  is_set?: boolean;
+  type?: string | null;
   fields?: Field[];
   resources?: Resource[];
   deleted_at?: unknown;
+}
+
+export interface SchemaRow {
+  id: unknown;
+  name: string;
+  label?: string | null;
+  fields?: SchemaField[];
 }
 
 export interface ConnectionRow {
@@ -73,9 +84,20 @@ export function serializeItem(row: ItemRow): Item {
     opens: row.opens ?? null,
     query: row.query ?? null,
     system: row.system ?? false,
+    is_set: row.is_set ?? false,
+    type: row.type ?? null,
     fields: row.fields ?? [],
     resources: row.resources ?? [],
     deleted_at: optionalDate(row.deleted_at),
+  };
+}
+
+export function serializeSchema(row: SchemaRow): Schema {
+  return {
+    id: idToString(row.id),
+    name: row.name,
+    label: row.label ?? null,
+    fields: row.fields ?? [],
   };
 }
 
@@ -116,6 +138,8 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
     opens: item.opens ?? undefined,
     query: item.query ?? undefined,
     system: item.system,
+    is_set: item.is_set,
+    type: item.type ?? undefined,
     fields: item.fields.map((field) => ({
       name: field.name,
       value: field.value,
@@ -127,6 +151,21 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
       cached: resource.cached ?? undefined,
     })),
     deleted_at: toDbDate(item.deleted_at),
+  };
+}
+
+/** The content half of a schema write. Schemas sit outside the change
+ * model — like labels, there is nothing about one to undo — so this has
+ * no `includeCreatedAt`-style split; a schema has no `created_at`. */
+export function schemaContent(schema: Pick<Schema, "name" | "label" | "fields">): Record<string, unknown> {
+  return {
+    name: schema.name,
+    label: schema.label ?? undefined,
+    fields: schema.fields.map((field) => ({
+      name: field.name,
+      label: field.label ?? undefined,
+      kind: field.kind,
+    })),
   };
 }
 

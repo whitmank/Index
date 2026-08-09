@@ -47,15 +47,25 @@ export function connectionId(): string {
   return `connections:${ulid()}`;
 }
 
-/**
- * `labels:author` — a label's id is its slugified name, so first use of
- * the same word always lands on the same record.
- */
-export function labelId(name: string): string {
+function slugify(name: string, fallback: string): string {
   const slug = name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-  return `labels:${slug || "label"}`;
+  return slug || fallback;
+}
+
+/**
+ * `labels:author` — a label's id is its slugified name, so first use of
+ * the same word always lands on the same record.
+ */
+export function labelId(name: string): string {
+  return `labels:${slugify(name, "label")}`;
+}
+
+/** `schemas:book` — same idea as `labelId`: the name is the identity, so
+ * editing a type's fields always lands on the same row it started as. */
+export function schemaId(name: string): string {
+  return `schemas:${slugify(name, "type")}`;
 }

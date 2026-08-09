@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apply, changes } from "../../changes/index.js";
 import { captionOf } from "../../lib/derive.js";
 import { HOME_SET_ID } from "../../lib/seeds.js";
-import { orderSets, VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
+import { orderSets, PLACE_GLYPH } from "../../lib/sets.js";
 import { loadSets, pool, usePool } from "../../store/index.js";
 
 export interface HomeProps {
@@ -55,7 +55,6 @@ export function Home({ onEnter }: HomeProps) {
 
         <ul className="home-list">
           {ordered.map((set) => {
-            const kind = viewKindOf(set);
             const pinned = set.id === HOME_SET_ID;
             return (
               <li key={set.id}>
@@ -64,9 +63,8 @@ export function Home({ onEnter }: HomeProps) {
                   onClick={() => onEnter(set.id)}
                   type="button"
                 >
-                  <span className="set-card-mark">{pinned ? "★" : VIEW_GLYPH[kind]}</span>
+                  <span className="set-card-mark">{pinned ? "★" : PLACE_GLYPH}</span>
                   <span className="set-card-name">{captionOf(set) || "untitled"}</span>
-                  <span className="set-card-kind">{kind}</span>
                 </button>
               </li>
             );

@@ -1,8 +1,17 @@
-// Authored by Karter Whitman using Claude Opus 4.8
+// Authored by Karter Whitman using Claude Sonnet 5
 // The two items that exist before the user does anything (PRODUCT-SPEC
 // §1.4). Seeding runs at every launch and only ever creates what is
 // missing — the seeds are ordinary editable items once they exist, and a
 // launch must not undo an edit to one.
+//
+// It also carries one idempotent backfill (below): view kind used to be
+// remembered per set (`opens` naming "canvas"/"list"/"timeline"), which
+// doubled as how an empty set stayed visible on the home screen before it
+// had a query or any members. View kind is now a global, application-
+// level toggle instead (store/viewMode.ts) — `opens` no longer means
+// anything to a set — so a pre-existing empty set recognized only that
+// way needs the dedicated `is_set` flag instead, or it silently
+// disappears from the home screen the moment it has no members.
 import { getDb } from "./db.js";
 import {
   TIMELINE_DIRECTION_FIELD,
@@ -53,7 +62,7 @@ export async function seed(): Promise<void> {
            (CREATE $id CONTENT {
              name: $name,
              date: $date,
-             opens: "timeline",
+             is_set: true,
              system: true,
              query: $query,
              fields: $fields,
@@ -70,4 +79,16 @@ export async function seed(): Promise<void> {
       )
       .collect();
   }
+
+  await db
+    .query(
+      // No `is_set = false` guard: on a pre-existing row the field is
+      // simply absent (NONE, not the boolean false — it didn't exist
+      // when the row was written), and `NONE = false` doesn't match.
+      // Setting it true again on a row that already has it is a no-op,
+      // so the guard bought nothing anyway.
+      `UPDATE items SET is_set = true
+       WHERE opens IN ['timeline', 'canvas', 'list'];`,
+    )
+    .collect();
 }

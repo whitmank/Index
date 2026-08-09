@@ -10,3 +10,4 @@ export { loadItem, loadSet, loadSetDates, loadSets, searchItems } from "./load.j
 export { listen as listenForRemoteChanges } from "./remote.js";
 export { useHistory, usePool, useSelection, useTroubles } from "./hooks.js";
 export type { Trouble } from "./errors.js";
+export { useViewMode, VIEW_MODES, VIEW_MODE_GLYPH, type ViewMode } from "./viewMode.js";

@@ -11,8 +11,10 @@ import {
   listMemberDates,
   listMembers,
   listPlacesAmong,
+  listSchemas,
   listSets,
   searchItems,
+  upsertSchema,
 } from "@index/database";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
@@ -23,6 +25,7 @@ import {
   asChange,
   asMembersOptions,
   asOptionalNumber,
+  asSchemaInput,
   asString,
   asStringArray,
   InvalidInput,
@@ -72,6 +75,10 @@ export function registerHandlers(): void {
 
   handle(CHANNELS.labelsEnsure, async (name) => ensureLabel(asString(name, "name")));
 
+  handle(CHANNELS.schemasList, async () => ({ schemas: await listSchemas() }));
+
+  handle(CHANNELS.schemasUpsert, async (schema) => upsertSchema(asSchemaInput(schema)));
+
   handle(CHANNELS.changesApply, async (change) => {
     const applying = asChange(change);
     const records = await applyChange(applying);
@@ -84,7 +91,7 @@ export function registerHandlers(): void {
   });
 
   handle(CHANNELS.intakePathsToResources, async (paths) => ({
-    resources: await pathsToResources(asStringArray(paths, "paths")),
+    results: await pathsToResources(asStringArray(paths, "paths")),
   }));
 
   handle(CHANNELS.intakePick, async () => {
@@ -92,8 +99,8 @@ export function registerHandlers(): void {
     const picked = window
       ? await dialog.showOpenDialog(window, { properties: ["openFile", "multiSelections"] })
       : await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
-    if (picked.canceled) return { resources: [] };
-    return { resources: await pathsToResources(picked.filePaths) };
+    if (picked.canceled) return { results: [] };
+    return { results: await pathsToResources(picked.filePaths) };
   });
 
   handle(CHANNELS.shellReveal, async (uri) => {

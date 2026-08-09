@@ -15,12 +15,12 @@
 // has used works this way. The canvas, where you are aiming at one thing
 // at a time, still goes on a single click.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Item, ViewKind } from "@index/database/types";
+import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, deviceOf, nodeImageUrl } from "../../lib/derive.js";
-import { VIEW_GLYPH, viewKindOf } from "../../lib/sets.js";
+import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection } from "../../store/index.js";
 
 type SortKey = "name" | "date" | "device";
@@ -41,8 +41,8 @@ interface Row {
   tags: string[];
   device: string;
   order: number | null;
-  /** The view kind when this row is a place, null when it is a thing. */
-  place: ViewKind | null;
+  /** Whether this row is a place (enterable) rather than a thing (opens). */
+  place: boolean;
 }
 
 export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
@@ -72,7 +72,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
           item,
           order: arrow?.order ?? null,
           device: item.resources[0] ? deviceOf(item.resources[0].uri) : "—",
-          place: pool.isPlace(id) ? viewKindOf(item) : null,
+          place: pool.isPlace(id),
           // Belonging to the set you are already looking at is not a fact
           // about the item — every row would carry it. Only the other
           // arrows say anything here.
@@ -269,7 +269,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
             </button>
             <span className="col-thumb">
               <Thumb item={row.item} />
-              {row.place && <span className="row-place">{VIEW_GLYPH[row.place]}</span>}
+              {row.place && <span className="row-place">{PLACE_GLYPH}</span>}
             </span>
             <span className="col-name">{captionOf(row.item) || "unnamed"}</span>
             <span className="col-date">{row.item.date}</span>

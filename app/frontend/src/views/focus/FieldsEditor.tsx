@@ -9,17 +9,29 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 
 const KINDS: FieldKind[] = ["string", "number", "date"];
 
-export function FieldsEditor({ item }: { item: Item }) {
+export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: string[] }) {
   // One blank row is always offered at the end, so adding a field is
   // typing rather than pressing something first.
   const [draftRow, setDraftRow] = useState<Field>({ name: "", value: "", kind: "string" });
+  // SettleInput only clears its own typed text when its `value` prop
+  // changes, and the draft row's value is "" both before and after a
+  // commit — remounting on a fresh key is what makes it forget.
+  const [draftGeneration, setDraftGeneration] = useState(0);
 
+  const excluded = new Set(exclude.map((name) => name.toLowerCase()));
+  const known = item.fields.filter((field) => excluded.has(field.name.toLowerCase()));
+  const misc = item.fields.filter((field) => !excluded.has(field.name.toLowerCase()));
+
+  // A layout's own known fields (KnownFields, in the registry) render
+  // separately and stay untouched here — this list is everything else,
+  // recombined with them before the write, so committing the generic
+  // list never drops what the layout already claimed.
   const commit = (fields: Field[]): void => {
-    void apply(changes.setFields(item, fields));
+    void apply(changes.setFields(item, [...known, ...fields]));
   };
 
   const update = (index: number, patch: Partial<Field>): void => {
-    const next = item.fields.map((field, at) => (at === index ? { ...field, ...patch } : field));
+    const next = misc.map((field, at) => (at === index ? { ...field, ...patch } : field));
     commit(next);
   };
 
@@ -30,14 +42,15 @@ export function FieldsEditor({ item }: { item: Item }) {
       return;
     }
     setDraftRow({ name: "", value: "", kind: "string" });
-    commit([...item.fields, row]);
+    setDraftGeneration((generation) => generation + 1);
+    commit([...misc, row]);
   };
 
   return (
     <section className="editor-block">
       <h3>fields</h3>
       <div className="fields">
-        {item.fields.map((field, index) => (
+        {misc.map((field, index) => (
           <div className="field-row" key={`${field.name}-${index}`}>
             <SettleInput
               ariaLabel="field name"
@@ -65,7 +78,7 @@ export function FieldsEditor({ item }: { item: Item }) {
             <button
               aria-label={`remove ${field.name}`}
               className="field-remove"
-              onClick={() => commit(item.fields.filter((_, at) => at !== index))}
+              onClick={() => commit(misc.filter((_, at) => at !== index))}
               type="button"
             >
               ✕
@@ -73,7 +86,7 @@ export function FieldsEditor({ item }: { item: Item }) {
           </div>
         ))}
 
-        <div className="field-row is-draft">
+        <div className="field-row is-draft" key={draftGeneration}>
           <SettleInput
             ariaLabel="new field name"
             onCommit={(name) => addDraft({ name })}

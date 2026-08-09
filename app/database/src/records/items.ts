@@ -64,11 +64,12 @@ export async function listItems(ids: string[]): Promise<Item[]> {
 
 /**
  * The items that play the set role — what the home screen lists. An item
- * is a set when it carries a query, declares a view to open in (`opens`
- * naming a view kind), or has at least one live belonging arrow pointing
- * at it. The two seeds always qualify: they carry both a query and a view.
- * Roles are computed, never stored (DESIGN-CONCEPT §3) — this is that rule
- * read back out of the data.
+ * is a set when it carries a query, was deliberately made as one
+ * (`is_set`), or has at least one live belonging arrow pointing at it.
+ * The two seeds always qualify: they carry a query. Roles are computed,
+ * never stored (DESIGN-CONCEPT §3) — `is_set` is the one deliberate
+ * exception, for the bootstrapping moment before a brand-new set has
+ * either a query or a member yet.
  */
 /**
  * The set role, as a SurrealQL predicate. Named once because two callers
@@ -78,7 +79,7 @@ export async function listItems(ids: string[]): Promise<Item[]> {
  */
 const PLAYS_SET_ROLE = `(
   query IS NOT NONE
-  OR opens IN ['timeline', 'canvas', 'list']
+  OR is_set = true
   OR id IN (SELECT VALUE out FROM connections WHERE label IS NONE AND ${LIVE})
 )`;
 

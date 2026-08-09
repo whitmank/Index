@@ -1,0 +1,115 @@
+/* Authored by Karter Whitman using Claude Sonnet 5 */
+
+.schema-manager {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: min(32rem, 100%);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.schema-manager-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.6rem 0.6rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.schema-manager-bar h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-quiet);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.schema-manager-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+}
+
+.schema-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.schema-manager-item {
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--ink-quiet);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+}
+
+.schema-manager-item:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.schema-manager-item.is-current {
+  color: var(--ink);
+  background: var(--surface);
+  font-weight: var(--weight-medium);
+}
+
+.schema-manager-new {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.schema-manager-new input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+}
+
+.schema-manager-new button {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink-quiet);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.schema-manager-new button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.schema-manager-editor {
+  padding: 1rem 1.1rem;
+  overflow-y: auto;
+}
+
+.schema-manager-label {
+  display: block;
+  width: 100%;
+  margin: 0.35rem 0 0.9rem;
+}

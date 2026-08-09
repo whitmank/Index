@@ -9,11 +9,11 @@
 // nothing about that is worth remembering. That discard is deliberately
 // not undo-tracked.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Item } from "@index/database/types";
+import type { Item, Schema } from "@index/database/types";
 import { apply, applyUntracked, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
-import { layouts, resolveLayout, type Claimed } from "../../layouts/registry.tsx";
+import { KnownFields, layouts, resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { formatOf } from "../../lib/derive.js";
 import { rendererFor } from "../../renderers/registry.tsx";
 import { loadItem, pool, usePool } from "../../store/index.js";
@@ -34,6 +34,21 @@ export interface FocusProps {
 export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [openAsOpen, setOpenAsOpen] = useState(false);
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  // Fetched eagerly, once per mount — the layout cascade now needs the
+  // full list to resolve a typed item's known fields, not just the type
+  // chip's dropdown, so this can no longer wait for that menu to open.
+  const [schemas, setSchemas] = useState<Schema[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.index.schemas.list().then((answer) => {
+      if (!cancelled && "ok" in answer) setSchemas(answer.ok.schemas);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The scrim fades in rather than snapping to full dark — two rAFs so
   // the hidden state paints first, or the transition has nothing to
@@ -84,6 +99,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     (candidate: Item): boolean =>
       candidate.name.trim() === "" &&
       !candidate.display_name &&
+      !candidate.type &&
       candidate.resources.length === 0 &&
       candidate.fields.length === 0 &&
       pool.connectionsTouching(candidate.id).length === 0,
@@ -128,27 +144,21 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   );
 
   const resolution = useMemo(
-    () => (item ? resolveLayout(item, tags) : null),
-    [item, tags],
+    () => (item ? resolveLayout(item, tags, schemas) : null),
+    [item, tags, schemas],
   );
 
-  const claimed = useMemo<Claimed>(() => {
-    if (!item || !resolution) return { fields: [], connections: [] };
-    const wantedFields = resolution.entry.fields ?? [];
+  const claimedConnections = useMemo<ClaimedConnection[]>(() => {
+    if (!resolution) return [];
     const wantedLabels = resolution.entry.labels ?? [];
-    return {
-      fields: item.fields
-        .filter((field) => wantedFields.includes(field.name))
-        .map((field) => ({ name: field.name, value: field.value })),
-      connections: outbound
-        .filter((connection) => connection.label && wantedLabels.includes(connection.label))
-        .map((connection) => ({
-          label: connection.label ?? "",
-          targetId: connection.targetId,
-          targetName: connection.targetName,
-        })),
-    };
-  }, [item, outbound, resolution]);
+    return outbound
+      .filter((connection) => connection.label && wantedLabels.includes(connection.label))
+      .map((connection) => ({
+        label: connection.label ?? "",
+        targetId: connection.targetId,
+        targetName: connection.targetName,
+      }));
+  }, [outbound, resolution]);
 
   if (!item || !resolution) return null;
 
@@ -156,6 +166,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const renderer = rendererFor(format);
   const Layout = resolution.entry.Component;
   const Content = renderer.Component;
+  const knownNames = resolution.entry.fields ?? [];
 
   const content = (
     <div className={`content-slot fit-${renderer.fit}`}>
@@ -163,12 +174,24 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     </div>
   );
 
-  // Anything the layout claimed is shown by the layout; the generic
-  // editor still owns all of it, so nothing becomes uneditable by being
-  // promoted into a slot.
+  // The layout's own known fields (title first, xyz-style — a big
+  // identity field rather than a bar input) sit above the generic list,
+  // which excludes them so nothing shows twice or gets clobbered on
+  // commit.
   const editor = (
     <>
-      <FieldsEditor item={item} />
+      <label className="field field-name">
+        <span className="sr-only">name</span>
+        <SettleInput
+          ariaLabel="name"
+          autoFocus={isNew}
+          onCommit={(name) => void apply(changes.rename(item, name))}
+          placeholder="unnamed"
+          value={item.name}
+        />
+      </label>
+      <KnownFields item={item} names={knownNames} />
+      <FieldsEditor exclude={knownNames} item={item} />
       <ResourcesEditor item={item} />
       <ConnectionComposer
         item={item}
@@ -185,110 +208,164 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
         if (event.target === event.currentTarget) dismiss();
       }}
     >
-      <div className="focus" role="dialog">
+      <div className={visible ? "focus visible" : "focus"} role="dialog">
         <header className="focus-bar">
-          <SettleInput
-            ariaLabel="name"
-            autoFocus={isNew}
-            className="focus-name"
-            onCommit={(name) => void apply(changes.rename(item, name))}
-            placeholder="unnamed"
-            value={item.name}
-          />
+          <div className="focus-bar-spacer" aria-hidden="true" />
 
-          <div className="focus-actions">
-            {isPlace && (
-              <button
-                className="focus-enter"
-                onClick={() => onGoTo({ id: itemId })}
-                title="Show what is in here"
-                type="button"
-              >
-                go in →
-              </button>
+          <div className="type-trigger-wrap">
+            <button
+              className="type-trigger"
+              onClick={() => setTypeMenuOpen((open) => !open)}
+              title={item.type ? "you classified this — click to change" : "not yet classified"}
+              type="button"
+            >
+              <span className="type-trigger-label">{item.type ?? "untyped"}</span>
+              <span className="type-trigger-caret" aria-hidden="true">
+                ⌄
+              </span>
+            </button>
+
+            {typeMenuOpen && (
+              <ul className="type-popover">
+                {schemas.length === 0 && (
+                  <li className="opens-as-empty">no types yet — add one from the types button</li>
+                )}
+                {schemas.map((schema) => (
+                  <li key={schema.id}>
+                    <button
+                      className={schema.name === item.type ? "type-option is-current" : "type-option"}
+                      onClick={() => {
+                        setTypeMenuOpen(false);
+                        if (schema.name !== item.type) void apply(changes.setType(item, schema.name));
+                      }}
+                      type="button"
+                    >
+                      {schema.label ?? schema.name}
+                    </button>
+                  </li>
+                ))}
+                {item.type && (
+                  <li>
+                    <button
+                      className="type-option"
+                      onClick={() => {
+                        setTypeMenuOpen(false);
+                        void apply(changes.setType(item, null));
+                      }}
+                      type="button"
+                    >
+                      clear
+                    </button>
+                  </li>
+                )}
+              </ul>
             )}
+          </div>
 
-            <div className="opens-as">
-              <button
-                className={resolution.source === "override" ? "chip is-override" : "chip"}
-                onClick={() => setOpenAsOpen((open) => !open)}
-                title={
-                  resolution.source === "tag"
-                    ? `inferred from the '${resolution.key}' tag`
-                    : resolution.source === "override"
-                      ? "you chose this"
-                      : "the default layout"
-                }
-                type="button"
-              >
-                opens as {resolution.key}
-              </button>
-
-              {openAsOpen && (
-                <ul className="opens-as-menu">
-                  {Object.keys(layouts).map((key) => (
-                    <li key={key}>
-                      <button
-                        onClick={() => {
-                          setOpenAsOpen(false);
-                          // Choosing what inference already says retires
-                          // the override rather than writing agreement.
-                          const next = key === resolution.inferred ? null : key;
-                          if (next !== item.opens) void apply(changes.setOpens(item, next));
-                        }}
-                        type="button"
-                      >
-                        {key}
-                        {key === resolution.inferred ? " (from its tags)" : ""}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          {confirmingDelete ? (
+            <div className="focus-confirm">
+              <span>Delete this item?</span>
+              <div className="focus-confirm-actions">
+                <button onClick={() => setConfirmingDelete(false)} type="button">
+                  cancel
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => {
+                    const change = changes.deleteItem(item);
+                    if (change) void apply(change).then(onDismiss);
+                  }}
+                  type="button"
+                >
+                  confirm
+                </button>
+              </div>
             </div>
+          ) : (
+            <div className="focus-actions">
+              {isPlace && (
+                <button
+                  className="focus-enter"
+                  onClick={() => onGoTo({ id: itemId })}
+                  title="Show what is in here"
+                  type="button"
+                >
+                  go in →
+                </button>
+              )}
 
-            <label className="toggle">
-              <input
-                checked={shared}
-                onChange={(event) => {
-                  const change = changes.setPublic(item, event.target.checked);
-                  if (change) void apply(change);
-                }}
-                type="checkbox"
-              />
-              public
-            </label>
+              <div className="opens-as">
+                <button
+                  className={resolution.source === "override" ? "chip is-override" : "chip"}
+                  onClick={() => setOpenAsOpen((open) => !open)}
+                  title={
+                    resolution.source === "tag"
+                      ? `inferred from the '${resolution.key}' tag`
+                      : resolution.source === "type"
+                        ? `inferred from its type`
+                        : resolution.source === "override"
+                          ? "you chose this"
+                          : "the default layout"
+                  }
+                  type="button"
+                >
+                  opens as {resolution.key}
+                </button>
 
-            {confirmingDelete ? (
+                {openAsOpen && (
+                  <ul className="opens-as-menu">
+                    {Object.keys(layouts).map((key) => (
+                      <li key={key}>
+                        <button
+                          onClick={() => {
+                            setOpenAsOpen(false);
+                            // Choosing what inference already says retires
+                            // the override rather than writing agreement.
+                            const next = key === resolution.inferred ? null : key;
+                            if (next !== item.opens) void apply(changes.setOpens(item, next));
+                          }}
+                          type="button"
+                        >
+                          {key}
+                          {key === resolution.inferred ? " (from its tags)" : ""}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <label className="toggle">
+                <input
+                  checked={shared}
+                  onChange={(event) => {
+                    const change = changes.setPublic(item, event.target.checked);
+                    if (change) void apply(change);
+                  }}
+                  type="checkbox"
+                />
+                public
+              </label>
+
               <button
-                className="danger"
-                onClick={() => {
-                  const change = changes.deleteItem(item);
-                  if (change) void apply(change).then(onDismiss);
-                }}
-                type="button"
-              >
-                really delete
-              </button>
-            ) : (
-              <button
-                className="danger"
+                aria-label="Delete"
+                className="item-screen-icon-button danger"
                 disabled={item.system}
                 onClick={() => setConfirmingDelete(true)}
-                onBlur={() => setConfirmingDelete(false)}
+                title="Delete"
                 type="button"
               >
-                delete
+                🗑
               </button>
-            )}
 
-            <button aria-label="close" className="focus-close" onClick={dismiss} type="button">
-              ✕
-            </button>
-          </div>
+              <button aria-label="close" className="item-screen-icon-button" onClick={dismiss} type="button">
+                ✕
+              </button>
+            </div>
+          )}
         </header>
 
-        <Layout claimed={claimed} content={content} editor={editor} item={item} />
+        <Layout connections={claimedConnections} content={content} editor={editor} item={item} />
       </div>
     </div>
   );

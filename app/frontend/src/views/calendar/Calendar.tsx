@@ -1,7 +1,16 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// The timeline: a set's members partitioned by date into pages you slide
-// between (PRODUCT-SPEC §3.4). Every set gains time-walking for free —
-// `~` opened this way is the application's home.
+//
+// UNUSED — parked, not deleted. This was the timeline view: a set's
+// members partitioned by date into pages you slide between (PRODUCT-SPEC
+// §3.4), and `~`'s home behavior. Per a later product decision, how you
+// view a set (canvas/list) is now one global, application-level toggle
+// rather than a property remembered per set, and the timeline/day-paging
+// idea was pulled out of the active UI surface entirely rather than
+// folded into that toggle — it reads as more of a "ground yourself in
+// today's date" home concept than a third view kind. Extracted here
+// (renamed Timeline → Calendar) in case that home concept comes back in
+// its own right later. Not imported anywhere; App.tsx no longer renders
+// it, and its CSS is no longer loaded.
 //
 // Each page is a canvas of that day's members, so placing something on a
 // day page is the same gesture, and writes the same arrow, as placing it
@@ -15,13 +24,13 @@ import { loadSet, loadSetDates, pool, usePool } from "../../store/index.js";
 import { Canvas } from "../canvas/Canvas.tsx";
 import { DayPager } from "./DayPager.tsx";
 
-export interface TimelineProps {
+export interface CalendarProps {
   setId: string;
   /** The shell's one navigation primitive. */
   onGoTo: (item: Item, isNew?: boolean) => void;
 }
 
-export function Timeline({ setId, onGoTo }: TimelineProps) {
+export function Calendar({ setId, onGoTo }: CalendarProps) {
   const today = useMemo(() => todayISO(), []);
   const [selected, setSelected] = useState(today);
   const [populated, setPopulated] = useState<string[]>([]);

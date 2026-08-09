@@ -214,7 +214,7 @@ export async function checkTimeline(checks: Checks): Promise<void> {
 export async function checkCanvas(
   setId: string,
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   // Switch to the canvas rather than borrowing the timeline's current
   // page: that page is *today*, and today is empty more often than not.
@@ -305,7 +305,7 @@ export async function checkCanvas(
  */
 export async function checkNavigation(
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   setKind("canvas");
   await settled(".canvas .node");
@@ -447,7 +447,7 @@ async function settledChange(depthBefore: number, timeoutMs = 4000): Promise<voi
 /** Switch to the canvas and wait for the timeline to be gone: its pages
  * are canvases too, and sampling across the swap hands back nodes that
  * are about to be unmounted. */
-async function intoCanvas(setKind: (kind: "timeline" | "canvas" | "list") => void): Promise<void> {
+async function intoCanvas(setKind: (kind: "canvas" | "list") => void): Promise<void> {
   setKind("canvas");
   await waitUntil(() => !document.querySelector(".pager-viewport"), 4000);
   await settled(".canvas .node");
@@ -461,7 +461,7 @@ async function intoCanvas(setKind: (kind: "timeline" | "canvas" | "list") => voi
  */
 export async function checkSelection(
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   setKind("canvas");
   const nodeCount = await settled(".canvas .node");
@@ -615,7 +615,7 @@ export async function checkSelection(
  */
 export async function checkRemoveFromSet(
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   setKind("canvas");
   await settled(".canvas .node");
@@ -761,7 +761,7 @@ function cssId(id: string): string {
  */
 export async function checkDeleteKeys(
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   const target = pool.getItem(PUBLIC_SET_ID);
   if (!target) {
@@ -889,7 +889,7 @@ export async function checkDeleteKeys(
  */
 export async function checkPointing(
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   selection.clear();
   await intoCanvas(setKind);
@@ -964,7 +964,7 @@ export async function checkPointing(
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await sleep(300);
   selection.clear();
-  setKind("timeline");
+  setKind("canvas");
 }
 
 /** Move the pointer off something, the way React hears it. */
@@ -1149,7 +1149,7 @@ export async function checkCommandBar(homeSetId: string, checks: Checks): Promis
 export async function checkList(
   setId: string,
   checks: Checks,
-  setKind: (kind: "timeline" | "canvas" | "list") => void,
+  setKind: (kind: "canvas" | "list") => void,
 ): Promise<void> {
   setKind("list");
 
@@ -1234,5 +1234,5 @@ export async function checkList(
   // leave the set as we found it
   await undo();
   await sleep(400);
-  setKind("timeline");
+  setKind("canvas");
 }
