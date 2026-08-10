@@ -6,21 +6,32 @@
    Solarized) palette — Focus is the one surface in the app that commits to
    dark, same relationship xyz's item-screen had to its own light shell. */
 
+/* Inset below the app's own address bar (index.css's --bar-height)
+   rather than covering the full viewport — that bar is where you are
+   now shows up (an opened item is a crumb of its own, App.tsx's unified
+   trail), so it stays on screen and reachable instead of getting buried
+   under a second, competing bar of Focus's own. */
 .focus-backdrop {
   position: fixed;
-  inset: 0;
+  top: var(--bar-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 20;
-  background: rgba(10, 10, 14, 0);
+  background: rgb(10 10 14 / 0);
   transition: background 320ms ease;
 }
 
 .focus-backdrop.visible {
-  background: rgba(10, 10, 14, 0.7);
+  background: var(--scrim-focus);
 }
 
 .focus {
   position: fixed;
-  inset: 0;
+  top: var(--bar-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
   opacity: 0;
@@ -46,26 +57,24 @@
   opacity: 1;
 }
 
-/* ── Top bar: one strip for every layout, type badge centered ──────── */
+/* ── Toolbar: a flat row, not a card ─────────────────────────────────
+   Sits in normal flow, right below the app's own address bar (Focus no
+   longer covers it — see the inset on .focus above), so this is just
+   the next row down rather than a floating panel competing for the
+   same visual weight. No background, no radius, no shadow — a
+   hairline underneath is the only thing that separates it from the
+   content below, same vocabulary as every other divider in here
+   (.fields, .resources, .chips). */
 
-.focus-bar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
+.focus-toolbar {
   flex: none;
-  gap: 1rem;
-  padding: 20px 32px;
-  background: rgb(24, 24, 28);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 12px 32px;
   border-bottom: 1px solid var(--is-line);
-}
-
-.focus-bar-spacer {
-  grid-column: 1;
-}
-
-.focus-actions,
-.focus-confirm {
-  justify-self: end;
 }
 
 .focus-actions {
@@ -132,7 +141,6 @@
 .type-trigger-wrap {
   position: relative;
   display: inline-flex;
-  grid-column: 2;
 }
 
 .type-trigger {
@@ -162,12 +170,14 @@
   color: var(--is-ink-dim);
 }
 
-.type-popover,
-.opens-as-menu {
+.type-popover {
   position: absolute;
   top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Left-aligned under the trigger, not centered — the trigger sits at
+     the toolbar's left edge now that it's a flat row (Focus.tsx), not
+     the centre column of a grid, so centring pushed half the popover
+     past the window edge. */
+  left: 0;
   z-index: 10;
   min-width: 12rem;
   margin: 0;
@@ -179,18 +189,7 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 
-.opens-as {
-  position: relative;
-}
-
-.opens-as-menu {
-  left: auto;
-  right: 0;
-  transform: none;
-}
-
-.type-option,
-.opens-as-menu button {
+.type-option {
   width: 100%;
   display: flex;
   align-items: center;
@@ -201,11 +200,15 @@
   border-radius: 6px;
   font-size: 13px;
   color: var(--is-ink);
+  /* Same reasoning as .schema-manager-item — a schema's label and its
+     raw name (the fallback for one typed straight into "new type…")
+     shouldn't read as two different capitalization conventions in the
+     same list. */
+  text-transform: capitalize;
   cursor: pointer;
 }
 
-.type-option:hover,
-.opens-as-menu button:hover {
+.type-option:hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -213,6 +216,10 @@
   color: var(--is-accent);
 }
 
+/* Also the type-popover's own "no types yet" empty state — the name
+   predates this file's opens-as chip (removed; presentation is derived
+   from the item's type now, never chosen by hand) and was never
+   renamed. */
 .opens-as-empty {
   padding: 7px 8px;
   color: var(--is-ink-dim);
@@ -230,11 +237,6 @@
   border: 1px solid var(--is-line);
   border-radius: 999px;
   cursor: pointer;
-}
-
-.chip.is-override {
-  border-color: color-mix(in srgb, var(--is-accent) 55%, transparent);
-  color: var(--is-accent);
 }
 
 .chip.is-primary {
@@ -288,40 +290,106 @@
   min-height: 0;
 }
 
-.layout-default,
-.layout-note,
-.layout-video {
+.layout-single {
   height: 100%;
   overflow-y: auto;
   padding: 40px 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* The clear break between the media and the data below it — one
+     value, so it reads the same whether what's above it is a claimed-
+     connections block or straight into the editor. */
+  gap: 40px;
 }
 
-.layout-two-column,
-.layout-album {
+/* Nothing in this column compresses to fit — it scrolls (overflow-y
+   above) rather than squeezing its content down smaller than that
+   content actually needs, whatever it is (an aspect-ratio video, a
+   full-size image, a stack of metadata rows). Without this, a `flex: 1`
+   content area competing for space against enough metadata below it
+   would get shrunk by the flex algorithm to fit — which is exactly
+   what was quietly squishing a movie's trailer down from its own 16:9
+   box the moment there was enough Title/Director/Cast/Fields content
+   underneath it to make "the remaining space" smaller than the video
+   actually wanted. */
+.layout-single > * {
+  flex-shrink: 0;
+}
+
+.layout-two-column {
   display: flex;
   height: 100%;
 }
 
-/* The album lightbox: cover above a scrolling tracklist, rather than one
-   centred thing — there are two, and the second one is a list. */
-.layout-album .layout-content {
+/* A cover above a scrolling list, rather than one centred thing — the
+   shape TwoColumn's `stackContent` asks for (AlbumLayout today). */
+.layout-content.is-stacked {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   overflow-y: auto;
 }
 
-.album-tracklist {
+/* Plain artwork, not a card — no border, no shadow, nothing competing
+   with the image itself. Square by default, capped so it doesn't swell
+   past a sensible size on a wide window; CoverArt's `shape="portrait"`
+   (a book jacket) switches the aspect ratio below. */
+.cover-art-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.cover-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.cover-art.is-portrait {
+  aspect-ratio: 3 / 4;
+}
+
+/* CoverArt's optional `actionLabel` — quiet until you're actually
+   pointed at the cover, so the image itself stays the whole picture
+   otherwise. */
+.cover-art-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--is-ink);
+  background: rgb(10 10 14 / 0.55);
+  border-radius: 6px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.cover-art-button:hover .cover-art-label,
+.cover-art-button:focus-visible .cover-art-label {
+  opacity: 1;
+}
+
+.children-list {
   margin: 24px 0 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--is-line);
 }
 
-.album-tracklist li {
+.children-list li {
   display: flex;
   align-items: baseline;
   gap: 16px;
@@ -329,7 +397,7 @@
   border-bottom: 1px solid var(--is-line);
 }
 
-.track-number {
+.child-index {
   flex-shrink: 0;
   width: 1.5em;
   color: var(--is-ink-dim);
@@ -337,7 +405,7 @@
   text-align: right;
 }
 
-.track-name {
+.child-primary {
   flex: 1;
   min-width: 0;
   color: var(--is-ink);
@@ -346,7 +414,7 @@
   white-space: nowrap;
 }
 
-.track-duration {
+.child-trailing {
   flex-shrink: 0;
   color: var(--is-ink-dim);
   font-size: 13px;
@@ -362,14 +430,10 @@
   justify-content: center;
 }
 
-.layout-default .layout-content,
-.layout-note .layout-content,
-.layout-video .layout-content {
-  flex: 1;
+.layout-single .layout-content {
   width: 100%;
   max-width: 960px;
   padding: 0;
-  min-height: 0;
 }
 
 .layout-content.is-wide {
@@ -387,12 +451,9 @@
   box-sizing: border-box;
 }
 
-.layout-default .layout-editor,
-.layout-note .layout-editor,
-.layout-video .layout-editor {
+.layout-single .layout-editor {
   width: 100%;
   max-width: 640px;
-  margin-top: 24px;
 }
 
 .claimed {
@@ -420,6 +481,87 @@
   color: var(--is-ink-dim);
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ── Resource carousel — paging through more than one source ────────
+   Replicates .layout-content's own centering one level in, so nothing
+   about how a .content-slot sizes itself per-fit changes; the nav
+   controls anchor to this box's full edges rather than to whatever
+   (possibly smaller) box the current slide happens to need. */
+
+.resource-carousel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  /* .layout-content's own align-items is `center`, not `stretch` — it
+     deliberately doesn't stretch compact content (a link card, a file
+     icon) to full height. This one child needs to fill the available
+     height regardless (that's what the aspect-ratio slides inside it
+     size against), and `align-self: stretch` gets there through the
+     flex algorithm directly rather than a `height: 100%` percentage
+     lookup — the latter has to resolve through .layout-single's
+     `overflow-y: auto` two levels up, which is exactly the kind of
+     chain that percentage heights unreliably resolve through. */
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--is-ink);
+  background: rgb(24 24 28 / 0.7);
+  border: 1px solid var(--is-line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.carousel-nav:hover {
+  background: rgb(24 24 28 / 0.9);
+}
+
+.carousel-nav.is-prev {
+  left: 12px;
+}
+
+.carousel-nav.is-next {
+  right: 12px;
+}
+
+.carousel-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+}
+
+.carousel-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.35);
+  cursor: pointer;
+}
+
+.carousel-dot.is-current {
+  background: var(--is-ink);
 }
 
 /* ── Content slot — bounds only; the renderer fits itself into it ──── */
@@ -461,9 +603,44 @@
   border-radius: 6px;
 }
 
+/* VideoEmbed's own box — self-sized rather than depending on a
+   .fit-aspect-16-9 ancestor, since MovieLayout drops this somewhere
+   Focus.tsx's content-slot wrapper never reaches. Same proportions as
+   .fit-aspect-16-9 above; nesting the two (the ordinary video-format
+   path, where Focus.tsx's wrapper is still present) is harmless. */
+.video-embed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.video-embed iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 6px;
+}
+
 .fit-aspect-3-4 {
   height: 100%;
   aspect-ratio: 3 / 4;
+}
+
+/* In SingleColumn (Default/Note/Video/Movie), content sits *above* a
+   scrollable stack of metadata rather than beside a same-height editor
+   column — so there's no "available height" for `.content-slot`'s own
+   `height: 100%` to correctly fill; whatever it resolves to is
+   whatever's left after the metadata below claims its share, which
+   fights `aspect-ratio` for the box's actual height and usually wins
+   (an explicit height overrides aspect-ratio, per spec), crushing the
+   video/book box down small instead of sizing it from its own width.
+   `height: auto` here lets aspect-ratio do that job purely from width,
+   the way it's meant to — the column simply grows taller and scrolls.
+   TwoColumn (Photo, Album, a book beside its editor) keeps the
+   height: 100% above: there, content sits beside a same-height column,
+   so filling it is correct. */
+.layout-single .fit-aspect-16-9,
+.layout-single .fit-aspect-3-4 {
+  height: auto;
 }
 
 .renderer-quiet,
@@ -578,8 +755,7 @@
   overflow: hidden;
 }
 
-.renderer-book,
-.renderer-book-cover {
+.renderer-book {
   width: 100%;
   height: 100%;
   display: flex;
@@ -589,20 +765,23 @@
   gap: 0.6rem;
 }
 
-.renderer-book-cover {
+/* The one cover state CoverArt doesn't handle: no cover image at all
+   yet, but still clickable to start reading. */
+.book-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
   background: none;
-  border: 0;
-  cursor: pointer;
+  border: 1px dashed var(--is-line-strong);
+  border-radius: 6px;
   color: var(--is-ink-dim);
   font: inherit;
   font-size: 13px;
-}
-
-.renderer-book-cover img {
-  max-height: 100%;
-  max-width: 100%;
-  border-radius: 4px;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
 }
 
 .renderer-book-surface {

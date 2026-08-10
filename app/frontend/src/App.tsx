@@ -8,11 +8,14 @@
 // beneath every jump is `~`, not nothing.
 //
 // There is one navigation primitive: `goTo`. A place you enter, a thing
-// you open. Which one an item is comes from the pool, and the views draw
-// the difference so the same click never surprises you.
+// you open — both are trail entries now (store/location.ts's
+// `PathEntry`), so the address bar remembers either kind and a refresh
+// restores exactly where you were, focus view included. The views still
+// draw the difference (a place swaps the stage, a thing overlays it) so
+// the same click never surprises you; only the bookkeeping is unified.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
-import { apply, changes } from "./changes/index.js";
+import { apply, applyUntracked, changes } from "./changes/index.js";
 import { commandsFor } from "./commands/index.js";
 import { CommandBar } from "./components/CommandBar.tsx";
 import { Confirm } from "./components/Confirm.tsx";
@@ -39,6 +42,7 @@ import { captionOf } from "./lib/derive.js";
 import { createItemsFromPaths } from "./lib/intake.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
 import { holdsEverything } from "./lib/sets.js";
+import { homeEntry, readStoredPath, storePath, type PathEntry } from "./store/location.js";
 import {
   errors,
   loadItem,
@@ -77,9 +81,12 @@ export function App() {
     ? (import.meta.env.VITE_INDEX_VIEW as (typeof VIEW_MODES)[number])
     : null;
 
-  // The trail of places walked into, `~` always at the bottom of it — the
-  // launch state and the floor every `goBack` eventually lands on.
-  const [path, setPath] = useState<string[]>([HOME_SET_ID]);
+  // The trail — places walked into and things opened, in the order they
+  // happened — `~` always at the bottom of it: the launch state and the
+  // floor every `goBack` eventually lands on. Read from where the last
+  // session left it (store/location.ts), so a refresh reopens the same
+  // place — or the same opened item — instead of falling back to `~`.
+  const [path, setPath] = useState<PathEntry[]>(readStoredPath);
   // How you look at a set's members — canvas or list — is one persisted,
   // application-level choice (store/viewMode.ts), not anything a set
   // remembers about itself; it follows you from set to set.
@@ -91,7 +98,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
   const [commanding, setCommanding] = useState(false);
   const navBarRef = useRef<NavBarHandle>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -99,15 +105,33 @@ export function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const troubles = useTroubles();
 
-  // Never empty: `enter` and `jump` are the only ways to move it, and
-  // both always land on the id they were given.
-  const currentSetId = path[path.length - 1] as string;
+  // The space actually on the stage — the nearest trailing entry that's a
+  // walked-into place, skipping any things opened on top of it. Never
+  // empty: every primitive that moves the trail lands on at least one
+  // place-shaped entry (`closeOpened` falls back to `homeEntry()` rather
+  // than ever letting the trail run out).
+  const currentSetId = useMemo(() => {
+    for (let i = path.length - 1; i >= 0; i -= 1) {
+      const entry = path[i];
+      if (entry && !entry.open) return entry.id;
+    }
+    return HOME_SET_ID;
+  }, [path]);
+
+  // The last crumb, when it's a thing rather than a place — what Focus
+  // shows. Read straight from the trail instead of kept as separate
+  // state, so a refresh remembers it exactly the way it remembers the
+  // trail itself.
+  const openedEntry = path[path.length - 1];
+  const opened = openedEntry?.open ? { id: openedEntry.id, isNew: openedEntry.isNew } : null;
 
   /** The set on the stage — what "remove from" means. */
   const currentSet = usePool(() => pool.getItem(currentSetId) ?? null);
 
   // The trail, resolved to records so the crumbs can name themselves.
-  const crumbs = usePool(() => path.map((id) => ({ id, item: pool.getItem(id) })));
+  const crumbs = usePool(() =>
+    path.map((entry) => ({ id: entry.id, item: pool.getItem(entry.id), open: entry.open })),
+  );
 
   /**
    * Who holds an arrow into the set on the stage. Membership is the union
@@ -133,27 +157,47 @@ export function App() {
     // to who is in the set re-runs this, whoever made that change.
   }, [currentSetId, membership]);
 
-  /** Arrive at a place on the given trail. Every way of getting somewhere
-   * ends here; they differ only in the trail they claim to have walked.
-   * How it's viewed is not decided here — `viewMode` is global and
-   * follows you in, unchanged, from wherever you were. What was picked
-   * does not follow you in: it named something on the set left behind,
-   * and staying chosen but invisible is exactly the stale state Escape's
-   * "put it down" is supposed to mean something for.
+  /**
+   * Arrive at a position on the trail — a place entered or a thing
+   * opened, or several at once when a crumb click or a jump truncates
+   * back through some of both. Every way of getting somewhere ends here.
+   *
+   * Anything that falls off the trail here and was a still-blank item
+   * opened by the very gesture that made it (`open: true, isNew: true`)
+   * is discarded, untracked — you looked at it and moved on, and there
+   * is nothing about an empty draft worth keeping. This used to live in
+   * Focus's own dismiss handler, but a crumb click or a fresh `enter`
+   * elsewhere can now drop such an entry without Focus's handler ever
+   * firing, so the check belongs to the one place every trail change
+   * already passes through.
    */
-  const arriveAt = useCallback((id: string, trail: string[]) => {
-    setPath(trail);
-    setOpened(null);
-    selection.clear();
-  }, []);
+  const arriveAt = useCallback(
+    (trail: PathEntry[]) => {
+      const surviving = new Set(trail.map((entry) => `${entry.id}:${entry.open}`));
+      for (const entry of path) {
+        if (surviving.has(`${entry.id}:${entry.open}`)) continue;
+        if (!entry.open || !entry.isNew) continue;
+        const current = pool.getItem(entry.id);
+        if (!current || !isBlankDraft(current)) continue;
+        const discard = changes.deleteItem(current);
+        if (discard) void applyUntracked(discard);
+      }
+
+      setPath(trail);
+      storePath(trail);
+      selection.clear();
+    },
+    [path],
+  );
 
   /** Walk into a place: it becomes the last crumb. Going somewhere
    * already on the trail truncates back to it rather than pushing a
    * second copy. */
   const enter = useCallback(
     (id: string) => {
-      const at = path.indexOf(id);
-      arriveAt(id, at === -1 ? [...path, id] : path.slice(0, at + 1));
+      const at = path.findIndex((entry) => entry.id === id && !entry.open);
+      const trail = at === -1 ? [...path, { id, open: false, isNew: false }] : path.slice(0, at + 1);
+      arriveAt(trail);
     },
     [arriveAt, path],
   );
@@ -164,23 +208,58 @@ export function App() {
    * already behind you, which is a walk back. */
   const jump = useCallback(
     (id: string) => {
-      const at = path.indexOf(id);
-      arriveAt(id, at === -1 ? [id] : path.slice(0, at + 1));
+      const at = path.findIndex((entry) => entry.id === id && !entry.open);
+      const trail = at === -1 ? [{ id, open: false, isNew: false }] : path.slice(0, at + 1);
+      arriveAt(trail);
     },
     [arriveAt, path],
   );
 
+  /** The item equivalent of `enter`: what's opened becomes the last
+   * crumb too, rather than a separate overlay the trail knows nothing
+   * about. Matching is on `(id, open)` together, not `id` alone — that's
+   * what lets the same item appear twice (entered as a place, and
+   * separately opened as itself via "About") without ambiguity. */
+  const open = useCallback(
+    (id: string, isNew = false) => {
+      const at = path.findIndex((entry) => entry.id === id && entry.open);
+      const trail = at === -1 ? [...path, { id, open: true, isNew }] : path.slice(0, at + 1);
+      arriveAt(trail);
+    },
+    [arriveAt, path],
+  );
+
+  /** The item equivalent of `jump` — picking a thing straight from the
+   * nav bar's search didn't walk through anywhere either, so the trail
+   * starts over at it the same way `jump` does for a place. */
+  const openJump = useCallback(
+    (id: string) => {
+      const at = path.findIndex((entry) => entry.id === id && entry.open);
+      const trail = at === -1 ? [{ id, open: true, isNew: false }] : path.slice(0, at + 1);
+      arriveAt(trail);
+    },
+    [arriveAt, path],
+  );
+
+  // Kept current every render so the once-only VITE_INDEX_OPEN effect
+  // below can call the latest `open` without depending on it — depending
+  // on it would tear the effect's interval down and restart it on every
+  // navigation, which the effect's own once-only bookkeeping assumes
+  // never happens.
+  const openRef = useRef(open);
+  openRef.current = open;
+
   /**
-   * The one primitive. A place you enter; a thing you open. An item you
-   * just made is always opened, whatever it looks like — you made it to
-   * say something about it.
+   * The one primitive. A place you enter; a thing you open — both are
+   * trail entries now. An item you just made is always opened, whatever
+   * it looks like — you made it to say something about it.
    */
   const goTo = useCallback(
     (item: { id: string }, isNew?: boolean) => {
       if (!isNew && pool.isPlace(item.id)) enter(item.id);
-      else setOpened({ id: item.id, isNew: Boolean(isNew) });
+      else open(item.id, Boolean(isNew));
     },
-    [enter],
+    [enter, open],
   );
 
   /** ⌘/ and ⌂ — `~` is titled "All" and holds everything by query
@@ -191,13 +270,42 @@ export function App() {
   /** ← — one step back on the trail: the same place clicking the crumb
    * behind the current one would land you. `~` is the floor — back from
    * it, or from a trail a jump started elsewhere, lands on All rather
-   * than going anywhere stranger. */
+   * than going anywhere stranger. Only ever reached while nothing is
+   * open (`overlayOpen` gates the keys that call this off otherwise), so
+   * the entry it pops is always a place. */
   const goBack = useCallback(() => {
-    if (currentSetId === HOME_SET_ID) return;
-    const previous = path[path.length - 2];
-    if (previous) enter(previous);
-    else goAll();
-  }, [path, currentSetId, enter, goAll]);
+    const last = path[path.length - 1];
+    if (path.length <= 1) {
+      if (last?.id !== HOME_SET_ID) goAll();
+      return;
+    }
+    arriveAt(path.slice(0, -1));
+  }, [path, arriveAt, goAll]);
+
+  /** Focus's dismiss: pop the item it's showing off the trail. Unlike
+   * `goBack`, this always has to succeed in closing it — even when the
+   * open item is the trail's only entry (reachable via `openJump`, a
+   * direct search pick with nothing behind it) — so an emptied trail
+   * falls back to the floor rather than refusing to move. */
+  const closeOpened = useCallback(() => {
+    const rest = path.slice(0, -1);
+    arriveAt(rest.length > 0 ? rest : [homeEntry()]);
+  }, [path, arriveAt]);
+
+  /** A crumb behind the current one, clicked: walk back to exactly that
+   * position in the trail. Index-based rather than a fresh `enter`,
+   * which would have to guess whether that position was a place or a
+   * thing — the trail already knows. */
+  const goToCrumb = useCallback((index: number) => arriveAt(path.slice(0, index + 1)), [arriveAt, path]);
+
+  /** The last crumb, clicked: open what you're standing in — a place's
+   * own record (PRODUCT-SPEC §3.4's "About X"), how a set's own name and
+   * fields get edited without leaving it. Already open is a harmless
+   * no-op, via the same truncate-to-existing rule `open` applies. */
+  const openHere = useCallback(() => {
+    const last = path[path.length - 1];
+    if (last) open(last.id);
+  }, [path, open]);
 
   /** → — the same primitive as a click or an ↵, aimed at whatever is
    * picked out. Ambiguous with more than one picked, so it does nothing
@@ -241,9 +349,9 @@ export function App() {
   const goToPicked = useCallback(
     (id: string) => {
       if (pool.isPlace(id)) jump(id);
-      else setOpened({ id, isNew: false });
+      else openJump(id);
     },
-    [jump],
+    [jump, openJump],
   );
 
   /** The picked items, as records — what every batch action works on. */
@@ -453,7 +561,7 @@ export function App() {
       if (key === "k" || key === "f") {
         event.preventDefault();
         navBarRef.current?.stopEditing();
-        setCommanding((open) => !open);
+        setCommanding((wasCommanding) => !wasCommanding);
       } else if (key === "l") {
         event.preventDefault();
         setCommanding(false);
@@ -471,10 +579,10 @@ export function App() {
   }, [goAll]);
 
   // Every crumb has to be able to name itself, however you arrived —
-  // walked in, forced by an env var, or restored on the trail.
+  // walked in, opened, forced by an env var, or restored on the trail.
   useEffect(() => {
-    for (const id of path) {
-      if (!pool.getItem(id)) void loadItem(id);
+    for (const entry of path) {
+      if (!pool.getItem(entry.id)) void loadItem(entry.id);
     }
   }, [path]);
 
@@ -497,7 +605,7 @@ export function App() {
       if (!match) return;
       autoOpened.current = true;
       clearInterval(timer);
-      setOpened({ id: match.id, isNew: false });
+      openRef.current(match.id);
     }, 250);
     return () => clearInterval(timer);
   }, []);
@@ -562,10 +670,10 @@ export function App() {
             when a jump left it out of the trail. */}
         <NavBar
           atHome={currentSetId === HOME_SET_ID}
-          crumbs={path[0] === HOME_SET_ID ? crumbs.slice(1) : crumbs}
-          onEnter={enter}
+          crumbs={path[0]?.id === HOME_SET_ID ? crumbs.slice(1) : crumbs}
+          onEnter={goToCrumb}
           onHome={goAll}
-          onOpenHere={(id) => setOpened({ id, isNew: false })}
+          onOpenHere={openHere}
           onPick={goToPicked}
           ref={navBarRef}
         />
@@ -613,7 +721,7 @@ export function App() {
           isNew={opened.isNew}
           itemId={opened.id}
           key={opened.id}
-          onDismiss={() => setOpened(null)}
+          onDismiss={closeOpened}
           // Following a connection is the same primitive as anywhere else:
           // a place takes you there, a thing swaps the focus to it.
           onGoTo={goTo}
@@ -657,6 +765,20 @@ export function App() {
 /** The view a toggle lands on — there are only ever two. */
 function otherViewMode(mode: ViewMode): ViewMode {
   return mode === "canvas" ? "list" : "canvas";
+}
+
+/** An item is "still blank" when nothing has been said about it — what
+ * decides whether a still-new item, once it falls off the trail, is
+ * worth keeping (`arriveAt`) rather than discarded. */
+function isBlankDraft(item: Item): boolean {
+  return (
+    item.name.trim() === "" &&
+    !item.display_name &&
+    !item.type &&
+    item.resources.length === 0 &&
+    item.fields.length === 0 &&
+    pool.connectionsTouching(item.id).length === 0
+  );
 }
 
 /**

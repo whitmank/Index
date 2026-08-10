@@ -5,10 +5,7 @@ import { deviceOf } from "../lib/derive.js";
 import { errors } from "../store/index.js";
 import type { RendererProps } from "./registry.tsx";
 
-export function FileRenderer({ item }: RendererProps) {
-  const resource = item.resources[0];
-  if (!resource) return null;
-
+export function FileRenderer({ resource }: RendererProps) {
   const device = deviceOf(resource.uri);
 
   return (

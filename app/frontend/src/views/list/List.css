@@ -191,6 +191,14 @@
   font-size: var(--text-sm);
 }
 
+/* `item.type` is a raw schema name (a machine key, always lowercase by
+   convention) — capitalized here same as the type badge/menu in Focus
+   and the types list in Settings, so a type reads the same wherever
+   it's shown. */
+.col-type {
+  text-transform: capitalize;
+}
+
 .col-date {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

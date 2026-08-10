@@ -475,10 +475,22 @@ export async function checkFocus(checks: Checks): Promise<void> {
   }
   const itemId = node.dataset.item ?? "";
 
+  // Opening a thing is a trail entry now too (App.tsx's unified `path`) —
+  // it appends a crumb rather than the old, trail-blind overlay.
+  const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
+  const nodeName = node.querySelector(".node-caption")?.textContent ?? "";
+  const beforeOpen = trail();
+
   await clickAt(node);
   const focus = await waitFor<HTMLElement>(".focus");
   checks.say(Boolean(focus), "clicking a node opens its focus view");
   if (!focus) return;
+
+  checks.say(
+    trail().length === beforeOpen.length + 1,
+    `opening a thing appends a crumb for it — trail is ${trail().join(" / ")}`,
+  );
+  checks.say(trail()[trail().length - 1] === nodeName, "the last crumb is the thing you opened");
 
   const chip = focus.querySelector(".opens-as .chip")?.textContent ?? "";
   checks.say(chip.startsWith("opens as"), `the opens-as chip reads "${chip}"`);
@@ -547,6 +559,7 @@ export async function checkFocus(checks: Checks): Promise<void> {
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await sleep(300);
   checks.say(!document.querySelector(".focus"), "Escape dismisses the focus view");
+  checks.say(trail().join(" / ") === beforeOpen.join(" / "), "dismissing it pops the crumb back off");
 }
 
 function historyDepth(): number {
@@ -1213,9 +1226,11 @@ export async function checkCommandBar(checks: Checks): Promise<void> {
  * they used to share (checkCommandBar covers what stayed behind). It
  * opens quiet — nothing offered until a name is typed, on purpose, so
  * opening the field is never itself a wall of suggestions. Typed, it
- * searches both sets and things by a substring of their name; ↵ on a
- * set jumps the trail straight there, ↵ on a thing opens it in focus
- * without moving the trail at all.
+ * searches both sets and things by a substring of their name; ↵ on
+ * either jumps the trail straight to it — a set as the space on the
+ * stage, a thing opened in focus — since picking something this way
+ * never claims to have walked through anywhere to get there (App.tsx's
+ * `jump`/`openJump`).
  */
 export async function checkNavBar(homeSetId: string, checks: Checks): Promise<void> {
   const open = async (): Promise<HTMLInputElement | null> => {
@@ -1269,7 +1284,9 @@ export async function checkNavBar(homeSetId: string, checks: Checks): Promise<vo
   checks.say(!document.querySelector(".focus"), "going to a set did not open it as a thing instead");
   checks.say(!document.querySelector(".nav-input"), "the field closed behind you");
 
-  // ↵ on a thing opens it where you stand, leaving the trail alone.
+  // ↵ on a thing opens it where you stand — and, like a set, the trail
+  // starts over at it (`openJump`): picking something from search never
+  // claims to have walked through wherever you were a moment ago.
   const thing = pool
     .all()
     .filter(pool.isItem)
@@ -1280,10 +1297,6 @@ export async function checkNavBar(homeSetId: string, checks: Checks): Promise<vo
   }
   const thingName = thing.display_name ?? thing.name;
 
-  // Read before the field reopens: editing trades the crumbs for the
-  // field itself, so once it is open there is no `.bar-crumb` left to
-  // read at all.
-  const wasTrail = trail().join(" / ");
   field = await open();
   if (!field) {
     checks.say(false, "nav bar — would not reopen");
@@ -1301,14 +1314,20 @@ export async function checkNavBar(homeSetId: string, checks: Checks): Promise<vo
 
   const openedIt = await waitFor(".focus", 4000);
   checks.say(Boolean(openedIt), "picking a thing opens it in focus");
-  checks.say(trail().join(" / ") === wasTrail, "opening a thing left the trail where it was");
+  checks.say(
+    trail().join(" / ") === thingName,
+    `picking a thing from search jumps the trail to it too — trail is ${trail().join(" / ") || "(empty)"}`,
+  );
 
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await sleep(300);
 
-  // Escape closes the field without going anywhere — and leaves us home.
-  // `~` owns no crumb of its own (⌂ already says it), so home reads as an
-  // *empty* trail, not one bearing its name.
+  // Focus is what's open here, not the field — Escape dismisses it
+  // (App.tsx's `closeOpened`), and since the thing we opened was the
+  // trail's only entry, popping it empties the trail, which falls back
+  // to home. The explicit search-and-Enter below is redundant with that
+  // — already home — but harmless, and doubles as its own small check
+  // that jumping to where you already are doesn't do anything stranger.
   field = await open();
   if (!field) return;
   typeInto(field, homeName.toLowerCase());

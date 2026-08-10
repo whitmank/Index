@@ -31,6 +31,10 @@
   --warn: #d4af0f;
   --violet: #6c71c5; /* violet — a chosen override */
 
+  /* The address bar's own height — named so Focus's overlay (Focus.css)
+     can inset itself below the real thing rather than covering it. */
+  --bar-height: 2.75rem;
+
   --shadow-pop: 0 12px 32px rgb(88 110 117 / 0.2);
   --shadow-modal: 0 24px 64px rgb(88 110 117 / 0.26);
   --scrim: rgb(101 123 131 / 0.24);
@@ -217,7 +221,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  height: 2.75rem;
+  height: var(--bar-height);
   padding: 0 0.65rem;
   border-bottom: 1px solid var(--line);
   /* The window is frameless — no title bar, no traffic lights — so the
@@ -266,11 +270,15 @@ body {
   font-size: var(--text-sm);
 }
 
-/* Every crumb is a button. The ones behind you go back; the last one —
-   where you are — opens the place itself, which is how you edit a set's
-   own name and fields without leaving it. */
+/* Every crumb is a button — a place walked into, or a thing opened, in
+   the order it happened. The ones behind you go back to exactly that
+   position; the last one — where you are — opens the place itself (or,
+   already a thing, is a no-op), which is how you edit a set's own name
+   and fields without leaving it. */
 .bar-crumb {
   -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
   font: inherit;
   font-size: var(--text-base);
   letter-spacing: var(--tracking-wide);
@@ -284,6 +292,17 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* The mark that tells an opened thing apart from a walked-into place in
+   the trail — the same format glyph the search dropdown's rows use,
+   just smaller, since here it sits inline with plain crumb text rather
+   than its own column. */
+.bar-crumb-mark {
+  flex: none;
+  margin-right: 0.3rem;
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
 }
 
 .bar-crumb:hover {

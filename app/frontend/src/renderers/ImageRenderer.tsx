@@ -4,11 +4,9 @@
 import { useState } from "react";
 import type { RendererProps } from "./registry.tsx";
 
-export function ImageRenderer({ item }: RendererProps) {
-  const resource = item.resources[0];
+export function ImageRenderer({ item, resource }: RendererProps) {
   const [failed, setFailed] = useState(false);
 
-  if (!resource) return null;
   if (failed) {
     return <p className="renderer-missing">this file isn’t where it used to be</p>;
   }

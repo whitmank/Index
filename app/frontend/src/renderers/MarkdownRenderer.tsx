@@ -11,13 +11,11 @@ import type { RendererProps } from "./registry.tsx";
 
 type State = { status: "loading" } | { status: "ready"; html: string } | { status: "missing" };
 
-export function MarkdownRenderer({ item }: RendererProps) {
-  const resource = item.resources[0];
-  const uri = resource?.uri;
+export function MarkdownRenderer({ resource }: RendererProps) {
+  const uri = resource.uri;
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
-    if (!uri) return;
     let cancelled = false;
 
     void (async () => {
@@ -37,7 +35,6 @@ export function MarkdownRenderer({ item }: RendererProps) {
     };
   }, [uri]);
 
-  if (!resource) return null;
   if (state.status === "loading") return <p className="renderer-quiet">reading…</p>;
   if (state.status === "missing") {
     return <p className="renderer-missing">this file isn’t where it used to be</p>;

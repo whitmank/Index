@@ -9,15 +9,24 @@
 // Tagging something "movie" *is* the user experience of choosing its
 // layout: one action, and inference does the rest. Classifying something
 // "book" now does the same, through data (a schemas row) instead of a
-// code file per type — see KnownFields below. The `opens` override
-// exists only to record disagreement with either.
-import type { Field, FieldKind, Item, Schema } from "@index/database/types";
+// code file per type.
+//
+// This file is deliberately thin: the types below, the cascade, and the
+// registry map. Every layout's own arrangement lives in its own file
+// under types/, composed from the shared pieces under parts/ — a layout
+// that needs a bespoke composition (AlbumLayout) has somewhere to write
+// it; one that doesn't (Default, Note, Video, Movie, Photo) is a couple
+// of lines.
+import type { FieldKind, Item, Resource, Schema } from "@index/database/types";
 import type { ReactNode } from "react";
-import { apply, changes } from "../changes/index.js";
-import { ListValueInput } from "../components/ListValueInput.tsx";
-import { SettleInput } from "../components/SettleInput.tsx";
-import { blankFieldValue } from "../lib/fields.js";
-import { pool, usePool } from "../store/index.js";
+import { youtubeId } from "../components/VideoEmbed.tsx";
+import { TwoColumn } from "./parts/TwoColumn.tsx";
+import { AlbumLayout } from "./types/AlbumLayout.tsx";
+import { DefaultLayout } from "./types/DefaultLayout.tsx";
+import { MovieLayout } from "./types/MovieLayout.tsx";
+import { NoteLayout } from "./types/NoteLayout.tsx";
+import { PhotoLayout } from "./types/PhotoLayout.tsx";
+import { VideoLayout } from "./types/VideoLayout.tsx";
 
 export interface ClaimedConnection {
   label: string;
@@ -50,174 +59,13 @@ export interface LayoutEntry {
   fields?: KnownField[];
   /** Label names this layout pulls out of the generic chips. */
   labels?: string[];
+  /** Which resource the content carousel should open on, when there's
+   * more than one — a layout's own domain knowledge (a movie prefers
+   * its trailer over its IMDb page) the generic carousel-building code
+   * in Focus.tsx doesn't have. Absent means "start on the primary
+   * resource" — every layout's default. */
+  preferredResource?: (resource: Resource) => boolean;
   Component: (props: LayoutProps) => ReactNode;
-}
-
-function upsertByName(fields: Field[], name: string, value: Field["value"], kind: FieldKind): Field[] {
-  const at = fields.findIndex((field) => field.name.toLowerCase() === name.toLowerCase());
-  if (at === -1) return [...fields, { name, value, kind }];
-  return fields.map((field, index) => (index === at ? { ...field, value, kind } : field));
-}
-
-/**
- * A layout's own recognized fields — dedicated, always-present rows
- * (whether or not the item has them yet), matching a schema's or code
- * layout's declared field list. Editing a still-empty row creates the
- * real field on first commit (upsert by name); editing an existing one
- * updates it in place. Unlike the generic FieldsEditor, names here
- * aren't user-editable and there's no add/remove — the layout itself is
- * what decides which rows exist.
- */
-export function KnownFields({ item, fields }: { item: Item; fields: KnownField[] }) {
-  if (fields.length === 0) return null;
-  return (
-    <ul className="fields-list fields-list-unlabeled">
-      {fields.map(({ name, kind }) => {
-        const field = item.fields.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
-        const value = field?.value ?? blankFieldValue(kind);
-        const commit = (next: Field["value"]) =>
-          void apply(changes.setFields(item, upsertByName(item.fields, name, next, kind)));
-        return (
-          <li className="fields-row" key={name}>
-            <span className="known-fields-name">{name}</span>
-            {kind === "list" ? (
-              <ListValueInput
-                ariaLabel={name}
-                className="fields-value-input"
-                onCommit={commit}
-                value={Array.isArray(value) ? value : []}
-              />
-            ) : (
-              <SettleInput
-                ariaLabel={name}
-                className="fields-value-input"
-                onCommit={commit}
-                placeholder="value"
-                value={typeof value === "string" ? value : ""}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function ClaimedConnections({ connections }: { connections: ClaimedConnection[] }) {
-  if (connections.length === 0) return null;
-  return (
-    <dl className="claimed">
-      {connections.map((connection) => (
-        <div key={`${connection.label}${connection.targetId}`}>
-          <dt>{connection.label}</dt>
-          <dd>{connection.targetName}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/** Single column: content, then the editor below it. */
-function DefaultLayout({ content, editor, connections }: LayoutProps) {
-  return (
-    <div className="layout layout-default">
-      <div className="layout-content">{content}</div>
-      <ClaimedConnections connections={connections} />
-      <div className="layout-editor">{editor}</div>
-    </div>
-  );
-}
-
-/** Two columns: content beside a metadata column — what a schema-typed
- * item, or a tagged movie/photo, gets. */
-function TwoColumnLayout({ content, editor, connections }: LayoutProps) {
-  return (
-    <div className="layout layout-two-column">
-      <div className="layout-content">{content}</div>
-      <div className="layout-side">
-        <ClaimedConnections connections={connections} />
-        <div className="layout-editor">{editor}</div>
-      </div>
-    </div>
-  );
-}
-
-/** Content only; the editor waits behind an affordance. */
-function NoteLayout({ content, editor, connections }: LayoutProps) {
-  return (
-    <div className="layout layout-note">
-      <div className="layout-content">{content}</div>
-      <ClaimedConnections connections={connections} />
-      <details className="layout-editor-fold">
-        <summary>edit</summary>
-        <div className="layout-editor">{editor}</div>
-      </details>
-    </div>
-  );
-}
-
-/** Full-width player, editor below. */
-function VideoLayout({ content, editor, connections }: LayoutProps) {
-  return (
-    <div className="layout layout-video">
-      <div className="layout-content is-wide">{content}</div>
-      <ClaimedConnections connections={connections} />
-      <div className="layout-editor">{editor}</div>
-    </div>
-  );
-}
-
-/** `Nurture —track→ Lifelike`: a labelled connection, not a tag — an
- * album's songs are a stated relationship, never the unlabelled form that
- * `isPlace` reads as containment (PRODUCT-SPEC §3.4). That is what lets an
- * album hold songs without becoming somewhere you walk into instead of
- * open; mirrored from `labelId("track")` in @index/database, the same way
- * `lib/seeds.ts` mirrors the two system set ids. */
-const ALBUM_TRACK_LABEL = "labels:track";
-
-function durationOf(song: Item): string {
-  const field = song.fields.find((candidate) => candidate.name.toLowerCase() === "duration");
-  return typeof field?.value === "string" ? field.value : "";
-}
-
-/** Cover and tracklist beside the metadata — the lightbox a Spotify-style
- * album page gets. The tracklist reads its own connections directly
- * rather than through `connections` (the generic claimed-chip shape,
- * unused here) — a track row wants the song's order and duration too,
- * and showing the same 14 rows twice would be its own kind of clutter. */
-function AlbumLayout({ item, content, editor }: LayoutProps) {
-  const tracks = usePool(() =>
-    pool
-      .outboundFrom(item.id)
-      .filter((connection) => connection.label === ALBUM_TRACK_LABEL)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .flatMap((connection) => {
-        const song = pool.getItem(connection.target);
-        return song ? [{ id: connection.id, song }] : [];
-      }),
-  );
-
-  return (
-    <div className="layout layout-album">
-      <div className="layout-content">
-        {content}
-        {tracks.length > 0 && (
-          <ol className="album-tracklist">
-            {tracks.map(({ id, song }, index) => (
-              <li key={id}>
-                <span className="track-number">{index + 1}</span>
-                <span className="track-name">{song.display_name ?? (song.name || "untitled")}</span>
-                <span className="track-duration">{durationOf(song)}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-      <div className="layout-side">
-        <div className="layout-editor">{editor}</div>
-      </div>
-    </div>
-  );
 }
 
 export const layouts: Record<string, LayoutEntry> = {
@@ -225,9 +73,13 @@ export const layouts: Record<string, LayoutEntry> = {
   movie: {
     fields: [{ name: "year", kind: "string" }],
     labels: ["author", "director"],
-    Component: TwoColumnLayout,
+    // A movie's primary resource is often its IMDb or Wikipedia page —
+    // the definitive record, not the thing to play — so the carousel
+    // opens on whichever resource is actually a trailer instead.
+    preferredResource: (resource) => Boolean(youtubeId(resource.uri)),
+    Component: MovieLayout,
   },
-  photo: { fields: [{ name: "exif", kind: "string" }], Component: TwoColumnLayout },
+  photo: { fields: [{ name: "exif", kind: "string" }], Component: PhotoLayout },
   note: { Component: NoteLayout },
   video: { Component: VideoLayout },
   album: { labels: ["track"], Component: AlbumLayout },
@@ -250,40 +102,57 @@ export interface Resolution {
  * registered (album), or the generic two-column shape otherwise; else
  * `default`.
  *
+ * The schema's own field list — when `item.type` names one — always
+ * wins over whatever a code layout statically declares, regardless of
+ * which branch above picked the *Component*. A field's presence is only
+ * ever user-editable in one place (the type manager in Settings), so
+ * KnownFields has to read the same list no matter how the arrangement
+ * got chosen — an item resolved by an old `opens` value or a tag still
+ * gets its type's real fields, not the empty list a code layout like
+ * `album` declares for itself.
+ *
  * `tags` must arrive oldest-first — the order the arrows were made.
  */
 export function resolveLayout(item: Item, tags: { name: string }[], schemas: Schema[]): Resolution {
   const inferred = tags.find((tag) => tag.name in layouts)?.name ?? null;
 
+  const schema = item.type ? schemas.find((candidate) => candidate.name === item.type) : undefined;
+  const schemaFields: KnownField[] | undefined =
+    schema && schema.fields.length > 0
+      ? schema.fields.map((field) => ({ name: field.name, kind: field.kind }))
+      : undefined;
+
   if (item.opens && item.opens in layouts) {
     const entry = layouts[item.opens];
-    if (entry) return { key: item.opens, entry, source: "override", inferred };
+    if (entry) return { key: item.opens, entry: withFields(entry, schemaFields), source: "override", inferred };
   }
 
   if (inferred) {
     const entry = layouts[inferred];
-    if (entry) return { key: inferred, entry, source: "tag", inferred };
+    if (entry) return { key: inferred, entry: withFields(entry, schemaFields), source: "tag", inferred };
   }
 
-  if (item.type) {
-    const schema = schemas.find((candidate) => candidate.name === item.type);
-    if (schema && schema.fields.length > 0) {
-      // A type can also name a real code layout — "album" pulls its own
-      // tracklist Component the same way "movie" does, rather than
-      // settling for the generic two-column shape every other type gets.
-      const named = layouts[item.type];
-      return {
-        key: item.type,
-        entry: {
-          fields: schema.fields.map((field) => ({ name: field.name, kind: field.kind })),
-          labels: named?.labels,
-          Component: named?.Component ?? TwoColumnLayout,
-        },
-        source: "type",
-        inferred,
-      };
-    }
+  if (item.type && schemaFields) {
+    // A type can also name a real code layout — "album" pulls its own
+    // tracklist Component the same way "movie" does, rather than
+    // settling for the generic two-column shape every other type gets.
+    const named = layouts[item.type];
+    return {
+      key: item.type,
+      entry: {
+        fields: schemaFields,
+        labels: named?.labels,
+        preferredResource: named?.preferredResource,
+        Component: named?.Component ?? TwoColumn,
+      },
+      source: "type",
+      inferred,
+    };
   }
 
   return { key: "default", entry: layouts.default as LayoutEntry, source: "default", inferred };
+}
+
+function withFields(entry: LayoutEntry, fields: KnownField[] | undefined): LayoutEntry {
+  return fields ? { ...entry, fields } : entry;
 }

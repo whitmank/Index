@@ -24,6 +24,11 @@ const LIMIT = 5;
 export interface Crumb {
   id: string;
   item: Item | undefined;
+  /** True: this crumb is a thing opened, not a place walked into — the
+   * same distinction `store/location.ts`'s `PathEntry` carries. Lets the
+   * same id appear twice on the trail (entered, and separately opened as
+   * itself) without the two crumbs colliding. */
+  open: boolean;
 }
 
 export interface NavBarHandle {
@@ -43,10 +48,13 @@ export interface NavBarProps {
   crumbs: Crumb[];
   /** ⌂ — the floor every trail starts and ends on. */
   onHome: () => void;
-  /** A crumb behind the current one: walk back to it. */
-  onEnter: (id: string) => void;
-  /** The last crumb: open what you're standing in. */
-  onOpenHere: (id: string) => void;
+  /** A crumb behind the current one, by its position on the trail: walk
+   * back to exactly that position (a place and a thing can share an id,
+   * so the index is what disambiguates which one was clicked). */
+  onEnter: (index: number) => void;
+  /** The last crumb: open what you're standing in. Always acts on "here"
+   * — there's nothing else the last crumb could mean. */
+  onOpenHere: () => void;
   /** A place or thing found by search: the shell reads its role and
    * either jumps there or opens it. */
   onPick: (id: string) => void;
@@ -208,23 +216,28 @@ export const NavBar = forwardRef<NavBarHandle, NavBarProps>(function NavBar(
               // browser never shows a blank address bar.
               <span className="nav-here">All</span>
             ) : (
-              crumbs.map(({ id, item }, index, all) => {
+              crumbs.map(({ id, item, open }, index, all) => {
                 const last = index === all.length - 1;
                 const name = item ? captionOf(item) || "untitled" : "…";
                 return (
-                  <Fragment key={id}>
+                  <Fragment key={`${id}:${open}`}>
                     <span className="bar-sep">/</span>
                     <button
                       aria-current={last ? "page" : undefined}
                       className={last ? "bar-crumb is-here" : "bar-crumb"}
                       onClick={(event) => {
                         event.stopPropagation();
-                        if (last) onOpenHere(id);
-                        else onEnter(id);
+                        if (last) onOpenHere();
+                        else onEnter(index);
                       }}
                       title={last ? `About ${name}` : `Back to ${name}`}
                       type="button"
                     >
+                      {open && item && (
+                        <span aria-hidden="true" className="bar-crumb-mark">
+                          {FORMAT_GLYPH[formatOf(item)]}
+                        </span>
+                      )}
                       {name}
                     </button>
                   </Fragment>

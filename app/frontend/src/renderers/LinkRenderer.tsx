@@ -6,10 +6,7 @@
 import { errors } from "../store/index.js";
 import type { RendererProps } from "./registry.tsx";
 
-export function LinkRenderer({ item }: RendererProps) {
-  const resource = item.resources[0];
-  if (!resource) return null;
-
+export function LinkRenderer({ resource }: RendererProps) {
   const cached = resource.cached ?? {};
   const host = hostOf(resource.uri);
 

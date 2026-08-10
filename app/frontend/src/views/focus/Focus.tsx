@@ -4,23 +4,27 @@
 // the layout arranges the screen, chosen by the presentation cascade. The
 // layout never overrides the renderer.
 //
-// A brand-new item that is still empty when you dismiss it is discarded
-// rather than kept: you opened something, looked at it, and closed it, and
-// nothing about that is worth remembering. That discard is deliberately
-// not undo-tracked.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Item, Schema } from "@index/database/types";
-import { apply, applyUntracked, changes } from "../../changes/index.js";
+// A brand-new item that is still empty when it falls off the trail is
+// discarded rather than kept: you opened something, looked at it, and
+// moved on, and nothing about that is worth remembering. That check now
+// lives in App.tsx's `arriveAt` (not here) — a crumb click or a fresh
+// `enter` elsewhere can drop this item from the trail without this
+// component's own dismiss ever firing, so it has to live where every
+// trail change is guaranteed to pass through.
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Schema } from "@index/database/types";
+import { apply, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
-import { KnownFields, layouts, resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
-import { formatOf } from "../../lib/derive.js";
+import { resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
+import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
 import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
-import { rendererFor } from "../../renderers/registry.tsx";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
 import { ConnectionComposer, type Outbound } from "./ConnectionComposer.tsx";
 import { FieldsEditor } from "./FieldsEditor.tsx";
+import { ResourceCarousel } from "./ResourceCarousel.tsx";
+import { ResourceContent } from "./ResourceContent.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
 
 export interface FocusProps {
@@ -35,7 +39,6 @@ export interface FocusProps {
 
 export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [openAsOpen, setOpenAsOpen] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   // Fetched eagerly, once per mount — the layout cascade now needs the
   // full list to resolve a typed item's known fields, not just the type
@@ -108,28 +111,6 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   // the way in from here, rather than only from the home screen.
   const isPlace = usePool(() => pool.isPlace(itemId));
 
-  /** An item is "still empty" when nothing has been said about it. */
-  const isEmpty = useCallback(
-    (candidate: Item): boolean =>
-      candidate.name.trim() === "" &&
-      !candidate.display_name &&
-      !candidate.type &&
-      candidate.resources.length === 0 &&
-      candidate.fields.length === 0 &&
-      pool.connectionsTouching(candidate.id).length === 0,
-    [],
-  );
-
-  const dismiss = useCallback(() => {
-    const current = pool.getItem(itemId);
-    if (isNew && current && isEmpty(current)) {
-      // Not undo-tracked: there is nothing here to walk back to.
-      const discard = changes.deleteItem(current);
-      if (discard) void applyUntracked(discard);
-    }
-    onDismiss();
-  }, [isNew, itemId, isEmpty, onDismiss]);
-
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       // ← / A back out of the view the same way Escape does — the trail's
@@ -144,11 +125,11 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       if (target instanceof HTMLElement && (target.isContentEditable || /input|textarea/i.test(target.tagName))) {
         return;
       }
-      dismiss();
+      onDismiss();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dismiss]);
+  }, [onDismiss]);
 
   // The tags, oldest first — the order the cascade reads them in.
   const tags = usePool(() =>
@@ -228,17 +209,21 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     }
   };
 
-  const format = formatOf(item);
-  const renderer = rendererFor(format);
   const Layout = resolution.entry.Component;
-  const Content = renderer.Component;
   const knownFields = resolution.entry.fields ?? [];
 
-  const content = (
-    <div className={`content-slot fit-${renderer.fit}`}>
-      <Content item={item} />
-    </div>
-  );
+  // Which resource the carousel opens on — a layout's own preference
+  // (MovieLayout's trailer, say) when it has one, else the primary
+  // resource, today's behavior.
+  const preferredResource = resolution.entry.preferredResource;
+  const startIndex = preferredResource ? Math.max(0, item.resources.findIndex(preferredResource)) : 0;
+
+  const content =
+    item.resources.length > 1 ? (
+      <ResourceCarousel initialIndex={startIndex} item={item} resources={item.resources} />
+    ) : (
+      <ResourceContent item={item} resource={item.resources[0]} />
+    );
 
   // The layout's own known fields (title first, xyz-style — a big
   // identity field rather than a bar input) sit above the generic list,
@@ -304,13 +289,11 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
         }
       }}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) dismiss();
+        if (event.target === event.currentTarget) onDismiss();
       }}
     >
       <div className={visible ? "focus visible" : "focus"} ref={panelRef} role="dialog" tabIndex={-1}>
-        <header className="focus-bar">
-          <div className="focus-bar-spacer" aria-hidden="true" />
-
+        <div className="focus-toolbar">
           <div className="type-trigger-wrap">
             <button
               className="type-trigger"
@@ -393,47 +376,6 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 </button>
               )}
 
-              <div className="opens-as">
-                <button
-                  className={resolution.source === "override" ? "chip is-override" : "chip"}
-                  onClick={() => setOpenAsOpen((open) => !open)}
-                  title={
-                    resolution.source === "tag"
-                      ? `inferred from the '${resolution.key}' tag`
-                      : resolution.source === "type"
-                        ? `inferred from its type`
-                        : resolution.source === "override"
-                          ? "you chose this"
-                          : "the default layout"
-                  }
-                  type="button"
-                >
-                  opens as {resolution.key}
-                </button>
-
-                {openAsOpen && (
-                  <ul className="opens-as-menu">
-                    {Object.keys(layouts).map((key) => (
-                      <li key={key}>
-                        <button
-                          onClick={() => {
-                            setOpenAsOpen(false);
-                            // Choosing what inference already says retires
-                            // the override rather than writing agreement.
-                            const next = key === resolution.inferred ? null : key;
-                            if (next !== item.opens) void apply(changes.setOpens(item, next));
-                          }}
-                          type="button"
-                        >
-                          {key}
-                          {key === resolution.inferred ? " (from its tags)" : ""}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
               <label className="toggle">
                 <input
                   checked={shared}
@@ -457,12 +399,12 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 🗑
               </button>
 
-              <button aria-label="close" className="item-screen-icon-button" onClick={dismiss} type="button">
+              <button aria-label="close" className="item-screen-icon-button" onClick={onDismiss} type="button">
                 ✕
               </button>
             </div>
           )}
-        </header>
+        </div>
 
         <Layout connections={claimedConnections} content={content} editor={editor} item={item} />
       </div>

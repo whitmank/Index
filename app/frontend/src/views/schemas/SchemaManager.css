@@ -50,6 +50,14 @@
   font: inherit;
   font-size: var(--text-sm);
   text-align: left;
+  /* A schema's own label is already capitalized when it has one; a
+     type made through "new type…" never gets one (SchemaEditor always
+     saves `label: null`) and falls back to the raw, as-typed name — so
+     the list read as a mix of "Song"/"Video" and "article"/"book"
+     without this. Derived at render time rather than backfilling every
+     schema with an explicit label for the same reason the rest of the
+     app prefers inference over stored display state. */
+  text-transform: capitalize;
   color: var(--ink-quiet);
   background: none;
   border: 0;

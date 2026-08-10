@@ -5,13 +5,13 @@
 // it lives on disk.
 import { useCallback, useEffect, useRef, useState } from "react";
 import ePub, { type Book, type Rendition } from "epubjs";
+import { CoverArt } from "../components/CoverArt.tsx";
 import type { RendererProps } from "./registry.tsx";
 
 type State = "loading" | "cover" | "reading" | "missing";
 
-export function BookRenderer({ item }: RendererProps) {
-  const resource = item.resources[0];
-  const uri = resource?.uri;
+export function BookRenderer({ item, resource }: RendererProps) {
+  const uri = resource.uri;
 
   const [state, setState] = useState<State>("loading");
   const [cover, setCover] = useState<string | null>(null);
@@ -20,7 +20,6 @@ export function BookRenderer({ item }: RendererProps) {
   const surface = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!uri) return;
     let cancelled = false;
     let objectUrl: string | null = null;
 
@@ -70,17 +69,17 @@ export function BookRenderer({ item }: RendererProps) {
     });
   }, []);
 
-  if (!resource) return null;
   if (state === "loading") return <p className="renderer-quiet">opening…</p>;
   if (state === "missing") {
     return <p className="renderer-missing">this book isn’t where it used to be</p>;
   }
 
   if (state === "cover") {
-    return (
-      <button className="renderer-book-cover" onClick={startReading} type="button">
-        {cover ? <img alt={item.name} src={cover} /> : <span>{item.name || resource.name}</span>}
-        <span className="renderer-book-open">read</span>
+    return cover ? (
+      <CoverArt actionLabel="read" alt={item.name} onClick={startReading} shape="portrait" src={cover} />
+    ) : (
+      <button className="book-cover-fallback" onClick={startReading} type="button">
+        {item.name || resource.name}
       </button>
     );
   }

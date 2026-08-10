@@ -5,7 +5,7 @@
 // machines compose; neither overrides the other (DESIGN-CONCEPT §5).
 //
 // Each entry declares its fit: how its box wants to be shaped.
-import type { Format, Item } from "@index/database/types";
+import type { Format, Item, Resource } from "@index/database/types";
 import { BareRenderer } from "./BareRenderer.tsx";
 import { BookRenderer } from "./BookRenderer.tsx";
 import { FileRenderer } from "./FileRenderer.tsx";
@@ -19,6 +19,10 @@ export type Fit = "contain" | "flow" | "aspect-16-9" | "aspect-3-4" | "bare";
 
 export interface RendererProps {
   item: Item;
+  /** The specific resource to draw — never re-derived from `item` (a
+   * carousel slide over any of an item's resources, not just the
+   * primary one, is what calls this). */
+  resource: Resource;
 }
 
 export interface RendererEntry {
