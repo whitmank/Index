@@ -20,6 +20,7 @@ import {
   listMembers,
   startDatabase,
   HOME_SET_ID,
+  MEMBER_OF_LABEL_ID,
   PUBLIC_SET_ID,
   type Change,
   type Connection,
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
     // One change, two pairs: the tag target is minted alongside the arrow
     // that points at it (PRODUCT-SPEC §3.3, `tag`).
     const album = blankItem({ name: "hallway series" });
-    const arrow = blankArrow(photo.id, album.id);
+    const arrow = blankArrow(photo.id, album.id, { label: MEMBER_OF_LABEL_ID });
     const tag: Change = {
       description: "Tag as 'hallway series'",
       pairs: [
@@ -144,7 +145,7 @@ async function main(): Promise<void> {
     check("the arrow is outbound from the item, resolved to its target", () => {
       assert.equal(detail?.outbound.length, 1);
       assert.equal(detail?.outbound[0]?.endpoint.id, album.id);
-      assert.equal(detail?.outbound[0]?.connection.label, null);
+      assert.equal(detail?.outbound[0]?.connection.label, MEMBER_OF_LABEL_ID);
     });
 
     const albumMembers = await listMembers(album.id);
@@ -154,7 +155,7 @@ async function main(): Promise<void> {
       assert.equal(albumMembers.arrows.length, 1);
     });
 
-    const existing = await findConnection(photo.id, album.id, null);
+    const existing = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     check("findConnection returns exactly that arrow", () => {
       assert.equal(existing?.id, arrow.id);
     });
@@ -165,7 +166,7 @@ async function main(): Promise<void> {
       description: "Place in 'hallway series'",
       pairs: [{ before: existing!, after: placed }],
     });
-    const afterPlace = await findConnection(photo.id, album.id, null);
+    const afterPlace = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     check("the position rides on the arrow, and no second arrow appeared", () => {
       assert.deepEqual(afterPlace?.position, { x: 120.5, y: -40 });
       assert.equal(afterPlace?.id, arrow.id);
@@ -174,7 +175,7 @@ async function main(): Promise<void> {
     console.log("\ndelete (soft)");
     const now = new Date().toISOString();
     const liveItem = await getItem(photo.id);
-    const liveArrow = await findConnection(photo.id, album.id, null);
+    const liveArrow = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     const remove: Change = {
       description: "Delete 'hallway, morning'",
       pairs: [
@@ -185,7 +186,7 @@ async function main(): Promise<void> {
     await applyChange(remove);
 
     const gone = await getItem(photo.id);
-    const goneArrow = await findConnection(photo.id, album.id, null);
+    const goneArrow = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     const homeAfterDelete = await listMembers(HOME_SET_ID);
     const albumAfterDelete = await listMembers(album.id);
     check("soft delete hides the item, its arrow, and its memberships", () => {
@@ -205,7 +206,7 @@ async function main(): Promise<void> {
     console.log("\nundo the delete");
     await applyChange(invert(remove));
     const restored = await getItem(photo.id);
-    const restoredArrow = await findConnection(photo.id, album.id, null);
+    const restoredArrow = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     check("undo restores the item and its connections symmetrically", () => {
       assert.equal(restored?.name, "hallway, morning");
       assert.equal(restored?.deleted_at, null);
@@ -216,7 +217,7 @@ async function main(): Promise<void> {
     console.log("\nundo the tag, then the create");
     await applyChange(invert(tag));
     const albumGone = await getItemIncludingDeleted(album.id);
-    const arrowGone = await findConnection(photo.id, album.id, null);
+    const arrowGone = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     check("the tag target and its arrow are gone, not flagged", () => {
       assert.equal(albumGone, null);
       assert.equal(arrowGone, null);
@@ -311,8 +312,8 @@ async function main(): Promise<void> {
     const setForEdges = blankItem({ name: "a canvas of two" });
     const first = blankItem({ name: "first" });
     const second = blankItem({ name: "second" });
-    const firstArrow = blankArrow(first.id, setForEdges.id);
-    const secondArrow = blankArrow(second.id, setForEdges.id);
+    const firstArrow = blankArrow(first.id, setForEdges.id, { label: MEMBER_OF_LABEL_ID });
+    const secondArrow = blankArrow(second.id, setForEdges.id, { label: MEMBER_OF_LABEL_ID });
     await applyChange({
       description: "Seed a set of two",
       pairs: [

@@ -10,12 +10,13 @@
 // There is one navigation primitive: `goTo`. A place you enter, a thing
 // you open. Which one an item is comes from the pool, and the views draw
 // the difference so the same click never surprises you.
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { apply, changes } from "./changes/index.js";
 import { commandsFor } from "./commands/index.js";
 import { CommandBar } from "./components/CommandBar.tsx";
 import { Confirm } from "./components/Confirm.tsx";
+import { NavBar, type NavBarHandle } from "./components/NavBar.tsx";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
 import {
   Checks,
@@ -25,6 +26,7 @@ import {
   checkDeleteKeys,
   checkFocus,
   checkList,
+  checkNavBar,
   checkNavigation,
   checkPointing,
   checkRemoveFromSet,
@@ -54,13 +56,15 @@ import {
 import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
 import { List } from "./views/list/List.tsx";
-import { SchemaManager } from "./views/schemas/SchemaManager.tsx";
 import { Settings, type SettingsTab } from "./views/settings/Settings.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/list/List.css";
+// Settings' own Types tab is `SchemaEditor` from this file, not the
+// standalone `SchemaManager` the top bar used to open — but the styles
+// live here, and Settings.tsx doesn't import them itself.
 import "./views/schemas/SchemaManager.css";
 import "./views/settings/Settings.css";
 
@@ -89,8 +93,8 @@ export function App() {
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<{ id: string; isNew: boolean } | null>(null);
   const [commanding, setCommanding] = useState(false);
+  const navBarRef = useRef<NavBarHandle>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [managingTypes, setManagingTypes] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const troubles = useTroubles();
@@ -230,13 +234,12 @@ export function App() {
   );
 
   /**
-   * What the command bar hands back: the same primitive as a click, on
-   * the far side of a search. A place is jumped to, a thing is opened
-   * over wherever you are — you asked to see it, not to move house.
+   * What the nav bar hands back: the same primitive as a click, on the
+   * far side of a search. A place is jumped to, a thing is opened over
+   * wherever you are — you asked to see it, not to move house.
    */
   const goToPicked = useCallback(
     (id: string) => {
-      setCommanding(false);
       if (pool.isPlace(id)) jump(id);
       else setOpened({ id, isNew: false });
     },
@@ -368,7 +371,7 @@ export function App() {
   // Everything on this list is over the stage in the same sense: while
   // any of them is up, the surface underneath stops answering to keys
   // that would otherwise reach it.
-  const overlayOpen = opened !== null || commanding || confirmingDelete || managingTypes || settingsOpen;
+  const overlayOpen = opened !== null || commanding || confirmingDelete || settingsOpen;
 
   /**
    * Paste's counterpart to `onDropAnywhere`, for a gesture that has never
@@ -435,18 +438,26 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [overlayOpen, viewMode, setViewMode]);
 
-  // ⌘K opens the bar; ⌘F is the same door under the name the spec gave it
-  // (§3.7). ⌘, opens Settings and ⌘/ goes straight to All (PRODUCT-SPEC
-  // §1.4's `~`) — all four work while typing, same as ⌘K/⌘F already did:
-  // reaching for one of these is exactly what you do when what is under
-  // your cursor is not what you wanted.
+  // ⌘K opens the command bar (verbs); ⌘F is the same door under the name
+  // the spec gave it (§3.7). ⌘L opens the nav bar (destinations) — the
+  // two doors are mutually exclusive, so each closes the other rather
+  // than leaving a second field open behind whichever one won the
+  // keystroke. ⌘, opens Settings and ⌘/ goes straight to All
+  // (PRODUCT-SPEC §1.4's `~`) — all five work while typing, same as
+  // ⌘K/⌘F already did: reaching for one of these is exactly what you do
+  // when what is under your cursor is not what you wanted.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
       if (key === "k" || key === "f") {
         event.preventDefault();
+        navBarRef.current?.stopEditing();
         setCommanding((open) => !open);
+      } else if (key === "l") {
+        event.preventDefault();
+        setCommanding(false);
+        navBarRef.current?.startEditing();
       } else if (key === ",") {
         event.preventDefault();
         setSettingsOpen((open) => !open);
@@ -507,7 +518,8 @@ export function App() {
       await checkNavigation(checks, setViewMode);
       await checkFocus(checks);
       await checkList(HOME_SET_ID, checks, setViewMode);
-      await checkCommandBar(HOME_SET_ID, checks);
+      await checkCommandBar(checks);
+      await checkNavBar(HOME_SET_ID, checks);
       await checkSelection(checks, setViewMode);
       await checkRemoveFromSet(checks, setViewMode);
       await checkDeleteKeys(checks, setViewMode);
@@ -546,76 +558,34 @@ export function App() {
       onPaste={onPasteAnywhere}
     >
       <header className="bar">
-        <nav className="bar-address" aria-label="trail">
-          <button
-            className={currentSetId === HOME_SET_ID ? "bar-home is-here" : "bar-home"}
-            onClick={goAll}
-            title="All (⌘/)"
-            type="button"
-          >
-            ⌂
-          </button>
+        {/* `~` is already said by ⌂ — shown as a crumb of its own only
+            when a jump left it out of the trail. */}
+        <NavBar
+          atHome={currentSetId === HOME_SET_ID}
+          crumbs={path[0] === HOME_SET_ID ? crumbs.slice(1) : crumbs}
+          onEnter={enter}
+          onHome={goAll}
+          onOpenHere={(id) => setOpened({ id, isNew: false })}
+          onPick={goToPicked}
+          ref={navBarRef}
+        />
 
-          {/* `~` is already said by ⌂ — shown as a crumb of its own only
-              when a jump left it out of the trail. */}
-          {(path[0] === HOME_SET_ID ? crumbs.slice(1) : crumbs).map(({ id, item }, index, all) => {
-            const last = index === all.length - 1;
-            const name = item ? captionOf(item) || "untitled" : "…";
-            return (
-              <Fragment key={id}>
-                <span className="bar-sep">/</span>
-                <button
-                  aria-current={last ? "page" : undefined}
-                  className={last ? "bar-crumb is-here" : "bar-crumb"}
-                  onClick={() => (last ? setOpened({ id, isNew: false }) : enter(id))}
-                  title={last ? `About ${name}` : `Back to ${name}`}
-                  type="button"
-                >
-                  {name}
-                </button>
-              </Fragment>
-            );
-          })}
-        </nav>
-
-        <button
-          className="bar-goto"
-          onClick={() => setCommanding(true)}
-          title="Go to… (⌘K)"
-          type="button"
-        >
-          go to…
-        </button>
-
-        <button
-          className="bar-goto"
-          onClick={() => setManagingTypes(true)}
-          title="Create and edit types"
-          type="button"
-        >
-          types
-        </button>
-
-        <button
-          className="bar-goto"
-          onClick={() => setSettingsOpen(true)}
-          title="Settings (⌘,)"
-          type="button"
-        >
-          settings
-        </button>
-
+        {/* The nav bar's own box is the "go to…" door now — click it, or
+            ⌘L — so nothing here duplicates that. Just the two things
+            left that aren't going anywhere: how you're looking, and the
+            settings behind it. */}
         <button
           aria-label={`Viewing as ${viewMode} — switch to ${otherViewMode(viewMode)}`}
-          className="bar-view-toggle"
+          className="bar-icon"
           onClick={() => setViewMode(otherViewMode(viewMode))}
           title={`${viewMode} view — press V to switch`}
           type="button"
         >
-          <span aria-hidden="true" className="bar-view-toggle-glyph">
-            {VIEW_MODE_GLYPH[viewMode]}
-          </span>
-          {viewMode}
+          <span aria-hidden="true">{VIEW_MODE_GLYPH[viewMode]}</span>
+        </button>
+
+        <button aria-label="Settings" className="bar-icon" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)" type="button">
+          <span aria-hidden="true">⚙</span>
         </button>
       </header>
 
@@ -650,19 +620,12 @@ export function App() {
         />
       )}
 
-      {managingTypes && <SchemaManager onClose={() => setManagingTypes(false)} />}
-
       {settingsOpen && (
         <Settings onClose={() => setSettingsOpen(false)} onTabChange={setSettingsTab} tab={settingsTab} />
       )}
 
       {commanding && (
-        <CommandBar
-          commands={commands}
-          onClose={() => setCommanding(false)}
-          onPick={goToPicked}
-          pickedCount={pickedCount}
-        />
+        <CommandBar commands={commands} onClose={() => setCommanding(false)} pickedCount={pickedCount} />
       )}
 
       {confirmingDelete && (

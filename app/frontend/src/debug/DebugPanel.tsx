@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { apply, changes, redo, undo } from "../changes/index.js";
-import { HOME_SET_ID } from "../lib/seeds.js";
+import { HOME_SET_ID, MEMBER_OF_LABEL_ID } from "../lib/seeds.js";
 import { history, loadSet, pool, useHistory, useTroubles } from "../store/index.js";
 
 interface Line {
@@ -82,7 +82,7 @@ class Report {
   }
 
   arrow(step: string, source: string, target: string, expected: boolean): void {
-    const found = pool.findConnection(source, target, null);
+    const found = pool.findConnection(source, target, MEMBER_OF_LABEL_ID);
     this.say(Boolean(found) === expected, `${step}${Boolean(found) === expected ? "" : found ? " — arrow still there" : " — no arrow"}`);
   }
 }
@@ -126,7 +126,7 @@ async function runSequence(): Promise<Line[]> {
 
   // place — upserts the arrow the tag just made, rather than adding one
   await apply(changes.place(renamed, target.id, { x: 120, y: -40 }));
-  const placed = pool.findConnection(item.id, target.id, null);
+  const placed = pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
   report.say(
     placed?.position?.x === 120 && pool.arrowsInto(target.id).length === 1,
     `place — position ${JSON.stringify(placed?.position ?? null)}, ${pool.arrowsInto(target.id).length} arrow(s)`,
@@ -143,7 +143,7 @@ async function runSequence(): Promise<Line[]> {
   report.arrow("undo restored the arrow", item.id, target.id, true);
 
   await undo(); // place
-  const unplaced = pool.findConnection(item.id, target.id, null);
+  const unplaced = pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
   report.say(unplaced?.position === null, `undo place — position ${JSON.stringify(unplaced?.position ?? null)}`);
 
   await undo(); // tag

@@ -226,6 +226,16 @@ export const SCHEMAS_TABLE = "schemas";
 export const HOME_SET_ID = "items:⟨~⟩";
 export const PUBLIC_SET_ID = "items:public";
 
+/**
+ * The one reserved, structural label. `member of` is the sole label-based
+ * trigger for the set role (alongside `query`/`is_set`, which were always
+ * explicit) — every other connection, labelled or not, is a plain
+ * relationship and never promotes its target into something you can walk
+ * into. Seeded once (seed.ts) with this well-known id, the same way `~`
+ * and `public` are, so nothing has to mint it on first use.
+ */
+export const MEMBER_OF_LABEL_ID = "labels:member_of";
+
 /** Which shape a record in a change pair is. */
 export function isItem(record: StoredRecord): record is Item {
   return record.id.startsWith(`${ITEMS_TABLE}:`);

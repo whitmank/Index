@@ -15,6 +15,7 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { KnownFields, layouts, resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { formatOf } from "../../lib/derive.js";
+import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { rendererFor } from "../../renderers/registry.tsx";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
@@ -153,7 +154,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const tags = usePool(() =>
     pool
       .outboundFrom(itemId)
-      .filter((connection) => connection.label === null)
+      .filter((connection) => connection.label === MEMBER_OF_LABEL_ID)
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
       .flatMap((connection) => {
         const target = pool.getItem(connection.target);

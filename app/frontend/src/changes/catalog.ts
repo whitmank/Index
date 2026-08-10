@@ -20,7 +20,7 @@ import type {
 import { today } from "../lib/dates.js";
 import { isBlankFieldValue } from "../lib/fields.js";
 import { connectionId, itemId } from "../lib/ids.js";
-import { PUBLIC_SET_ID } from "../lib/seeds.js";
+import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import * as pool from "../store/pool.js";
 
 function now(): string {
@@ -200,13 +200,14 @@ function blankConnection(
 }
 
 /**
- * Tag an item into a set. When the target is a word the user just typed,
- * the item behind it is minted in the same change — two pairs, one
- * intention, one undo.
+ * Tag an item into a set — the one gesture that mints a `member of`
+ * arrow, the reserved structural label (types.ts). When the target is a
+ * word the user just typed, the item behind it is minted in the same
+ * change — two pairs, one intention, one undo.
  */
 export function tag(item: Item, target: Item, targetIsNew = false): Change {
-  const existing = pool.findConnection(item.id, target.id, null);
-  const arrow = existing ?? blankConnection(item.id, target.id);
+  const existing = pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
+  const arrow = existing ?? blankConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
 
   return {
     description: `Tag ${describe(item)} as '${nameOf(target)}'`,
@@ -214,6 +215,23 @@ export function tag(item: Item, target: Item, targetIsNew = false): Change {
       ...(targetIsNew ? [{ before: null, after: target }] : []),
       { before: existing ?? null, after: arrow },
     ],
+  };
+}
+
+/**
+ * A plain connection: two items pointed at each other with nothing said
+ * about why — canvas free-draw's whole vocabulary (Canvas.tsx's edge
+ * gesture). Unlabelled, and therefore never structural: drawing this
+ * never turns its target into a place. Upserts over an existing plain
+ * connection between the same pair rather than duplicating.
+ */
+export function relate(item: Item, target: Item): Change {
+  const existing = pool.findConnection(item.id, target.id, null);
+  const connection = existing ?? blankConnection(item.id, target.id);
+
+  return {
+    description: `Connect ${describe(item)} and '${nameOf(target)}'`,
+    pairs: [{ before: existing ?? null, after: connection }],
   };
 }
 
@@ -227,8 +245,8 @@ export function tag(item: Item, target: Item, targetIsNew = false): Change {
 export function tagMany(items: Item[], target: Item, targetIsNew = false): Change {
   const pairs = items.flatMap((item) => {
     if (item.id === target.id) return []; // a set cannot be its own member
-    if (pool.findConnection(item.id, target.id, null)) return [];
-    return [{ before: null, after: blankConnection(item.id, target.id) }];
+    if (pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID)) return [];
+    return [{ before: null, after: blankConnection(item.id, target.id, MEMBER_OF_LABEL_ID) }];
   });
 
   return {
@@ -245,7 +263,7 @@ export function tagMany(items: Item[], target: Item, targetIsNew = false): Chang
  */
 export function untagMany(items: Item[], target: Item): Change {
   const pairs = items.flatMap((item) => {
-    const arrow = pool.findConnection(item.id, target.id, null);
+    const arrow = pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
     return arrow ? [{ before: arrow, after: { ...arrow, deleted_at: now() } }] : [];
   });
 
@@ -289,7 +307,7 @@ function countOf(n: number, noun: string): string {
 }
 
 export function untag(item: Item, target: Item): Change | null {
-  const arrow = pool.findConnection(item.id, target.id, null);
+  const arrow = pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID);
   if (!arrow) return null;
 
   return {
@@ -337,8 +355,8 @@ export function disconnect(connection: Connection): Change {
  * describes.
  */
 export function place(item: Item, setId: string, position: Position): Change {
-  const existing = pool.findConnection(item.id, setId, null);
-  const arrow = existing ?? blankConnection(item.id, setId);
+  const existing = pool.findConnection(item.id, setId, MEMBER_OF_LABEL_ID);
+  const arrow = existing ?? blankConnection(item.id, setId, MEMBER_OF_LABEL_ID);
 
   return {
     description: `Place ${describe(item)}`,
@@ -353,8 +371,8 @@ export function place(item: Item, setId: string, position: Position): Change {
  */
 export function reorder(item: Item, setId: string, index: number): Change {
   const arrows = pool.arrowsInto(setId);
-  const existing = pool.findConnection(item.id, setId, null);
-  const arrow = existing ?? blankConnection(item.id, setId);
+  const existing = pool.findConnection(item.id, setId, MEMBER_OF_LABEL_ID);
+  const arrow = existing ?? blankConnection(item.id, setId, MEMBER_OF_LABEL_ID);
 
   const without = arrows.filter((candidate) => candidate.id !== arrow.id);
   const ordered = [...without.slice(0, index), arrow, ...without.slice(index)];
@@ -387,13 +405,13 @@ export function clearOrder(setId: string): Change {
  * own constructor rather than reusing `tag`.
  */
 export function setPublic(item: Item, isPublic: boolean): Change | null {
-  const existing = pool.findConnection(item.id, PUBLIC_SET_ID, null);
+  const existing = pool.findConnection(item.id, PUBLIC_SET_ID, MEMBER_OF_LABEL_ID);
 
   if (isPublic) {
     if (existing) return null; // already public; nothing to say
     return {
       description: `Make ${describe(item)} public`,
-      pairs: [{ before: null, after: blankConnection(item.id, PUBLIC_SET_ID) }],
+      pairs: [{ before: null, after: blankConnection(item.id, PUBLIC_SET_ID, MEMBER_OF_LABEL_ID) }],
     };
   }
 

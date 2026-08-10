@@ -10,7 +10,7 @@
 import type { Item } from "@index/database/types";
 import { apply, changes, undo } from "../changes/index.js";
 import { captionOf } from "../lib/derive.js";
-import { HOME_SET_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
+import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { history, pool, selection } from "../store/index.js";
 
 export interface CheckLine {
@@ -301,13 +301,13 @@ export async function checkCanvas(
     return;
   }
 
-  const before = pool.findConnection(itemId, setId, null)?.position ?? null;
+  const before = pool.findConnection(itemId, setId, MEMBER_OF_LABEL_ID)?.position ?? null;
   const whereItSat = node.style.transform;
   await dragBy(node, 90, 60);
   await sleep(250);
   checks.say(node.style.transform !== whereItSat, "the node moved on screen");
 
-  const arrow = pool.findConnection(itemId, setId, null);
+  const arrow = pool.findConnection(itemId, setId, MEMBER_OF_LABEL_ID);
   const moved = arrow?.position != null && JSON.stringify(arrow.position) !== JSON.stringify(before);
   checks.say(moved, `drag commits a place — position ${JSON.stringify(arrow?.position ?? null)}`);
 
@@ -323,7 +323,7 @@ export async function checkCanvas(
 
   await undo();
   await sleep(250);
-  const afterUndo = pool.findConnection(itemId, setId, null)?.position ?? null;
+  const afterUndo = pool.findConnection(itemId, setId, MEMBER_OF_LABEL_ID)?.position ?? null;
   checks.say(
     JSON.stringify(afterUndo) === JSON.stringify(before),
     `undo puts the position back to ${JSON.stringify(before)}`,
@@ -394,6 +394,10 @@ export async function checkCanvasEdges(
     Boolean(document.querySelector(".canvas-edges .canvas-edge:not(.canvas-edge-pending)")),
     "an edge line is drawn between them",
   );
+  // The whole point of `relate` over `tag`: a freehand edge is a plain,
+  // unlabelled connection, and unlabelled is no longer structural — b
+  // does not become a place just because something pointed at it.
+  checks.say(!pool.isPlace(bId), "the edge did not turn its target into a place");
 
   const detail = await window.index.items.get(aId);
   const persisted =
@@ -694,7 +698,7 @@ export async function checkSelection(
   field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
   await sleep(600);
 
-  const arrows = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+  const arrows = members.filter((id) => pool.findConnection(id, target.id, MEMBER_OF_LABEL_ID)).length;
   checks.say(
     arrows === members.length && arrows > before,
     `${arrows} of ${members.length} landed in '${targetName}'` +
@@ -719,7 +723,7 @@ export async function checkSelection(
   );
   await undo();
   await sleep(500);
-  const afterUndo = members.filter((id) => pool.findConnection(id, target.id, null)).length;
+  const afterUndo = members.filter((id) => pool.findConnection(id, target.id, MEMBER_OF_LABEL_ID)).length;
   checks.say(afterUndo === before, `one undo takes the whole batch back out (${afterUndo} left)`);
 }
 
@@ -775,7 +779,7 @@ export async function checkRemoveFromSet(
     checks.say(false, "remove — no arrow-only set seeded to try it in");
     return;
   }
-  const already = Boolean(pool.findConnection(itemId, target.id, null));
+  const already = Boolean(pool.findConnection(itemId, target.id, MEMBER_OF_LABEL_ID));
   if (!already) await apply(changes.tag(item, target));
   await sleep(300);
 
@@ -801,7 +805,7 @@ export async function checkRemoveFromSet(
   await sleep(600);
 
   checks.say(
-    !pool.findConnection(itemId, target.id, null),
+    !pool.findConnection(itemId, target.id, MEMBER_OF_LABEL_ID),
     "removing takes the arrow away",
   );
   checks.say(Boolean(pool.getItem(itemId)), "and leaves the item itself standing");
@@ -823,7 +827,7 @@ export async function checkRemoveFromSet(
   await undo();
   await sleep(500);
   checks.say(
-    Boolean(pool.findConnection(itemId, target.id, null)),
+    Boolean(pool.findConnection(itemId, target.id, MEMBER_OF_LABEL_ID)),
     "undo puts it back in the set",
   );
 
@@ -920,7 +924,7 @@ export async function checkDeleteKeys(
     checks.say(false, "delete keys — not enough things to work with");
     return;
   }
-  const restore = items.filter((item) => !pool.findConnection(item.id, target.id, null));
+  const restore = items.filter((item) => !pool.findConnection(item.id, target.id, MEMBER_OF_LABEL_ID));
   await apply(changes.tagMany(items, target));
   await sleep(400);
 
@@ -939,7 +943,7 @@ export async function checkDeleteKeys(
   const beforeRemoval = historyDepth();
   press("Backspace");
   const left = await waitUntil(
-    () => picked.every((id) => !pool.findConnection(id, target.id, null)),
+    () => picked.every((id) => !pool.findConnection(id, target.id, MEMBER_OF_LABEL_ID)),
     4000,
   );
   checks.say(left, `⌫ takes all ${picked.length} out of '${captionOf(target)}' with no prompt`);
@@ -953,7 +957,7 @@ export async function checkDeleteKeys(
   await undo();
   await sleep(500);
   checks.say(
-    picked.every((id) => Boolean(pool.findConnection(id, target.id, null))),
+    picked.every((id) => Boolean(pool.findConnection(id, target.id, MEMBER_OF_LABEL_ID))),
     "one undo puts them all back in",
   );
 
@@ -1164,41 +1168,98 @@ async function sweep(
  * from the same field, with nothing but the row's own glyph to warn you
  * which it will be.
  */
-export async function checkCommandBar(homeSetId: string, checks: Checks): Promise<void> {
-  const open = async (): Promise<HTMLInputElement | null> => {
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }),
-    );
-    return waitFor<HTMLInputElement>(".command-input");
-  };
-  const rowNames = () =>
-    [...document.querySelectorAll(".command-row-name")].map((row) => row.textContent ?? "");
-  const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
-
-  let field = await open();
+export async function checkCommandBar(checks: Checks): Promise<void> {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }),
+  );
+  const field = await waitFor<HTMLInputElement>(".command-input");
   checks.say(Boolean(field), "⌘K opens the command bar");
   if (!field) return;
 
-  // Empty, it is the set switcher: the sets, `~` at the front.
-  await waitUntil(() => rowNames().length > 0, 4000);
-  const sets = rowNames();
+  // Nothing is picked yet, so the one verb the app knows is unavailable
+  // — and an unavailable verb only shows once it is asked for by name,
+  // same as it always has. What's new is what's *not* here: no place, no
+  // thing, nothing to go anywhere with — that moved to the nav bar.
+  await sleep(150);
+  const empty = document.querySelector(".command-empty")?.textContent ?? "";
+  checks.say(empty === "no commands", `nothing picked, nothing offered by default (said "${empty}")`);
+
+  const rowNames = () =>
+    [...document.querySelectorAll(".command-row-name")].map((row) => row.textContent ?? "");
+  typeInto(field, "add");
+  await waitUntil(() => rowNames().some((name) => name === "add to…"), 4000);
+  const row = [...document.querySelectorAll<HTMLElement>(".command-row")].find(
+    (candidate) => candidate.querySelector(".command-row-name")?.textContent === "add to…",
+  );
+  checks.say(Boolean(row), '"add" finds "add to…" by name, unavailable or not');
+  checks.say(row?.hasAttribute("disabled") ?? false, "and it is disabled, because nothing is picked out");
+
+  const kinds = [...document.querySelectorAll(".command-row-kind")].map((el) => el.textContent ?? "");
+  checks.say(
+    kinds.every((kind) => kind === "command" || kind === "unavailable"),
+    `every row is a verb, none a destination — ${kinds.join(", ")}`,
+  );
+
+  // Dispatched on the field itself, not the window: the bar's Escape
+  // handling is a React handler on the input, which only ever sees
+  // events that bubble up through it.
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  const closed = await waitUntil(() => !document.querySelector(".command"), 3000);
+  checks.say(closed, "Escape closes the bar");
+}
+
+/**
+ * ⌘L opens the nav bar: destinations, split back out of the command bar
+ * they used to share (checkCommandBar covers what stayed behind). It
+ * opens quiet — nothing offered until a name is typed, on purpose, so
+ * opening the field is never itself a wall of suggestions. Typed, it
+ * searches both sets and things by a substring of their name; ↵ on a
+ * set jumps the trail straight there, ↵ on a thing opens it in focus
+ * without moving the trail at all.
+ */
+export async function checkNavBar(homeSetId: string, checks: Checks): Promise<void> {
+  const open = async (): Promise<HTMLInputElement | null> => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "l", metaKey: true, bubbles: true, cancelable: true }),
+    );
+    return waitFor<HTMLInputElement>(".nav-input");
+  };
+  const rowNames = () =>
+    [...document.querySelectorAll(".nav-row-name")].map((row) => row.textContent ?? "");
+  const trail = () => [...document.querySelectorAll(".bar-crumb")].map((c) => c.textContent ?? "");
+
+  let field = await open();
+  checks.say(Boolean(field), "⌘L opens the nav bar");
+  if (!field) return;
+
+  // Empty, it offers nothing at all — the field opens quiet, not with
+  // every set already laid out to scan past.
+  await sleep(200);
+  checks.say(!document.querySelector(".nav-dropdown"), "empty, it offers nothing");
+
   const homeName = pool.getItem(homeSetId)?.display_name ?? pool.getItem(homeSetId)?.name ?? "";
-  checks.say(sets.length > 0, `empty, it lists ${sets.length} sets — ${sets.join(", ")}`);
-  checks.say(sets[0] === homeName, `\`~\` is offered first (${sets[0]})`);
+  const targetItem = pool
+    .all()
+    .filter(pool.isItem)
+    .find(
+      (item) =>
+        pool.isPlace(item.id) && item.id !== homeSetId && (item.display_name ?? item.name).length > 3,
+    );
+  if (!targetItem) {
+    checks.say(false, "nav bar — no other place in the pool to search for");
+    return;
+  }
+  const target = targetItem.display_name ?? targetItem.name;
 
   // A set, found by a fragment of its name that is not its start — the
   // reason this is a substring search and not a prefix one.
-  const target = sets.find((name) => name !== homeName && name.length > 3) ?? sets[1] ?? "";
   const fragment = target.slice(1, 4).toLowerCase();
   typeInto(field, fragment);
   const found = await waitUntil(() => rowNames().some((name) => name === target), 4000);
   checks.say(found, `"${fragment}" finds "${target}" from the middle of its name`);
 
-  const kind = document.querySelector(".command-row.is-at .command-row-kind")?.textContent ?? "";
-  checks.say(
-    ["timeline", "canvas", "list"].includes(kind),
-    `the selected row says it is a place (${kind})`,
-  );
+  const kind = document.querySelector(".nav-row.is-at .nav-row-kind")?.textContent ?? "";
+  checks.say(kind === "place", `the selected row says it is a place (${kind})`);
 
   // ↵ on a place walks there — and the trail starts over, because you
   // did not walk through anywhere to get there.
@@ -1206,7 +1267,7 @@ export async function checkCommandBar(homeSetId: string, checks: Checks): Promis
   const walked = await waitUntil(() => trail().join("/") === target, 4000);
   checks.say(walked, `↵ on a set goes there — trail is ${trail().join(" / ") || "(empty)"}`);
   checks.say(!document.querySelector(".focus"), "going to a set did not open it as a thing instead");
-  checks.say(!document.querySelector(".command"), "the bar closed behind you");
+  checks.say(!document.querySelector(".nav-input"), "the field closed behind you");
 
   // ↵ on a thing opens it where you stand, leaving the trail alone.
   const thing = pool
@@ -1214,24 +1275,29 @@ export async function checkCommandBar(homeSetId: string, checks: Checks): Promis
     .filter(pool.isItem)
     .find((item) => !pool.isPlace(item.id) && (item.display_name ?? item.name).length > 3);
   if (!thing) {
-    checks.say(false, "command bar — no thing in the pool to look for");
+    checks.say(false, "nav bar — no thing in the pool to look for");
     return;
   }
   const thingName = thing.display_name ?? thing.name;
 
+  // Read before the field reopens: editing trades the crumbs for the
+  // field itself, so once it is open there is no `.bar-crumb` left to
+  // read at all.
+  const wasTrail = trail().join(" / ");
   field = await open();
   if (!field) {
-    checks.say(false, "command bar — would not reopen");
+    checks.say(false, "nav bar — would not reopen");
     return;
   }
-  const wasTrail = trail().join(" / ");
   typeInto(field, thingName.slice(0, 6).toLowerCase());
   await waitUntil(() => rowNames().some((name) => name === thingName), 4000);
-  const row = [...document.querySelectorAll<HTMLElement>(".command-row")].find(
-    (candidate) => candidate.querySelector(".command-row-name")?.textContent === thingName,
+  const row = [...document.querySelectorAll<HTMLElement>(".nav-row")].find(
+    (candidate) => candidate.querySelector(".nav-row-name")?.textContent === thingName,
   );
   checks.say(Boolean(row), `searching finds the item "${thingName}"`);
-  row?.click();
+  // mousedown, not click: the field takes the row on mousedown so its own
+  // blur never races the click closed.
+  row?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
 
   const openedIt = await waitFor(".focus", 4000);
   checks.say(Boolean(openedIt), "picking a thing opens it in focus");
@@ -1240,21 +1306,22 @@ export async function checkCommandBar(homeSetId: string, checks: Checks): Promis
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await sleep(300);
 
-  // Escape closes the bar without going anywhere — and leaves us home.
+  // Escape closes the field without going anywhere — and leaves us home.
+  // `~` owns no crumb of its own (⌂ already says it), so home reads as an
+  // *empty* trail, not one bearing its name.
   field = await open();
   if (!field) return;
-  await waitUntil(() => rowNames().length > 0, 4000);
   typeInto(field, homeName.toLowerCase());
   await waitUntil(() => rowNames().some((name) => name === homeName), 4000);
   field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-  await waitUntil(() => trail().join("/") === homeName, 4000);
+  await waitUntil(() => !document.querySelector(".nav-input"), 4000);
 
   field = await open();
   if (!field) return;
   field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-  const closed = await waitUntil(() => !document.querySelector(".command"), 3000);
-  checks.say(closed, "Escape closes the bar");
-  checks.say(trail().join("/") === homeName, `and left you where you were (${trail().join("/")})`);
+  const closed = await waitUntil(() => !document.querySelector(".nav-input"), 3000);
+  checks.say(closed, "Escape closes the field");
+  checks.say(trail().length === 0, `and left you home, where ⌂ alone says it (${trail().join(" / ") || "(empty)"})`);
 }
 
 /**
@@ -1323,7 +1390,7 @@ export async function checkList(
   );
   await sleep(500);
 
-  const arrow = pool.findConnection(movedId, setId, null);
+  const arrow = pool.findConnection(movedId, setId, MEMBER_OF_LABEL_ID);
   checks.say(arrow?.order === 0, `reorder wrote order ${String(arrow?.order)} onto the arrow`);
   checks.say(
     Boolean(document.querySelector(".list-manual")),
@@ -1336,14 +1403,14 @@ export async function checkList(
   revert?.click();
   await sleep(500);
   checks.say(
-    pool.findConnection(movedId, setId, null)?.order == null,
+    pool.findConnection(movedId, setId, MEMBER_OF_LABEL_ID)?.order == null,
     "the chip's ✕ clears the manual order",
   );
 
   await undo();
   await sleep(400);
   checks.say(
-    pool.findConnection(movedId, setId, null)?.order === 0,
+    pool.findConnection(movedId, setId, MEMBER_OF_LABEL_ID)?.order === 0,
     "and one undo brings the manual order back",
   );
 

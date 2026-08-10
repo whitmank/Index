@@ -11,7 +11,7 @@
 // full scans over freeform fields); revisit if a format-only set over a
 // large store ever feels slow.
 import { devicePrefix } from "../derive.js";
-import type { Format, Predicate, SetQuery } from "../types.js";
+import { MEMBER_OF_LABEL_ID, type Format, type Predicate, type SetQuery } from "../types.js";
 import { recordId } from "./serialize.js";
 
 export interface CompiledQuery {
@@ -67,7 +67,7 @@ function compilePredicate(predicate: Predicate, bindings: Bindings, formats: For
 
   if ("arrowTo" in predicate) {
     const target = bindings.add(recordId(predicate.arrowTo));
-    return `id IN (SELECT VALUE in FROM connections WHERE out = ${target} AND label IS NONE AND deleted_at IS NONE)`;
+    return `id IN (SELECT VALUE in FROM connections WHERE out = ${target} AND label = ${MEMBER_OF_LABEL_ID} AND deleted_at IS NONE)`;
   }
 
   const { name, kind, gte, lte, eq } = predicate.field;

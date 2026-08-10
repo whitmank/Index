@@ -18,7 +18,7 @@ import {
   TIMELINE_PARTITION_FIELD,
 } from "./records/items.js";
 import { recordId } from "./records/serialize.js";
-import { HOME_SET_ID, PUBLIC_SET_ID } from "./types.js";
+import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "./types.js";
 
 function today(): string {
   const now = new Date();
@@ -79,6 +79,20 @@ export async function seed(): Promise<void> {
       )
       .collect();
   }
+
+  // The reserved structural label, seeded once with a well-known id —
+  // `PLAYS_SET_ROLE` (records/items.ts) reads it by that id directly
+  // rather than minting it on first tag, the same reason `~` and
+  // `public` are seeded rather than created lazily.
+  await db
+    .query(
+      `LET $existing = (SELECT VALUE id FROM $id);
+       IF array::len($existing) = 0 THEN
+         (CREATE $id CONTENT { name: $name })
+       END;`,
+      { id: recordId(MEMBER_OF_LABEL_ID), name: "member of" },
+    )
+    .collect();
 
   await db
     .query(

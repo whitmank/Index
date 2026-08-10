@@ -4,13 +4,14 @@
 // says so in its name.
 import { getDb } from "../db.js";
 import { formatOf } from "../derive.js";
-import type {
-  ConnectionWithEndpoint,
-  EndpointSummary,
-  Item,
-  ItemDetail,
-  Members,
-  MembersOptions,
+import {
+  MEMBER_OF_LABEL_ID,
+  type ConnectionWithEndpoint,
+  type EndpointSummary,
+  type Item,
+  type ItemDetail,
+  type Members,
+  type MembersOptions,
 } from "../types.js";
 import { listConnectionsAmong } from "./connections.js";
 import { compileQuery } from "./query.js";
@@ -88,11 +89,18 @@ export async function listItemsWithResources(): Promise<Item[]> {
  * ask the same question of different populations — `listSets` of every
  * item, `listPlacesAmong` of one set's members — and an item has to play
  * the role identically wherever it is asked about.
+ *
+ * `member of` is the one reserved, structural label — everything else
+ * (unlabelled, or any other label like `track`/`author`/`related`) is a
+ * plain relationship and never promotes its target. Unlike `query` and
+ * `is_set`, which were always explicit, an unlabelled arrow used to mean
+ * "belongs" implicitly; that's the rule this replaces (a freehand canvas
+ * edge no longer turns whatever it lands on into a container).
  */
 const PLAYS_SET_ROLE = `(
   query IS NOT NONE
   OR is_set = true
-  OR id IN (SELECT VALUE out FROM connections WHERE label IS NONE AND ${LIVE})
+  OR id IN (SELECT VALUE out FROM connections WHERE label = ${MEMBER_OF_LABEL_ID} AND ${LIVE})
 )`;
 
 export async function listSets(): Promise<Item[]> {
@@ -247,7 +255,7 @@ export async function listArrowsInto(
   options: { createdOn?: string } = {},
 ): Promise<import("../types.js").Connection[]> {
   const db = getDb();
-  const clauses = ["out = $set", "label IS NONE", LIVE];
+  const clauses = ["out = $set", `label = ${MEMBER_OF_LABEL_ID}`, LIVE];
   const bindings: Record<string, unknown> = { set: recordId(setId) };
 
   if (options.createdOn !== undefined) {

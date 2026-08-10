@@ -7,3 +7,8 @@
 // whatever it renders — so `~` keeps its brackets and `public` does not.
 export const HOME_SET_ID = "items:⟨~⟩";
 export const PUBLIC_SET_ID = "items:public";
+
+/** The one reserved, structural label — see @index/database/types for
+ * the full rationale. Every unlabelled connection, and every connection
+ * carrying any other label, is a plain relationship. */
+export const MEMBER_OF_LABEL_ID = "labels:member_of";

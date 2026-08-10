@@ -315,7 +315,7 @@ export function Canvas({
         } else if (moved) {
           const targetId = nodeUnder(elements.current, { x: up.clientX, y: up.clientY }, item.id);
           const target = targetId ? pool.getItem(targetId) : undefined;
-          if (target) void apply(changes.tag(item, target));
+          if (target) void apply(changes.relate(item, target));
         }
 
         // The browser's own `contextmenu` event is still to come — it

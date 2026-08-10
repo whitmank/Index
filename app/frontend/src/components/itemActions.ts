@@ -4,13 +4,13 @@
 import type { Item } from "@index/database/types";
 import { apply, changes } from "../changes/index.js";
 import { captionOf, deviceOf } from "../lib/derive.js";
-import { PUBLIC_SET_ID } from "../lib/seeds.js";
+import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { holdsEverything } from "../lib/sets.js";
 import { errors, pool } from "../store/index.js";
 import type { MenuItem } from "./ContextMenu.tsx";
 
 export function isPublic(item: Item): boolean {
-  return Boolean(pool.findConnection(item.id, PUBLIC_SET_ID, null));
+  return Boolean(pool.findConnection(item.id, PUBLIC_SET_ID, MEMBER_OF_LABEL_ID));
 }
 
 /**
@@ -30,7 +30,7 @@ function removableFrom(item: Item, set: Item | undefined): { can: boolean; why?:
   if (holdsEverything(set)) {
     return { can: false, why: `${name} holds everything, so nothing can be taken out of it` };
   }
-  if (!pool.findConnection(item.id, set.id, null)) {
+  if (!pool.findConnection(item.id, set.id, MEMBER_OF_LABEL_ID)) {
     return { can: false, why: `${name} matches this by its query — there is no arrow to take away` };
   }
   return { can: true };

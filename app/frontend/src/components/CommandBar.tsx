@@ -1,19 +1,15 @@
 // Authored by Karter Whitman using Claude Opus 5
-// The command bar: one field that reaches anything by name and performs
-// anything by name.
+// The command bar: one field that performs anything by name.
 //
-// It holds two registers. **Destinations** — every item, set or not —
-// which it hands to the shell's one navigation primitive: a place you
-// enter, a thing you open, and each row says which it will be so the ↵
-// is never a surprise. And **commands** — the verbs that act on what is
-// picked out, offered first when something is, because a selection is a
-// sentence waiting for one.
-//
-// A verb that needs saying to something takes its argument in the same
+// It holds **commands** — the verbs that act on what is picked out. A
+// verb that needs saying to something takes its argument in the same
 // field: pick `add to…` and the bar keeps the verb as a chip and starts
-// completing sets. That is the whole grammar — verb, then target — and
-// ⇥ moves through it, so the bar can be driven without ever leaving the
-// home row or knowing where anything is on screen.
+// completing sets. ⇥ moves through the grammar the same as ↵, so the
+// bar can be driven without ever leaving the home row.
+//
+// Destinations live in the nav bar (⌘L) now, not here — going somewhere
+// and doing something to what's picked are two different sentences, and
+// this field only ever says the second one.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@index/database/types";
 import { matches, type Command } from "../commands/index.js";
@@ -31,11 +27,8 @@ export interface CommandBarProps {
   commands: Command[];
   /** How many things are picked out — what the verbs would act on. */
   pickedCount: number;
-  /** Dismiss without going anywhere or doing anything. */
+  /** Dismiss without doing anything. */
   onClose: () => void;
-  /** Go to a destination. The shell reads its role and either walks
-   * there or opens it. */
-  onPick: (id: string) => void;
 }
 
 /** One offer in the list. A verb, a destination, or a set you could make. */
@@ -44,7 +37,7 @@ type Row =
   | { kind: "item"; item: Item; place: boolean }
   | { kind: "create"; name: string };
 
-export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBarProps) {
+export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) {
   const [term, setTerm] = useState("");
   /** The verb taken, while its argument is being said. */
   const [staged, setStaged] = useState<Command | null>(null);
@@ -54,8 +47,8 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
   const searchToken = useRef(0);
   const listRef = useRef<HTMLUListElement>(null);
 
-  // The sets are fetched once on open: they are both the empty state's
-  // destinations and every set-taking verb's completions.
+  // The sets are fetched once on open: a set-taking verb's argument is
+  // the only thing left here that ever needs them.
   useEffect(() => {
     void loadSets().then(setSetIds);
   }, []);
@@ -75,13 +68,13 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
 
   const rows = usePool<Row[]>(() => {
     const trimmed = term.trim();
-    const found = (trimmed ? hitIds : setIds).flatMap<{ item: Item; place: boolean }>((id) => {
-      const item = pool.getItem(id);
-      return item ? [{ item, place: pool.isPlace(item.id) }] : [];
-    });
 
     // Saying a verb's argument: only what can answer it is offered.
     if (staged) {
+      const found = (trimmed ? hitIds : setIds).flatMap<{ item: Item; place: boolean }>((id) => {
+        const item = pool.getItem(id);
+        return item ? [{ item, place: pool.isPlace(item.id) }] : [];
+      });
       const places = found.filter((row) => row.place);
       const ordered = trimmed ? places : orderSets(places.map((row) => row.item)).map((item) => ({
         item,
@@ -97,18 +90,12 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
       return rows;
     }
 
-    // Otherwise: the verbs that answer to what was typed, then the
-    // places and things of that name. An unavailable verb shows only
-    // when it is asked for by name, and then it says why it cannot run.
-    const verbs = commands
+    // Otherwise: just the verbs that answer to what was typed. An
+    // unavailable one shows only when it is asked for by name, and then
+    // it says why it cannot run.
+    return commands
       .filter((command) => (trimmed ? matches(command, trimmed) : !command.unavailable))
       .map<Row>((command) => ({ kind: "command", command }));
-
-    const ordered = trimmed ? found : orderSets(found.map((row) => row.item)).map((item) => ({
-      item,
-      place: true,
-    }));
-    return [...verbs, ...ordered.map<Row>((row) => ({ kind: "item", ...row }))];
   });
 
   // A moved cursor has to stay on a row that exists: the offers change
@@ -155,14 +142,12 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
         return;
       }
 
-      if (staged) {
-        staged.run({ set: row.item });
-        onClose();
-        return;
-      }
-      onPick(row.item.id);
+      // The only remaining kind is "item", and it is only ever offered
+      // while a verb's argument is being said.
+      staged?.run({ set: row.item });
+      onClose();
     },
-    [onClose, onPick, staged],
+    [onClose, staged],
   );
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -193,12 +178,12 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
 
   const placeholder = useMemo(() => {
     if (staged) return staged.argument?.prompt ?? "…";
-    if (pickedCount > 0) return `${pickedCount} picked — a command, or somewhere to go`;
-    return "go to…";
+    if (pickedCount > 0) return `${pickedCount} picked — a command`;
+    return "a command…";
   }, [pickedCount, staged]);
 
   const hint = useMemo(() => {
-    if (staged) return staged.title.replace(/…$/, "");
+    if (!staged) return "commands";
     return term.trim() ? "search" : "sets";
   }, [staged, term]);
 
@@ -248,7 +233,7 @@ export function CommandBar({ commands, pickedCount, onClose, onPick }: CommandBa
           </ul>
         ) : (
           <p className="command-empty">
-            {term.trim() ? "nothing by that name" : staged ? "no sets yet" : "no sets yet"}
+            {term.trim() ? "nothing by that name" : staged ? "no sets yet" : "no commands"}
           </p>
         )}
 

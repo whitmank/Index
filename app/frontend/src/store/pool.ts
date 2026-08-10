@@ -10,6 +10,7 @@
 // is cheaper than maintaining per-selector memoisation, and far less
 // machinery to be wrong.
 import type { ChangePair, Connection, Item, StoredRecord } from "@index/database/types";
+import { MEMBER_OF_LABEL_ID } from "../lib/seeds.js";
 
 type Listener = () => void;
 
@@ -113,7 +114,10 @@ export function isPlace(id: string): boolean {
   if (!item) return false;
   if (item.query !== null) return true;
   if (item.is_set) return true;
-  return inboundTo(id).some((connection) => connection.label === null);
+  // `member of` is the one reserved, structural label — everything else
+  // (unlabelled or any other label) is a plain relationship and never
+  // makes its target a place.
+  return inboundTo(id).some((connection) => connection.label === MEMBER_OF_LABEL_ID);
 }
 
 /**
@@ -216,7 +220,7 @@ export function connectionsAmong(itemIds: readonly string[]): Connection[] {
  * `order` first where it exists, then by when they were made. */
 export function arrowsInto(setId: string): Connection[] {
   return inboundTo(setId)
-    .filter((connection) => connection.label === null)
+    .filter((connection) => connection.label === MEMBER_OF_LABEL_ID)
     .sort((a, b) => {
       if (a.order !== null && b.order !== null) return a.order - b.order;
       if (a.order !== null) return -1;

@@ -216,42 +216,49 @@ body {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.5rem;
   height: 2.75rem;
-  padding: 0 0.9rem;
+  padding: 0 0.65rem;
   border-bottom: 1px solid var(--line);
   /* The window is frameless — no title bar, no traffic lights — so the
      address bar is what you grab to move it. */
   -webkit-app-region: drag;
 }
 
-/* Left: the address bar — where you are. A home affordance, then the
-   current set's name when you are inside one, browser-breadcrumb style. */
+/* The whole address bar — ⌂ then the omni box — claims the row's spare
+   width, the way a browser's own address bar does; everything else at
+   the right end is a fixed-size icon. */
 .bar-address {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-  overflow: hidden;
 }
 
 .bar-home {
   -webkit-app-region: no-drag;
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-size: var(--text-md);
   line-height: 1;
   color: var(--ink-quiet);
-  background: none;
-  border: 0;
-  border-radius: 4px;
-  padding: 0.15rem 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
   cursor: pointer;
 }
 
 .bar-home:hover,
 .bar-home.is-here {
   color: var(--ink);
+  border-color: var(--line-strong);
+  background: var(--surface-hi);
 }
 
 .bar-sep {
@@ -281,11 +288,140 @@ body {
 
 .bar-crumb:hover {
   color: var(--ink);
-  background: var(--surface);
+  background: var(--surface-hi);
 }
 
 .bar-crumb.is-here {
   color: var(--ink);
+}
+
+/* The omni bar's box — the one constant on screen, exactly like a
+   browser's address field always showing the current page. Not editing,
+   it holds the trail; editing, the field and its dropdown. Either way
+   the box itself never moves or resizes, so the eye always knows where
+   "current location" lives. */
+.nav-box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 1.9rem;
+  padding: 0 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: text;
+  -webkit-app-region: no-drag;
+}
+
+.nav-box:hover {
+  border-color: var(--line-strong);
+}
+
+.nav-box.is-editing {
+  background: var(--paper);
+  border-color: var(--accent);
+}
+
+.nav-box-trail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* `~` — the one place with no crumb of its own — still has to say
+   something, the way a browser never shows a blank address bar. */
+.nav-here {
+  color: var(--ink-quiet);
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+}
+
+.nav-input {
+  width: 100%;
+  font: inherit;
+  font-size: var(--text-base);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.nav-input::placeholder {
+  color: var(--ink-faint);
+}
+
+.nav-input:focus {
+  outline: none;
+}
+
+.nav-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: -1px;
+  right: -1px;
+  max-height: min(60vh, 22rem);
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-pop);
+  z-index: 30;
+}
+
+.nav-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.nav-row.is-at {
+  background: var(--surface);
+}
+
+.nav-row-mark {
+  flex: none;
+  width: 1.35rem;
+  text-align: center;
+  font-size: var(--text-md);
+  color: var(--ink-quiet);
+}
+
+.nav-row.is-at .nav-row-mark {
+  color: var(--accent);
+}
+
+.nav-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-row-kind {
+  flex: none;
+  color: var(--ink-quiet);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: lowercase;
 }
 
 .bar-action {
@@ -355,54 +491,28 @@ body {
   opacity: 0.7;
 }
 
-/* The command bar's door, kept quiet: the keystroke is the real way in,
-   and this is what tells you the keystroke exists. */
-.bar-goto {
+/* The bar's right end: icon-only buttons, in from the edge — the view
+   toggle (also V) and settings (also ⌘,). Named once and shared, so a
+   third icon button someday reads the same as these two. */
+.bar-icon {
   -webkit-app-region: no-drag;
-  margin-left: auto;
-  font: inherit;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wider);
-  color: var(--ink-faint);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0.2rem 0.55rem;
-  cursor: pointer;
-}
-
-.bar-goto:hover {
-  color: var(--ink-quiet);
-  border-color: var(--line-strong);
-  background: var(--surface);
-}
-
-/* One button, not two: the glyph and the word both name the view you're
-   *in*, so there's a single control to read rather than a pair to
-   compare — clicking it (or V) swaps both for the other view's. */
-.bar-view-toggle {
-  -webkit-app-region: no-drag;
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
   font: inherit;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wider);
+  font-size: var(--text-md);
   color: var(--ink-quiet);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0.2rem 0.55rem;
+  border-radius: 7px;
   cursor: pointer;
 }
 
-.bar-view-toggle:hover {
+.bar-icon:hover {
   color: var(--ink);
   border-color: var(--line-strong);
   background: var(--surface-hi);
-}
-
-.bar-view-toggle-glyph {
-  font-size: var(--text-sm);
-  line-height: 1;
 }

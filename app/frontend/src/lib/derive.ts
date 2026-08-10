@@ -7,6 +7,7 @@
 // change — the alternative was importing runtime code from the database
 // package into the renderer bundle, which the dependency rule forbids.
 import type { Connection, Format, Item, Resource } from "@index/database/types";
+import { MEMBER_OF_LABEL_ID } from "./seeds.js";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic"]);
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
@@ -109,7 +110,7 @@ export function captionOf(item: Item): string {
  * of these answer from what the pool happens to hold, which is what the
  * views need — a full answer would be a query. */
 export function looksLikeSet(item: Item, inbound: Connection[]): boolean {
-  return item.query !== null || inbound.some((connection) => connection.label === null);
+  return item.query !== null || inbound.some((connection) => connection.label === MEMBER_OF_LABEL_ID);
 }
 
 export function looksLikeTag(inbound: Connection[]): boolean {

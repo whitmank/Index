@@ -30,6 +30,7 @@ import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { isEditing } from "../../hooks/useUndoRedo.ts";
 import { captionOf, deviceKindOf, deviceOf, type DeviceKind, nodeImageUrl } from "../../lib/derive.js";
+import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection, useSelfDevice } from "../../store/index.js";
 
@@ -110,7 +111,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     const rows: Row[] = topLevelIds.flatMap((id) => {
       const item = pool.getItem(id);
       if (!item) return [];
-      const arrow = pool.findConnection(id, setId, null);
+      const arrow = pool.findConnection(id, setId, MEMBER_OF_LABEL_ID);
       return [rowFor(item, arrow?.order ?? null)];
     });
 
