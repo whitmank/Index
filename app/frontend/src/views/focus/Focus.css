@@ -304,15 +304,9 @@
 }
 
 /* Nothing in this column compresses to fit — it scrolls (overflow-y
-   above) rather than squeezing its content down smaller than that
-   content actually needs, whatever it is (an aspect-ratio video, a
-   full-size image, a stack of metadata rows). Without this, a `flex: 1`
-   content area competing for space against enough metadata below it
-   would get shrunk by the flex algorithm to fit — which is exactly
-   what was quietly squishing a movie's trailer down from its own 16:9
-   box the moment there was enough Title/Director/Cast/Fields content
-   underneath it to make "the remaining space" smaller than the video
-   actually wanted. */
+   above) rather than squeezing any section smaller than it needs,
+   whatever that section is (a video, a photo, a stack of metadata
+   rows). */
 .layout-single > * {
   flex-shrink: 0;
 }
@@ -430,7 +424,13 @@
   justify-content: center;
 }
 
+/* `flex: none` — the content pane is sized by what it's showing (an
+   aspect-ratio video, a book cover, a photo at its own size), never
+   stretched to fill whatever vertical space happens to be left over
+   after the metadata below it. That's what keeps a movie's trailer at
+   its own 16:9 shape instead of fighting the flex algorithm for space. */
 .layout-single .layout-content {
+  flex: none;
   width: 100%;
   max-width: 960px;
   padding: 0;
@@ -483,11 +483,7 @@
   cursor: pointer;
 }
 
-/* ── Resource carousel — paging through more than one source ────────
-   Replicates .layout-content's own centering one level in, so nothing
-   about how a .content-slot sizes itself per-fit changes; the nav
-   controls anchor to this box's full edges rather than to whatever
-   (possibly smaller) box the current slide happens to need. */
+/* ── Resource carousel — paging through more than one source ──────── */
 
 .resource-carousel {
   position: relative;
@@ -496,13 +492,11 @@
   min-height: 0;
   /* .layout-content's own align-items is `center`, not `stretch` — it
      deliberately doesn't stretch compact content (a link card, a file
-     icon) to full height. This one child needs to fill the available
-     height regardless (that's what the aspect-ratio slides inside it
-     size against), and `align-self: stretch` gets there through the
-     flex algorithm directly rather than a `height: 100%` percentage
-     lookup — the latter has to resolve through .layout-single's
-     `overflow-y: auto` two levels up, which is exactly the kind of
-     chain that percentage heights unreliably resolve through. */
+     icon) to full height. In TwoColumn (Photo, Album) this one child
+     fills the column's real height instead, via `align-self: stretch`;
+     in SingleColumn that height is indefinite, so this resolves to the
+     current slide's own size — either way, the nav controls below
+     anchor to whatever box the current slide actually occupies. */
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -603,14 +597,12 @@
   border-radius: 6px;
 }
 
-/* VideoEmbed's own box — self-sized rather than depending on a
-   .fit-aspect-16-9 ancestor, since MovieLayout drops this somewhere
-   Focus.tsx's content-slot wrapper never reaches. Same proportions as
-   .fit-aspect-16-9 above; nesting the two (the ordinary video-format
-   path, where Focus.tsx's wrapper is still present) is harmless. */
+/* VideoEmbed always sits inside a .content-slot.fit-aspect-16-9 (see
+   ResourceContent.tsx) — that ancestor is the one place the 16:9 ratio
+   is declared, so this just fills the box it's given. */
 .video-embed {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
 }
 
 .video-embed iframe {
@@ -621,26 +613,29 @@
 }
 
 .fit-aspect-3-4 {
-  height: 100%;
+  width: 100%;
   aspect-ratio: 3 / 4;
 }
 
 /* In SingleColumn (Default/Note/Video/Movie), content sits *above* a
-   scrollable stack of metadata rather than beside a same-height editor
-   column — so there's no "available height" for `.content-slot`'s own
-   `height: 100%` to correctly fill; whatever it resolves to is
-   whatever's left after the metadata below claims its share, which
-   fights `aspect-ratio` for the box's actual height and usually wins
-   (an explicit height overrides aspect-ratio, per spec), crushing the
-   video/book box down small instead of sizing it from its own width.
-   `height: auto` here lets aspect-ratio do that job purely from width,
-   the way it's meant to — the column simply grows taller and scrolls.
-   TwoColumn (Photo, Album, a book beside its editor) keeps the
-   height: 100% above: there, content sits beside a same-height column,
-   so filling it is correct. */
-.layout-single .fit-aspect-16-9,
-.layout-single .fit-aspect-3-4 {
+   scrolling stack of metadata rather than beside a same-height editor
+   column, so there's no meaningful "100%" for `.content-slot` to fill —
+   `height: auto` lets each fit size itself from its own width instead:
+   an aspect-ratio box (video, book cover) computes its height from
+   that width, and a photo or link card just shows at its natural size.
+   TwoColumn (Photo, Album, a book beside its editor) keeps the base
+   `height: 100%` above — there, content sits beside a same-height
+   column, so filling it is correct. */
+.layout-single .content-slot {
   height: auto;
+}
+
+/* A photo/link card has no aspect-ratio of its own to bound it, so cap
+   it directly — otherwise a single very tall image could make the pane
+   (and the scroll to reach the details below it) far longer than it
+   needs to be. */
+.layout-single .content-slot.fit-contain {
+  max-height: 70vh;
 }
 
 .renderer-quiet,

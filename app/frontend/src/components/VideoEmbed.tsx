@@ -1,10 +1,7 @@
 // Authored by Karter Whitman using Claude Sonnet 5
-// A YouTube embed, sized to its own 16:9 box — shared by the video
-// renderer (renderers/VideoRenderer.tsx, format-selected: the primary
-// resource is the video) and MovieLayout (layouts/types/MovieLayout.tsx,
-// which reaches past whichever resource is primary for a trailer among
-// the item's others, so it can't rely on Focus.tsx's own content-slot
-// wrapper to size it — this sizes itself instead).
+// A YouTube embed. Always rendered inside ResourceContent.tsx's
+// `.content-slot.fit-aspect-16-9`, which is the one place the 16:9
+// ratio is declared (Focus.css) — this just fills that box.
 export interface VideoEmbedProps {
   uri: string;
   title: string;
