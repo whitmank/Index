@@ -255,3 +255,50 @@ accessibility permission this environment doesn't grant, and reaching for
 it once popped a permission dialog over unrelated apps — so the checks
 dispatch synthetic DOM events instead, and screenshots use a dev-only
 always-on-top flag (`INDEX_TOP`). None of that is shipped behaviour.
+
+## Phase 9 — The ingestor
+
+**What was built:** the module that reads an attached resource, decides
+what kind of thing it is, and fills in what it says about itself — as one
+pipeline instead of three passes that each opened the file for themselves.
+A **probe** opens a resource once and memoizes what it read: `head` is a
+bounded 64 KB and always paid, `bytes()` is opt-in, `hash()` streams
+unless the whole file is already in memory. Intake sniffs first and hashes
+last for exactly that reason, and a test counts the reads. Urls are probed
+the same way, absorbing the fetch the link scrape used to keep to itself.
+
+Classification became content-based through a channel that already
+existed: the probe writes `cached.mime`, and the format ladder consults it
+before falling back to the extension. Extraction was split into readers
+that report **observations** in the format's own words and one function
+that joins them to the type's declared fields — a four-rule ladder (exact
+name, label, synonym-to-name, synonym-to-label), with the schema's `kind`
+winning and its first field taken as the item's name.
+
+**Pinned:** a sniffed media type outranks a filename. No inferred web
+rules — only what a page declares in JSON-LD, because `og:type` reads
+"website" on a Wikipedia article and an `<article>` element appears on the
+BBC's front page. A page is never hashed: its bytes change under a stable
+url, which is the opposite of the identity relink searches by.
+`type_source` records who chose a type, and a guess is never allowed to
+overrule a person. `fields[0]` names the item, the way `resources[0]` is
+primary — reordering is the same gesture in both places.
+
+**Surprised us:** three claims made it into commit messages before they
+were true. The single-read probe still read an epub twice until `hash()`
+learned to sign bytes already in memory. The mime sniff was never
+consulted, because the format ladder's `extension === "epub" || mime ===
+…` could be persuaded by a sniff but never dissuaded by one — caught only
+by driving the real app. And a handle's `cursor: grab` was being taken
+straight back by a more specific rule declared later, caught only by
+rendering against the whole stylesheet instead of the slice just written.
+The pattern is the same each time: the unit test asserted the layer under
+the claim rather than the claim.
+
+**The one that was invisible:** a schema's identity is its slugified,
+lowercase id while its `name` is stored as typed — so a type created as
+`Song` was never found by the lowercase `"song"` the Spotify import
+writes. Every imported song had been quietly losing its schema fields.
+Nothing failed; a lookup simply returned nothing, three times over. It
+surfaced only because a *cosmetic* bug — the types list reordering itself
+after the first edit — shared the root cause.

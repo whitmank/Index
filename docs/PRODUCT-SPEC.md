@@ -474,3 +474,4 @@ format-selected; layouts never override it.
 | file watching | none; stale pointers 404 softly | broken pointers annoying in practice |
 | thumbnail | sharp, 480 px max, JPEG cache | retina complaints |
 | db port | 127.0.0.1:8422 | collision |
+| type identity | `item.type` holds the schema's `name`, matched case-insensitively | wanting to rename a type |
