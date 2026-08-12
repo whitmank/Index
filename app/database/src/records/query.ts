@@ -71,7 +71,13 @@ function compilePredicate(predicate: Predicate, bindings: Bindings, formats: For
   }
 
   const { name, kind, gte, lte, eq } = predicate.field;
-  const terms = [`name = ${bindings.add(name)}`];
+  // A field's *name* is a key and is matched case-insensitively, the way
+  // every other name comparison in the app is: an item's fields arrive
+  // capitalised however their type declares them, however the Spotify
+  // import writes them, and however the user typed them into a row. The
+  // *value* is content and is compared as given. No index is lost —
+  // `fields` is an array scanned inside the row either way.
+  const terms = [`string::lowercase(name) = ${bindings.add(name.toLowerCase())}`];
   if (eq !== undefined) terms.push(compareTerm(kind, "value", "=", bindings.add(eq)));
   if (gte !== undefined) terms.push(compareTerm(kind, "value", ">=", bindings.add(gte)));
   if (lte !== undefined) terms.push(compareTerm(kind, "value", "<=", bindings.add(lte)));

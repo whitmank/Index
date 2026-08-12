@@ -379,6 +379,41 @@ async function main(): Promise<void> {
       assert.equal(readBack?.child, true);
     });
 
+    console.log("\nqueries: a field name is a key, not content");
+
+    // Fields arrive capitalised however a type declares them, however the
+    // Spotify import writes them, and however they were typed into a row —
+    // so a predicate naming one has to find it whichever case it wears.
+    const tome = blankItem({
+      name: "Flatland",
+      fields: [
+        { name: "Author", value: "Edwin Abbott Abbott", kind: "string" },
+        { name: "published", value: "1884-01-01", kind: "date" },
+      ],
+    });
+    const shelfLower = blankItem({
+      name: "by author",
+      query: { and: [{ field: { name: "author", kind: "string", eq: "Edwin Abbott Abbott" } }] },
+    });
+    const shelfUpper = blankItem({
+      name: "by published",
+      query: { and: [{ field: { name: "PUBLISHED", kind: "date", gte: "1800-01-01" } }] },
+    });
+    await applyChange({
+      description: "A book and two shelves that ask for it",
+      pairs: [tome, shelfLower, shelfUpper].map((after) => ({ before: null, after })),
+    });
+
+    const lowerAsked = await listMembers(shelfLower.id);
+    const upperAsked = await listMembers(shelfUpper.id);
+
+    check("a predicate finds a field whatever case either side wears", () => {
+      // `author` asked for by a set, stored on the item as `Author`.
+      assert.ok(lowerAsked.items.some((found) => found.id === tome.id));
+      // And the other direction: `PUBLISHED` asked for, `published` stored.
+      assert.ok(upperAsked.items.some((found) => found.id === tome.id));
+    });
+
     console.log("\nschemas: field order is the naming order");
 
     // `fields[0]` is the item's name (types.ts), so the order a type is
