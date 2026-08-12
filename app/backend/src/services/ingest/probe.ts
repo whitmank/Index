@@ -54,6 +54,7 @@ function ascii(head: Buffer, start: number, end: number): string {
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04]; // "PK\x03\x04"
 const ZIP_HEADER_BYTES = 30;
 const EPUB_MIMETYPE_MAX = 128; // a media type, not a payload
+const EPUB_MIME = "application/epub+zip";
 
 /**
  * An epub is a zip whose *first* entry is an uncompressed file called
@@ -70,16 +71,25 @@ function declaredZipMime(head: Buffer): string | null {
   const nameLength = head.readUInt16LE(26);
   const extraLength = head.readUInt16LE(28);
   const nameEnd = ZIP_HEADER_BYTES + nameLength;
+
+  // A first entry that isn't `mimetype` is a definite no: an OCF
+  // container is required to lead with one, so this is an ordinary zip
+  // however it happens to be named.
   if (ascii(head, ZIP_HEADER_BYTES, nameEnd) !== "mimetype") return "application/zip";
 
-  // Stored rather than deflated, so the entry's bytes are the media type
-  // itself and its compressed size is that string's length. A zero size
-  // means a data descriptor, which the OCF spec forbids here — treat
-  // anything unexpected as a plain zip rather than trusting it.
-  if (compressedSize === 0 || compressedSize > EPUB_MIMETYPE_MAX) return "application/zip";
+  // Conformant files store that entry uncompressed, so its bytes are the
+  // media type and its compressed size is that string's length.
   const start = nameEnd + extraLength;
-  const declared = ascii(head, start, start + compressedSize).trim();
-  return /^[\w.+-]+\/[\w.+-]+$/.test(declared) ? declared : "application/zip";
+  const readable = compressedSize > 0 && compressedSize <= EPUB_MIMETYPE_MAX;
+  const declared = readable ? ascii(head, start, start + compressedSize).trim() : "";
+  if (/^[\w.+-]+\/[\w.+-]+$/.test(declared)) return declared;
+
+  // Named `mimetype` but unreadable — deflated, which the spec forbids
+  // but real files do. Nothing else puts a file of exactly that name
+  // first, so the container is what it looks like even when its own
+  // declaration can't be read; guessing epub here beats demoting a real
+  // book to a plain file over a packaging mistake.
+  return EPUB_MIME;
 }
 
 /** Magic numbers, first match wins. Deliberately short: this exists to

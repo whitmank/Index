@@ -49,17 +49,30 @@ function isWeb(uri: string): boolean {
   return /^https?:\/\//i.test(uri);
 }
 
-/** First match wins — PRODUCT-SPEC §1.6. */
+/**
+ * First match wins — PRODUCT-SPEC §1.6.
+ *
+ * `mime` is what the bytes said when anything read them (the ingestor's
+ * probe sniffs it at intake, or a page's Content-Type declares it); the
+ * extension is only what the name claims. So the extension clauses are
+ * gated on nothing having been sniffed: where both exist and disagree,
+ * the bytes win, and a plain zip wearing `.epub` stops being a book.
+ *
+ * The web rungs stay keyed to the url rather than the media type,
+ * because every page worth telling apart serves `text/html` — a video
+ * and an essay are the same media type and a different kind of thing.
+ */
 export function formatOfResource(resource: Resource | undefined): Format {
   if (!resource) return "bare";
 
   const { uri } = resource;
   const mime = resource.cached?.mime ?? "";
+  const unread = mime === "";
   const extension = extensionOf(uri);
 
-  if (mime.startsWith("image/") || IMAGE_EXTENSIONS.has(extension)) return "image";
-  if (MARKDOWN_EXTENSIONS.has(extension) || mime === "text/markdown") return "markdown";
-  if (extension === "epub" || mime === "application/epub+zip") return "book";
+  if (mime.startsWith("image/") || (unread && IMAGE_EXTENSIONS.has(extension))) return "image";
+  if (mime === "text/markdown" || (unread && MARKDOWN_EXTENSIONS.has(extension))) return "markdown";
+  if (mime === "application/epub+zip" || (unread && extension === "epub")) return "book";
   if (isWeb(uri) && YOUTUBE_PATTERN.test(uri)) return "video";
   if (isWeb(uri)) return "link";
   return "file";

@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
+import { formatOfResource } from "@index/database";
 import { extract } from "../src/services/ingest/extract.js";
 import { openProbe } from "../src/services/ingest/probe.js";
 import { sha256File } from "../src/services/hash.js";
@@ -214,6 +215,34 @@ await check("classifies a mis-named epub by its bytes, end to end", async () => 
   const [result] = await pathsToResources([await writeEpub("hidden.zip")]);
 
   assert.equal(result?.resource.cached?.mime, "application/epub+zip");
+  assert.equal(result?.type, "book");
+  assert.equal(result?.fields.find((field) => field.name === "title")?.value, "Dune");
+});
+
+await check("refuses a plain zip wearing .epub, end to end", async () => {
+  const zip = new JSZip();
+  zip.file("readme.txt", "not a book");
+  const filepath = write("liar.epub", await zip.generateAsync({ type: "nodebuffer" }));
+  const [result] = await pathsToResources([filepath]);
+
+  // The extension says book and the bytes say otherwise. Before the
+  // sniffed mime outranked the name, the name won and this was a book.
+  assert.equal(result?.resource.cached?.mime, "application/zip");
+  assert.equal(formatOfResource(result?.resource), "file");
+  assert.equal(result?.type, null);
+});
+
+await check("still trusts an epub whose mimetype entry is deflated", async () => {
+  // Non-conformant — the OCF spec requires that entry be stored — but
+  // real tools ship them, and demoting a genuine book over a packaging
+  // mistake is the worse error.
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip", { compression: "DEFLATE" });
+  zip.file("META-INF/container.xml", CONTAINER);
+  zip.file("OEBPS/content.opf", OPF);
+  const filepath = write("deflated.epub", await zip.generateAsync({ type: "nodebuffer" }));
+  const [result] = await pathsToResources([filepath]);
+
   assert.equal(result?.type, "book");
   assert.equal(result?.fields.find((field) => field.name === "title")?.value, "Dune");
 });
