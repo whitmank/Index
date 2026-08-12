@@ -35,6 +35,7 @@ let answer: string | null = null;
 const { attachResource, detachResource, moveResource } = await import(
   "../src/lib/resources.js"
 );
+const { changes } = await import("../src/changes/index.js");
 
 function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
@@ -190,6 +191,55 @@ await check("stays quiet when the guess is the type it already had", async () =>
   const change = await moveResource(book, 1, 0);
 
   assert.doesNotMatch(change.description, /reclassified/);
+});
+
+console.log("\nconfirming a guess locks it");
+
+await check("confirming keeps the type and takes ownership of it", async () => {
+  const guessed = item({ type: "book", type_source: "auto" });
+  const after = outcome(changes.setTypeConfirmed(guessed, true));
+
+  assert.equal(after.type, "book", "confirming changes who decided, not what");
+  assert.equal(after.type_source, "user");
+});
+
+await check("a confirmed guess then survives a new primary resource", async () => {
+  reset("movie");
+  const confirmed = outcome(
+    changes.setTypeConfirmed(item({ type: "book", type_source: "auto" }), true),
+  );
+  confirmed.resources = [resource("dune.epub"), resource("dune.mp4")];
+  const after = outcome(await moveResource(confirmed, 1, 0));
+
+  assert.deepEqual(asked, [], "a confirmed type is not even asked about");
+  assert.equal(after.type, "book");
+});
+
+await check("handing it back lets the primary resource decide again", async () => {
+  reset("movie");
+  const released = outcome(
+    changes.setTypeConfirmed(item({ type: "book", type_source: "user" }), false),
+  );
+  assert.equal(released.type_source, "auto");
+  assert.equal(released.type, "book", "handing it back keeps the answer, unlike clearing");
+
+  released.resources = [resource("dune.epub"), resource("dune.mp4")];
+  assert.equal(outcome(await moveResource(released, 1, 0)).type, "movie");
+});
+
+await check("records no provenance for an item with no type", async () => {
+  const after = outcome(changes.setTypeConfirmed(item(), true));
+
+  // A type and its source are present or absent together; nothing can be
+  // confirmed about a classification that was never made.
+  assert.equal(after.type, null);
+  assert.equal(after.type_source, null);
+});
+
+await check("names the consequence in the description", async () => {
+  const guessed = item({ type: "book", type_source: "auto" });
+  assert.match(changes.setTypeConfirmed(guessed, true).description, /^Confirm 'Dune' is a book$/);
+  assert.match(changes.setTypeConfirmed(guessed, false).description, /follow its primary resource/);
 });
 
 console.log(`\n${passed} assertions passed\n`);

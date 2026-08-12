@@ -141,6 +141,8 @@
 .type-trigger-wrap {
   position: relative;
   display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .type-trigger {
@@ -168,6 +170,89 @@
 .type-trigger-caret {
   font-size: 9px;
   color: var(--is-ink-dim);
+}
+
+/* ── Confirming a guess ──────────────────────────────────────────────
+   PRODUCT.md's first design principle: presentation is inferred, and an
+   override "should visually read as 'you chose this' vs. 'this was
+   inferred'". The chip's label carries *what* the type is and stays
+   neutral in both states; this mark carries *who decided*, which is the
+   only bit that changes.
+
+   Deliberately inverted from the usual "done = bright": an unconfirmed
+   guess is the state asking for something, so it gets the accent ring,
+   and a confirmed one settles into the surface. Nothing here is a
+   validation state — a guess is not an error, and colouring it like one
+   would make every freshly-dropped file look like a problem.
+
+   Hollow versus filled is the whole distinction, and the mark stays at
+   full strength in both. Dimming it to say "not yet" was the first
+   instinct and the wrong one: at the opacity that reads as tentative it
+   falls to 2.8:1 against this surface, under the 3:1 floor a non-text
+   control needs — and it was saying a second time what the ring already
+   says. */
+
+.type-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  /* 70% is the contrast floor here, not a taste call: the ring is this
+     control's only boundary, and thinner than ~65% it drops under 3:1
+     against the scrim (--scrim-focus over --page). */
+  border: 1px solid color-mix(in srgb, var(--is-accent) 70%, transparent);
+  border-radius: 50%;
+  background: none;
+  color: var(--is-accent);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.type-confirm > span {
+  /* Understated while the ring is hollow, upright once it fills — the
+     scale runs on the way *into* the confirmed class, so the mark lands
+     once and then holds rather than pulsing for attention. */
+  transform: scale(0.88);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.type-confirm:hover {
+  background: color-mix(in srgb, var(--is-accent) 18%, transparent);
+}
+
+.type-confirm:focus-visible {
+  outline: 2px solid var(--is-accent);
+  outline-offset: 2px;
+}
+
+.type-confirm.is-confirmed {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--is-ink);
+}
+
+.type-confirm.is-confirmed > span {
+  transform: scale(1);
+}
+
+.type-confirm.is-confirmed:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .type-confirm,
+  .type-confirm > span {
+    transition-duration: 1ms;
+  }
+
+  .type-confirm > span,
+  .type-confirm.is-confirmed > span {
+    transform: none;
+  }
 }
 
 .type-popover {

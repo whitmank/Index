@@ -41,6 +41,15 @@ function typeProvenance(item: Item): string {
     : "guessed — click to change";
 }
 
+/** What the confirm control says it will do. Both halves name the
+ * consequence rather than the state, because the state is already legible
+ * from the mark and the consequence is the part that isn't. */
+function confirmHint(item: Item): string {
+  return item.type_source === "user"
+    ? "confirmed — click to let the type follow the primary resource again"
+    : "confirm this type, so changing resources won't revise it";
+}
+
 export interface FocusProps {
   itemId: string;
   /** True when this item was created by the gesture that opened it. */
@@ -320,6 +329,26 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 ⌄
               </span>
             </button>
+
+            {/* Only a typed item has a guess to stand behind. Untyped
+                shows nothing rather than a disabled control, since there
+                is no state to communicate yet. */}
+            {item.type && (
+              <button
+                aria-label={confirmHint(item)}
+                aria-pressed={item.type_source === "user"}
+                className={
+                  item.type_source === "user" ? "type-confirm is-confirmed" : "type-confirm"
+                }
+                onClick={() =>
+                  void apply(changes.setTypeConfirmed(item, item.type_source !== "user"))
+                }
+                title={confirmHint(item)}
+                type="button"
+              >
+                <span aria-hidden="true">✓</span>
+              </button>
+            )}
 
             {typeMenuOpen && (
               <ul className="type-popover">

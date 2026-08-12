@@ -133,6 +133,30 @@ export function setType(item: Item, type: string | null): Change {
   );
 }
 
+/**
+ * Accept the classifier's guess as your own, or hand it back.
+ *
+ * Confirming changes nothing about *what* the type is — only who stands
+ * behind it, which is what decides whether a later primary resource is
+ * allowed to overrule it (lib/resources.ts). Handing it back is the only
+ * route from "user" to "auto" that keeps the type: clearing would reopen
+ * guessing too, but by throwing the answer away first.
+ *
+ * An item with no type has no provenance to record, so the invariant
+ * (a type and its source are present or absent together) is enforced
+ * here rather than assumed of every caller.
+ */
+export function setTypeConfirmed(item: Item, confirmed: boolean): Change {
+  const source = item.type ? (confirmed ? "user" : "auto") : null;
+  return swap(
+    item,
+    { ...item, type_source: source },
+    confirmed
+      ? `Confirm ${describe(item)} is a ${item.type}`
+      : `Let ${describe(item)}'s type follow its primary resource again`,
+  );
+}
+
 /** Blank rows vanish on commit — an empty name and value is a row the
  * user abandoned, not a fact. */
 export function setFields(item: Item, fields: Field[]): Change {
