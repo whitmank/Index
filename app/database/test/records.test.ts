@@ -18,6 +18,8 @@ import {
   invert,
   itemId,
   listMembers,
+  listSchemas,
+  schemaFor,
   startDatabase,
   upsertSchema,
   HOME_SET_ID,
@@ -418,6 +420,35 @@ async function main(): Promise<void> {
         { name: "author", label: null, kind: "string" },
         { name: "isbn", label: null, kind: "string", hidden: true },
       ],
+    });
+
+    // `ORDER BY name ASC` sorts by codepoint, so a type created as `Song`
+    // came back ahead of one created as `album` — and the renderer then
+    // re-sorted with localeCompare after any save, so the list arrived in
+    // one order and jumped to another the first time it was touched.
+    await upsertSchema({ name: "Song", label: null, fields: [] });
+    await upsertSchema({ name: "album", label: null, fields: [] });
+    const mixedCase = await listSchemas();
+
+    check("a mixed-case list comes back in one alphabetical order", () => {
+      assert.deepEqual(
+        mixedCase.map((schema) => schema.name),
+        ["album", "book", "Song"],
+      );
+      // The comparator the renderer's own merge uses, so the two agree.
+      assert.deepEqual(
+        [...mixedCase].sort((a, b) => a.name.localeCompare(b.name)).map((s) => s.name),
+        mixedCase.map((schema) => schema.name),
+      );
+    });
+
+    check("a lowercase type still finds a capitalised schema", () => {
+      // The live case: the Spotify import writes `type: "song"` and this
+      // schema was created as `Song`, which an exact match never finds.
+      assert.equal(schemaFor(mixedCase, "song")?.name, "Song");
+      assert.equal(schemaFor(mixedCase, "Song")?.name, "Song");
+      assert.equal(schemaFor(mixedCase, "playlist"), undefined);
+      assert.equal(schemaFor(mixedCase, null), undefined);
     });
 
     check("a hidden field round-trips as hidden, and its neighbours don't", () => {

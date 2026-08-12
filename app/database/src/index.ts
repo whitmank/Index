@@ -9,7 +9,7 @@ export { applyChange, invert } from "./changes.js";
 export { seed } from "./seed.js";
 
 export { connectionId, itemId, labelId, ulid } from "./ids.js";
-export { deviceOf, devicePrefix, formatOf, formatOfResource } from "./derive.js";
+export { deviceOf, devicePrefix, formatOf, formatOfResource, sameTypeName, schemaFor } from "./derive.js";
 
 export * from "./records/index.js";
 

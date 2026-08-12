@@ -223,6 +223,18 @@ await check("leaves out the ones marked hidden", () => {
   ]);
 });
 
+await check("finds its type's schema whatever case either was written in", () => {
+  const capitalised: Schema = { id: "schemas:song", name: "Song", label: null, fields: [
+    declare("title"), declare("artist"),
+  ] };
+
+  // The Spotify import writes `type: "song"`; a schema created by typing
+  // "Song" into the type manager keeps the capital. An exact match found
+  // neither, so every imported song lost its fields.
+  const drawn = resolveLayout(item({ type: "song" }), [], [capitalised]).entry.fields;
+  assert.deepEqual(drawn?.map((field) => field.name), ["artist"]);
+});
+
 await check("falls back to the default layout when nothing is left to lay out", () => {
   const resolution = resolveLayout(
     item({ type: "book" }),

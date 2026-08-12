@@ -14,6 +14,25 @@ const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
 
 const YOUTUBE_PATTERN = /^https?:\/\/(www\.)?(youtube\.com\/(watch|shorts|embed)|youtu\.be\/)/i;
 
+/** Mirrors @index/database's own, for the reason in this file's header.
+ *
+ * Case-insensitively: a schema's identity is its slugified id (always
+ * lowercase) while its `name` is stored as typed, so `Song` and `song`
+ * are one row and a lookup that distinguishes them finds nothing. The
+ * classifier and the Spotify import both write lowercase types. */
+export function sameTypeName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/** The schema a type names, or undefined. */
+export function schemaFor<T extends { name: string }>(
+  schemas: T[],
+  type: string | null,
+): T | undefined {
+  if (!type) return undefined;
+  return schemas.find((schema) => sameTypeName(schema.name, type));
+}
+
 export function deviceOf(uri: string): string {
   const scheme = uri.slice(0, uri.indexOf("://")).toLowerCase();
   if (scheme === "http" || scheme === "https") return "web";

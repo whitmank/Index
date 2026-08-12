@@ -7,10 +7,18 @@ import { schemaId } from "../ids.js";
 import type { Schema, SchemaField } from "../types.js";
 import { recordId, schemaContent, serializeSchema, type SchemaRow } from "./serialize.js";
 
+/**
+ * Sorted here rather than by the query, because `ORDER BY name ASC` sorts
+ * by codepoint: a schema created as `Song` came back before one created as
+ * `album`, so the list arrived in one order and jumped to another the
+ * moment the renderer re-sorted it after a save. `localeCompare` is what
+ * that merge uses (views/schemas/SchemaManager.tsx), and the two have to
+ * be the same comparator or they disagree exactly once, confusingly.
+ */
 export async function listSchemas(): Promise<Schema[]> {
   const db = getDb();
-  const [rows] = await db.query<[SchemaRow[]]>("SELECT * FROM schemas ORDER BY name ASC").collect();
-  return rows.map(serializeSchema);
+  const [rows] = await db.query<[SchemaRow[]]>("SELECT * FROM schemas").collect();
+  return rows.map(serializeSchema).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export interface SchemaInput {

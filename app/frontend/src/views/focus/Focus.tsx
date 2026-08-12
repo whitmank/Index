@@ -18,6 +18,7 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
+import { sameTypeName } from "../../lib/derive.js";
 import { attachResource } from "../../lib/resources.js";
 import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
@@ -352,10 +353,16 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 {schemas.map((schema) => (
                   <li key={schema.id}>
                     <button
-                      className={schema.name === item.type ? "type-option is-current" : "type-option"}
+                      className={
+                        item.type && sameTypeName(schema.name, item.type)
+                          ? "type-option is-current"
+                          : "type-option"
+                      }
                       onClick={() => {
                         setTypeMenuOpen(false);
-                        if (schema.name !== item.type) void apply(changes.setType(item, schema.name));
+                        if (!item.type || !sameTypeName(schema.name, item.type)) {
+                          void apply(changes.setType(item, schema.name));
+                        }
                       }}
                       type="button"
                     >

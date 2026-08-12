@@ -10,6 +10,27 @@ const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
 
 const YOUTUBE_PATTERN = /^https?:\/\/(www\.)?(youtube\.com\/(watch|shorts|embed)|youtu\.be\/)/i;
 
+/**
+ * Whether two type names refer to the same schema.
+ *
+ * Case-insensitively, because a schema's identity is its slugified id
+ * (`schemaId`, always lowercase) while its `name` is stored exactly as
+ * typed — so `Song` and `song` are one row that cannot coexist, and any
+ * lookup treating them as different finds nothing. That is not
+ * hypothetical: the classifier and the Spotify import both write
+ * lowercase types, and a schema created as `Song` would never be found
+ * by them.
+ */
+export function sameTypeName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/** The schema a type names, or undefined. */
+export function schemaFor<T extends { name: string }>(schemas: T[], type: string | null): T | undefined {
+  if (!type) return undefined;
+  return schemas.find((schema) => sameTypeName(schema.name, type));
+}
+
 /** The authority segment of a resource uri: `web` for the internet, the
  * scheme otherwise (`mbp://Users/k/x.jpg` ⇒ `mbp`). */
 export function deviceOf(uri: string): string {

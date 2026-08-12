@@ -11,7 +11,7 @@
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
 import path from "node:path";
-import { listSchemas, type Field, type Resource, type Schema } from "@index/database";
+import { listSchemas, schemaFor, type Field, type Resource, type Schema } from "@index/database";
 import { selfDevice } from "../config.js";
 import { deriveForResource } from "./derivations.js";
 import { classifyResource } from "./ingest/classify.js";
@@ -125,7 +125,7 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const { name, fields } = await extract(
         type,
         probe,
-        schemas.find((schema) => schema.name === type),
+        schemaFor(schemas, type),
       );
 
       return {

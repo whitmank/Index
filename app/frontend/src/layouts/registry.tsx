@@ -20,6 +20,7 @@
 import type { FieldKind, Item, Resource, Schema } from "@index/database/types";
 import type { ReactNode } from "react";
 import { youtubeId } from "../components/VideoEmbed.tsx";
+import { schemaFor } from "../lib/derive.js";
 import { TwoColumn } from "./parts/TwoColumn.tsx";
 import { AlbumLayout } from "./types/AlbumLayout.tsx";
 import { DefaultLayout } from "./types/DefaultLayout.tsx";
@@ -116,7 +117,7 @@ export interface Resolution {
 export function resolveLayout(item: Item, tags: { name: string }[], schemas: Schema[]): Resolution {
   const inferred = tags.find((tag) => tag.name in layouts)?.name ?? null;
 
-  const schema = item.type ? schemas.find((candidate) => candidate.name === item.type) : undefined;
+  const schema = schemaFor(schemas, item.type);
   // A type's first field is drawn already — as the item's name, at the
   // top of the panel — so drawing it again here would be two controls
   // editing one fact. `hidden` drops the rest a type would rather not
