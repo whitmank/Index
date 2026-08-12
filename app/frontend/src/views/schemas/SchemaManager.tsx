@@ -16,32 +16,29 @@ const KINDS: FieldKind[] = ["string", "number", "date", "list"];
 
 /** The password-reveal pair, in the app's own outline-glyph idiom
  * (DeviceIcon): plain currentColor strokes, so hover and quiet states
- * reach these the way they reach text. */
+ * reach these the way they reach text.
+ *
+ * The closed state keeps the whole eye and lays a slash over it, rather
+ * than the usual `eye-off` that breaks the outline into fragments — at
+ * this size those fragments read as a smudge, and the two states have to
+ * be told apart at a glance. Sharing every path means the slash is the
+ * only difference, which is the difference being communicated.
+ */
 function EyeIcon({ open }: { open: boolean }) {
-  const common = {
-    "aria-hidden": "true",
-    className: "eye-icon",
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    strokeWidth: "1.8",
-    viewBox: "0 0 24 24",
-  } as const;
-
-  if (open) {
-    return (
-      <svg {...common}>
-        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    );
-  }
-
   return (
-    <svg {...common}>
-      <path d="M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-10-8-10-8a18.5 18.5 0 0 1 5.1-6M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2" />
-      <line x1="2" x2="22" y1="2" y2="22" />
+    <svg
+      aria-hidden="true"
+      className="eye-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+      {!open && <line x1="20" x2="4" y1="4" y2="20" />}
     </svg>
   );
 }
@@ -278,7 +275,7 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
                     : `hide ${field.name} from the top of the item`
                 }
                 aria-pressed={!field.hidden}
-                className={field.hidden ? "field-visibility is-hidden" : "field-visibility"}
+                className="field-visibility"
                 onClick={() => updateField(index, { hidden: !field.hidden })}
                 title={
                   field.hidden

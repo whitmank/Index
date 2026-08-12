@@ -162,9 +162,14 @@
 }
 
 /* Same column, every other row: whether the field gets room at the top of
-   an item. Shown is the ordinary state and reads as ordinary ink; hidden
-   is the deliberate one and goes faint — the state and the word agree,
-   so the icon is not carrying the meaning alone. */
+   an item.
+
+   Both states take the same ink, and the slash alone says which — dimming
+   the hidden one was the first attempt and wrong twice over. --ink-faint
+   measures 1.88:1 on --paper, which is fine for a drag handle that
+   brightens on hover and not for a state you have to read at rest; and a
+   greyed-out control reads as disabled, which this one never is.
+   --ink-quiet clears 3:1. */
 .schema-editor-block .field-visibility {
   display: flex;
   align-items: center;
@@ -178,17 +183,13 @@
   transition: color 120ms ease;
 }
 
-.schema-editor-block .field-visibility.is-hidden {
-  color: var(--ink-faint);
-}
-
 .schema-editor-block .field-visibility:hover {
   color: var(--accent);
 }
 
 .eye-icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
