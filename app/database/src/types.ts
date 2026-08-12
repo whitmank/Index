@@ -117,6 +117,20 @@ export interface SchemaField {
   /** Display label; falls back to `name` when absent. */
   label: string | null;
   kind: FieldKind;
+  /**
+   * Keep this field out of the laid-out block at the top of Focus.
+   *
+   * Not a secret and not a deletion: the value is still extracted, still
+   * stored, and still shown — it drops to the generic fields list below,
+   * which draws whatever the layout did not claim
+   * (views/focus/FieldsEditor.tsx). An ISBN is worth having and rarely
+   * worth looking at, and this is the difference.
+   *
+   * A flag rather than a position, unlike the name: where a field sits
+   * says which matters most, which is a different question from whether
+   * it earns room up front.
+   */
+  hidden?: boolean;
 }
 
 /**

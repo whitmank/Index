@@ -5,7 +5,7 @@
 // which resource counts as the subject, which guesses are allowed to
 // overwrite what, and which are refused.
 import assert from "node:assert/strict";
-import type { Item, Resource } from "@index/database/types";
+import type { Item, Resource, Schema, SchemaField } from "@index/database/types";
 
 let passed = 0;
 
@@ -36,6 +36,7 @@ const { attachResource, detachResource, dropIndexFor, moveResource } = await imp
   "../src/lib/resources.js"
 );
 const { changes } = await import("../src/changes/index.js");
+const { resolveLayout } = await import("../src/layouts/registry.tsx");
 
 function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
@@ -191,6 +192,48 @@ await check("stays quiet when the guess is the type it already had", async () =>
   const change = await moveResource(book, 1, 0);
 
   assert.doesNotMatch(change.description, /reclassified/);
+});
+
+console.log("\nwhat a type puts at the top of an item");
+
+const bookSchema = (fields: SchemaField[]): Schema => ({
+  id: "schemas:book",
+  name: "book",
+  label: null,
+  fields,
+});
+const declare = (name: string, hidden = false): SchemaField =>
+  ({ name, label: null, kind: "string", hidden });
+
+const laidOut = (fields: SchemaField[]) =>
+  resolveLayout(item({ type: "book" }), [], [bookSchema(fields)]).entry.fields?.map((f) => f.name);
+
+await check("draws every field but the one that names the item", () => {
+  assert.deepEqual(laidOut([declare("title"), declare("author"), declare("isbn")]), [
+    "author",
+    "isbn",
+  ]);
+});
+
+await check("leaves out the ones marked hidden", () => {
+  // Not gone: FieldsEditor draws whatever this block doesn't claim, so a
+  // hidden field's value moves down the panel rather than off it.
+  assert.deepEqual(laidOut([declare("title"), declare("author"), declare("isbn", true)]), [
+    "author",
+  ]);
+});
+
+await check("falls back to the default layout when nothing is left to lay out", () => {
+  const resolution = resolveLayout(
+    item({ type: "book" }),
+    [],
+    [bookSchema([declare("title"), declare("isbn", true)])],
+  );
+
+  // A type whose only visible field is its name has nothing for the
+  // two-column shape to hold, so it resolves as an untyped item would.
+  assert.equal(resolution.entry.fields, undefined);
+  assert.equal(resolution.source, "default");
 });
 
 console.log("\nwhere a dragged row lands");

@@ -14,6 +14,38 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 
 const KINDS: FieldKind[] = ["string", "number", "date", "list"];
 
+/** The password-reveal pair, in the app's own outline-glyph idiom
+ * (DeviceIcon): plain currentColor strokes, so hover and quiet states
+ * reach these the way they reach text. */
+function EyeIcon({ open }: { open: boolean }) {
+  const common = {
+    "aria-hidden": "true",
+    className: "eye-icon",
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: "1.8",
+    viewBox: "0 0 24 24",
+  } as const;
+
+  if (open) {
+    return (
+      <svg {...common}>
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-10-8-10-8a18.5 18.5 0 0 1 5.1-6M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  );
+}
+
 export interface SchemaManagerProps {
   onClose: () => void;
 }
@@ -225,20 +257,39 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
               ⠿
             </button>
 
-            {/* Fixed width whether or not it holds a star, so every row's
-                input starts at the same x — the resources list marks its
-                primary the same way, and for the same reason: the first
-                one is the one that decides something. */}
-            <span
-              className="schema-field-primary-indicator"
-              title={index === 0 ? "names the item — drag another field above to change it" : undefined}
-            >
-              {index === 0 && (
-                <>
-                  ★<span className="sr-only">Names the item</span>
-                </>
-              )}
-            </span>
+            {/* One fixed-width column, two jobs — whichever this row has.
+                The leading field is the item's name, so whether it shows
+                among the fields is not a question it has; every other row
+                answers it with the eye. Sharing the column keeps each
+                row's input starting at the same x, as the resources list
+                does with its primary star. */}
+            {index === 0 ? (
+              <span
+                className="schema-field-primary-indicator"
+                title="names the item — drag another field above to change it"
+              >
+                ★<span className="sr-only">Names the item</span>
+              </span>
+            ) : (
+              <button
+                aria-label={
+                  field.hidden
+                    ? `show ${field.name} on the item`
+                    : `hide ${field.name} from the top of the item`
+                }
+                aria-pressed={!field.hidden}
+                className={field.hidden ? "field-visibility is-hidden" : "field-visibility"}
+                onClick={() => updateField(index, { hidden: !field.hidden })}
+                title={
+                  field.hidden
+                    ? "hidden from the top of the item — still kept, and still editable in its fields list"
+                    : "shown at the top of the item — click to keep it further down instead"
+                }
+                type="button"
+              >
+                <EyeIcon open={!field.hidden} />
+              </button>
+            )}
             <SettleInput
               ariaLabel="field name"
               onCommit={(name) => updateField(index, { name })}
@@ -268,6 +319,10 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
         ))}
 
         <div className="schema-field-row is-draft" key={draftGeneration}>
+          {/* Two leading spacers, not one: the row has a handle column and
+              a star/eye column, and a short row slid its input into the
+              narrow one. */}
+          <span />
           <span />
           <SettleInput
             ariaLabel="new field name"

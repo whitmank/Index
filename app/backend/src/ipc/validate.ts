@@ -64,7 +64,15 @@ function asOptionalString(value: unknown, what: string): string | null {
 
 function asSchemaField(value: unknown, what: string): SchemaField {
   if (typeof value !== "object" || value === null) fail(`${what} must be an object`);
-  const { name, label, kind } = value as { name?: unknown; label?: unknown; kind?: unknown };
+  const { name, label, kind, hidden } = value as {
+    name?: unknown;
+    label?: unknown;
+    kind?: unknown;
+    hidden?: unknown;
+  };
+  if (hidden !== undefined && typeof hidden !== "boolean") {
+    fail(`${what}.hidden must be a boolean`);
+  }
   // Rebuilds the field rather than passing it through, so anything not
   // named here is dropped on the way across the bridge. That is the
   // point, and it is also the trap: a new property has to be added here
@@ -73,6 +81,7 @@ function asSchemaField(value: unknown, what: string): SchemaField {
     name: asString(name, `${what}.name`),
     label: asOptionalString(label, `${what}.label`),
     kind: asFieldKind(kind, `${what}.kind`),
+    hidden: hidden === true,
   };
 }
 

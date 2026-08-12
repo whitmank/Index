@@ -299,6 +299,13 @@ anything that needed the whole file has loaded it.
   already exists, so there is no name of the user's to overwrite. A
   leading field that matches nothing leaves the derived name standing.
 
+  A field marked **`hidden`** is left out of that laid-out block too. It
+  is not a secret and not a deletion: the value is still extracted, still
+  stored, and still drawn by the generic field list below, which takes
+  whatever the layout did not claim. A flag here rather than a position,
+  because where a field sits says which matters most — a different
+  question from whether it earns room up front.
+
   The join is four ordered rules, and the order decides ties: exact
   field name, then field `label`, then a synonym of the observation's
   key against a name, then against a label. Names are compared with

@@ -408,6 +408,25 @@ async function main(): Promise<void> {
       assert.deepEqual(reordered.fields.map((field) => field.name), ["author", "title"]);
     });
 
+    // `hidden` is the kind of property that gets dropped in transit and
+    // fails silently — it typechecks everywhere and simply never arrives.
+    const withHidden = await upsertSchema({
+      name: "book",
+      label: null,
+      fields: [
+        { name: "title", label: null, kind: "string" },
+        { name: "author", label: null, kind: "string" },
+        { name: "isbn", label: null, kind: "string", hidden: true },
+      ],
+    });
+
+    check("a hidden field round-trips as hidden, and its neighbours don't", () => {
+      assert.deepEqual(
+        withHidden.fields.map((field) => Boolean(field.hidden)),
+        [false, false, true],
+      );
+    });
+
     console.log(`\n${passed} assertions passed\n`);
   } finally {
     await handle.stop();

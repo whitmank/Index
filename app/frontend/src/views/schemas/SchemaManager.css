@@ -139,7 +139,7 @@
 
 .schema-field-row {
   display: grid;
-  grid-template-columns: 1.1rem 0.9rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 1.1rem 1.15rem minmax(0, 1fr) auto auto;
   gap: 0.6rem;
   align-items: center;
   padding: 0.5rem 0;
@@ -159,6 +159,37 @@
   font-size: var(--text-xs, 11px);
   line-height: 1;
   color: var(--good);
+}
+
+/* Same column, every other row: whether the field gets room at the top of
+   an item. Shown is the ordinary state and reads as ordinary ink; hidden
+   is the deliberate one and goes faint — the state and the word agree,
+   so the icon is not carrying the meaning alone. */
+.schema-editor-block .field-visibility {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ink-quiet);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.schema-editor-block .field-visibility.is-hidden {
+  color: var(--ink-faint);
+}
+
+.schema-editor-block .field-visibility:hover {
+  color: var(--accent);
+}
+
+.eye-icon {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .schema-field-row.is-draft {

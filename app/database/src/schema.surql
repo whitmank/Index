@@ -58,4 +58,7 @@ DEFINE FIELD OVERWRITE fields.*.name  ON schemas TYPE string;
 DEFINE FIELD OVERWRITE fields.*.label ON schemas TYPE option<string>;
 DEFINE FIELD OVERWRITE fields.*.kind  ON schemas TYPE string DEFAULT "string"
     ASSERT $value IN ["string", "number", "date", "list"];
+-- Kept out of Focus's laid-out block; still extracted, stored, and shown
+-- in the generic field list below it.
+DEFINE FIELD OVERWRITE fields.*.hidden ON schemas TYPE bool DEFAULT false;
 DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;
