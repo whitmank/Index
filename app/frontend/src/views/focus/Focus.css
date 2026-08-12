@@ -1132,8 +1132,9 @@
   font-size: 12px;
 }
 
-.resource-move {
-  font-size: 11px !important;
+.resource-row.is-dragging {
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0.75;
 }
 
 /* The one control that both says where a resource lives and opens it
@@ -1147,10 +1148,6 @@
   align-items: center;
   justify-content: center;
   padding: 4px;
-}
-
-.resource-move-down {
-  transform: rotate(180deg);
 }
 
 .resource-row-missing .resource-name {
@@ -1212,6 +1209,47 @@
 .resource-row button:hover {
   color: var(--is-accent);
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* A resource's position is dragged by this handle, not by the row: the
+   row also holds a url, a device button and a remove button, and making
+   the whole thing a drag surface would put those behind a gesture.
+
+   Written after `.resource-row button` and qualified to match it —
+   that rule is more specific than a bare class and would otherwise take
+   back both the colour and the cursor, which is exactly what happened
+   the first time.
+
+   Quieter than its neighbours at rest, because reordering is not why
+   this panel gets opened, but not invisible: 0.45 white is the floor
+   that still clears 3:1 against the scrim, and a control you cannot
+   find is not an affordance. Same idea as SchemaManager's field
+   handle — dim at rest, present on row hover. */
+.resource-row .resource-handle {
+  flex: none;
+  width: 14px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: grab;
+  /* Or the pointer drag is stolen by the panel's own scrolling. */
+  touch-action: none;
+  transition: color 120ms ease;
+}
+
+.resource-row:hover .resource-handle {
+  color: var(--is-ink-dim);
+}
+
+.resource-row .resource-handle:hover {
+  color: var(--is-ink);
+  background: none;
+}
+
+.resource-row.is-dragging .resource-handle {
+  color: var(--is-ink);
+  cursor: grabbing;
 }
 
 /* ── Add-field affordance ────────────────────────────────────────────── */

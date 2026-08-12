@@ -7,12 +7,17 @@
 //
 // Nothing here copies bytes. Adding a file is recording where it already
 // is.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Item, Resource } from "@index/database/types";
 import { apply } from "../../changes/index.js";
 import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { deviceKindOf, deviceOf } from "../../lib/derive.js";
-import { attachResource, detachResource, moveResource } from "../../lib/resources.js";
+import {
+  attachResource,
+  detachResource,
+  dropIndexFor,
+  moveResource,
+} from "../../lib/resources.js";
 import { errors, useSelfDevice } from "../../store/index.js";
 
 /** Where the resource actually is: the absolute path for a local file,
@@ -26,6 +31,8 @@ function locationOf(resource: Resource): string {
 
 export function ResourcesEditor({ item }: { item: Item }) {
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const [missingUris, setMissingUris] = useState<Set<string>>(new Set());
   // The uri a search is currently running for — locate (a picked folder)
   // and reseek (the whole watch list) share this, since only one of
@@ -95,6 +102,43 @@ export function ResourcesEditor({ item }: { item: Item }) {
     }
   };
 
+  /** Which row the pointer is over, by each row's own midpoint — the
+   * same measure SchemaManager's field reorder uses, so dragging feels
+   * the same in both places. */
+  const indexAt = (clientY: number): number => {
+    const rows = [...(listRef.current?.querySelectorAll<HTMLElement>(".resource-row") ?? [])];
+    for (const [index, row] of rows.entries()) {
+      const box = row.getBoundingClientRect();
+      if (clientY < box.top + box.height / 2) return index;
+    }
+    return rows.length;
+  };
+
+  /** Dragging a resource to the top is how the user says what the item
+   * *is*, so this goes through `moveResource` like the keyboard path —
+   * a drop onto position 0 can reclassify, in the same change. */
+  const move = (from: number, to: number): void => {
+    if (to === from || to < 0 || to >= item.resources.length) return;
+    void moveResource(item, from, to).then(apply);
+  };
+
+  const startReorder = (event: React.PointerEvent, from: number): void => {
+    event.preventDefault();
+    setDragging(from);
+
+    const onMove = (pointer: PointerEvent): void => pointer.preventDefault();
+    const onUp = (pointer: PointerEvent): void => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setDragging(null);
+
+      move(from, dropIndexFor(from, indexAt(pointer.clientY)));
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+  };
+
   const pick = async (): Promise<void> => {
     setBusy(true);
     try {
@@ -127,11 +171,41 @@ export function ResourcesEditor({ item }: { item: Item }) {
         </button>
       </div>
 
-      <ul className="resources">
+      <ul className="resources" ref={listRef}>
         {item.resources.map((resource, index) => {
           const isMissing = missingUris.has(resource.uri);
           return (
-          <li className={isMissing ? "resource-row resource-row-missing" : "resource-row"} key={resource.uri}>
+          <li
+            className={
+              [
+                "resource-row",
+                isMissing ? "resource-row-missing" : "",
+                dragging === index ? "is-dragging" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")
+            }
+            key={resource.uri}
+          >
+            {/* One control where two arrows used to be. It still answers
+                the arrow keys, because a pointer-only handle would take
+                reordering away from the keyboard entirely — dragging is
+                the faster gesture, not the only one. */}
+            <button
+              aria-label={`reorder ${resource.name}`}
+              className="resource-handle"
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                event.preventDefault();
+                move(index, index + (event.key === "ArrowUp" ? -1 : 1));
+              }}
+              onPointerDown={(event) => startReorder(event, index)}
+              title="drag to reorder, or use the arrow keys — the first is primary"
+              type="button"
+            >
+              ⠿
+            </button>
+
             {/* Fixed-width regardless of primary/not, so every row's
                 label starts at the same x — xyz's source-primary-
                 indicator convention. */}
@@ -202,25 +276,6 @@ export function ResourcesEditor({ item }: { item: Item }) {
               type="button"
             >
               <DeviceIcon kind={deviceKindOf(resource.uri, selfDevice)} />
-            </button>
-
-            <button
-              aria-label="Move up"
-              className="resource-move"
-              disabled={index === 0}
-              onClick={() => void moveResource(item, index, index - 1).then(apply)}
-              type="button"
-            >
-              ‹
-            </button>
-            <button
-              aria-label="Move down"
-              className="resource-move resource-move-down"
-              disabled={index === item.resources.length - 1}
-              onClick={() => void moveResource(item, index, index + 1).then(apply)}
-              type="button"
-            >
-              ‹
             </button>
 
             <button

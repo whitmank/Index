@@ -65,6 +65,20 @@ async function withReclassification(before: Item, change: Change): Promise<Chang
   };
 }
 
+/**
+ * Where a row dragged from `from` lands when it is dropped above the row
+ * currently at `over`.
+ *
+ * The subtraction is the whole reason this is named: `over` counts the
+ * rows as they are *now*, with the dragged one still among them, so
+ * dropping below its old position overshoots by exactly the gap it
+ * leaves behind. Off by one here silently moves the wrong resource to
+ * primary, which reclassifies the item.
+ */
+export function dropIndexFor(from: number, over: number): number {
+  return over > from ? over - 1 : over;
+}
+
 /** Appended, so it is only ever the primary on an item that had none. */
 export async function attachResource(item: Item, resource: Resource): Promise<Change> {
   return withReclassification(item, changes.addResource(item, resource));

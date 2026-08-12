@@ -32,7 +32,7 @@ let answer: string | null = null;
   },
 };
 
-const { attachResource, detachResource, moveResource } = await import(
+const { attachResource, detachResource, dropIndexFor, moveResource } = await import(
   "../src/lib/resources.js"
 );
 const { changes } = await import("../src/changes/index.js");
@@ -191,6 +191,33 @@ await check("stays quiet when the guess is the type it already had", async () =>
   const change = await moveResource(book, 1, 0);
 
   assert.doesNotMatch(change.description, /reclassified/);
+});
+
+console.log("\nwhere a dragged row lands");
+
+await check("dropping above an earlier row lands on that row's index", () => {
+  // [a b c d], c dragged onto b's slot → index 1.
+  assert.equal(dropIndexFor(2, 1), 1);
+  assert.equal(dropIndexFor(3, 0), 0);
+});
+
+await check("dropping below discounts the gap the row leaves behind", () => {
+  // [a b c d], a dragged past c: the pointer is over index 3, but once a
+  // is lifted out everything above it shifts down one, so it lands at 2.
+  assert.equal(dropIndexFor(0, 3), 2);
+  assert.equal(dropIndexFor(1, 3), 2);
+});
+
+await check("dropping onto its own slot resolves to where it already is", () => {
+  // Both edges of the row it came from: the caller compares against
+  // `from` and does nothing, so a drag that goes nowhere writes no change
+  // and costs no undo entry.
+  assert.equal(dropIndexFor(2, 2), 2);
+  assert.equal(dropIndexFor(2, 3), 2);
+});
+
+await check("dragging the last row to the very top makes it primary", () => {
+  assert.equal(dropIndexFor(3, 0), 0);
 });
 
 console.log("\nconfirming a guess locks it");
