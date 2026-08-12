@@ -9,6 +9,7 @@
 // means "no opinion", not "untyped": callers keep whatever type they had.
 import { formatOfResource } from "@index/database";
 import type { Resource } from "@index/database/types";
+import { isWikipediaUrl } from "../previews/wikipedia.js";
 import { isSpotifyAlbumUrl } from "../spotify.js";
 import { openProbe, type Probe } from "./probe.js";
 
@@ -26,10 +27,18 @@ import { openProbe, type Probe } from "./probe.js";
  * an `.epub` that is not one. The extension remains the answer only when
  * there was no probe to ask (a web uri, an unreachable device).
  *
+ * The web rules are host matches rather than anything about the web as
+ * such, and deliberately so: `link` is already the format meaning "a
+ * page", so a type that fires on every url would just be reading the
+ * format back. An album, a video and an essay are all pages; what
+ * separates them is whose page it is.
+ *
  * The Spotify rule is a plain url match, not a network call — an item
  * gets typed "album" (and so the album layout) the instant it's created,
  * whether or not the heavier song-import that follows (lib/spotify.ts,
- * frontend) ever succeeds.
+ * frontend) ever succeeds. Wikipedia is the same shape: every `/wiki/`
+ * page is an article, which is a thing known about that host rather than
+ * anything read off the page.
  *
  * `probe` is deliberately unread today: both current rules are answered
  * by the resource alone, one of them via the mime the probe already
@@ -43,7 +52,9 @@ export async function classifyResource(
 ): Promise<string | null> {
   void probe;
   if (formatOfResource(resource) === "book") return "book";
-  if (resource && isSpotifyAlbumUrl(resource.uri)) return "album";
+  if (!resource) return null;
+  if (isSpotifyAlbumUrl(resource.uri)) return "album";
+  if (isWikipediaUrl(resource.uri)) return "article";
   return null;
 }
 

@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
 import { formatOfResource } from "@index/database";
+import { classifyUri } from "../src/services/ingest/classify.js";
 import { extract } from "../src/services/ingest/extract.js";
 import { openProbe } from "../src/services/ingest/probe.js";
 import { sha256File } from "../src/services/hash.js";
@@ -245,6 +246,30 @@ await check("still trusts an epub whose mimetype entry is deflated", async () =>
 
   assert.equal(result?.type, "book");
   assert.equal(result?.fields.find((field) => field.name === "title")?.value, "Dune");
+});
+
+console.log("\nclassification: hosts, not the web at large");
+
+await check("types a wikipedia article", async () => {
+  assert.equal(await classifyUri("https://en.wikipedia.org/wiki/Your_Name", "Your Name"), "article");
+});
+
+await check("types a non-english wikipedia the same way", async () => {
+  assert.equal(await classifyUri("https://ja.wikipedia.org/wiki/君の名は。", "x"), "article");
+});
+
+await check("leaves wikipedia's own non-article pages alone", async () => {
+  assert.equal(await classifyUri("https://en.wikipedia.org/", "wikipedia"), null);
+});
+
+await check("says nothing about the rest of the web", async () => {
+  for (const url of [
+    "https://github.com/anthropics/anthropic-sdk-python",
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://example.com/some/essay",
+  ]) {
+    assert.equal(await classifyUri(url, "x"), null, url);
+  }
 });
 
 console.log("\nextraction: the field names the schema join must not break");
