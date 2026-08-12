@@ -10,13 +10,15 @@
 // a checked-in binary would hide it.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
 import { formatOfResource } from "@index/database";
-import { classifyUri } from "../src/services/ingest/classify.js";
+import { classifyResource, classifyUri } from "../src/services/ingest/classify.js";
 import { extract } from "../src/services/ingest/extract.js";
 import { openProbe } from "../src/services/ingest/probe.js";
+import { declaresArticle } from "../src/services/ingest/signals/schemaOrg.js";
 import { sha256File } from "../src/services/hash.js";
 import { pathsToResources, pathToUri } from "../src/services/intake.js";
 
@@ -250,27 +252,144 @@ await check("still trusts an epub whose mimetype entry is deflated", async () =>
 
 console.log("\nclassification: hosts, not the web at large");
 
+// The host rules answer from the url alone, so they are asked with no
+// probe — which also keeps them off the network. What a page's *content*
+// decides is exercised further down, against a local server.
+const byUrl = (uri: string) => classifyResource({ uri, name: "x" }, null);
+
 await check("types a wikipedia article", async () => {
-  assert.equal(await classifyUri("https://en.wikipedia.org/wiki/Your_Name", "Your Name"), "article");
+  assert.equal(await byUrl("https://en.wikipedia.org/wiki/Your_Name"), "article");
 });
 
 await check("types a non-english wikipedia the same way", async () => {
-  assert.equal(await classifyUri("https://ja.wikipedia.org/wiki/君の名は。", "x"), "article");
+  assert.equal(await byUrl("https://ja.wikipedia.org/wiki/君の名は。"), "article");
 });
 
-await check("leaves wikipedia's own non-article pages alone", async () => {
-  assert.equal(await classifyUri("https://en.wikipedia.org/", "wikipedia"), null);
+await check("leaves wikipedia's own non-article paths alone", async () => {
+  assert.equal(await byUrl("https://en.wikipedia.org/"), null);
 });
 
-await check("says nothing about the rest of the web", async () => {
+await check("says nothing about the rest of the web on the url alone", async () => {
   for (const url of [
     "https://github.com/anthropics/anthropic-sdk-python",
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     "https://example.com/some/essay",
   ]) {
-    assert.equal(await classifyUri(url, "x"), null, url);
+    assert.equal(await byUrl(url), null, url);
   }
 });
+
+console.log("\nwhat a page declares about itself");
+
+const ldPage = (types: string) => `<!doctype html><html><head>
+  <title>A Piece of Writing</title>
+  <meta property="og:type" content="website">
+  <meta property="og:description" content="the extract">
+  <script type="application/ld+json">${types}</script>
+</head><body><article>words</article></body></html>`;
+
+await check("reads a plain @type", () => {
+  assert.equal(declaresArticle(ldPage('{"@type":"Article"}')), true);
+});
+
+await check("reads one out of an array of blocks", () => {
+  assert.equal(
+    declaresArticle(ldPage('[{"@type":"WebSite"},{"@type":"NewsArticle"}]')),
+    true,
+  );
+});
+
+await check("reads one out of an @graph", () => {
+  assert.equal(
+    declaresArticle(ldPage('{"@graph":[{"@type":"Organization"},{"@type":"BlogPosting"}]}')),
+    true,
+  );
+});
+
+await check("is not fooled by a news site's front page", () => {
+  // The shape that defeats every inference: a homepage full of <article>
+  // elements, published by a news organisation, declaring itself a
+  // WebPage — which is exactly what it is.
+  assert.equal(
+    declaresArticle(ldPage('[{"@type":"WebPage"},{"@type":"NewsMediaOrganization"}]')),
+    false,
+  );
+});
+
+await check("has no opinion when the page declares nothing", () => {
+  assert.equal(declaresArticle("<html><body><article>words</article></body></html>"), false);
+});
+
+await check("survives a malformed block without losing the others", () => {
+  const html = `<html><head>
+    <script type="application/ld+json">{ not json at all </script>
+    <script type="application/ld+json">{"@type":"BlogPosting"}</script>
+  </head></html>`;
+  assert.equal(declaresArticle(html), true);
+});
+
+console.log("\nthe web probe: one fetch, shared");
+
+const hits: Record<string, number> = {};
+const server = http.createServer((request, response) => {
+  const url = request.url ?? "/";
+  hits[url] = (hits[url] ?? 0) + 1;
+  if (url === "/article") {
+    response.writeHead(200, { "Content-Type": "text/html" });
+    response.end(ldPage('{"@type":"NewsArticle"}'));
+  } else if (url === "/repo") {
+    response.writeHead(200, { "Content-Type": "text/html" });
+    response.end(ldPage('{"@type":"SoftwareSourceCode"}'));
+  } else if (url === "/photo.bin") {
+    response.writeHead(200, { "Content-Type": "application/octet-stream" });
+    response.end(Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.alloc(64),
+    ]));
+  } else {
+    response.writeHead(404).end();
+  }
+});
+await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const port = (server.address() as { port: number }).port;
+const origin = `http://127.0.0.1:${port}`;
+
+await check("types a page that calls itself an article", async () => {
+  assert.equal(await classifyUri(`${origin}/article`, "article"), "article");
+});
+
+await check("says nothing about a page that calls itself something else", async () => {
+  assert.equal(await classifyUri(`${origin}/repo`, "repo"), null);
+});
+
+await check("says nothing when the page cannot be reached", async () => {
+  assert.equal(await classifyUri(`${origin}/nowhere`, "gone"), null);
+});
+
+await check("fetches the page once for metadata and classification together", async () => {
+  for (const key of Object.keys(hits)) delete hits[key];
+  const [result] = await pathsToResources([`${origin}/article`]);
+
+  // Before the probe: once in the scrape, and again for anything else
+  // that wanted to look. The favicon is a separate url and may fetch too.
+  assert.equal(hits["/article"], 1);
+  assert.equal(result?.type, "article");
+  assert.equal(result?.resource.cached?.card_title, "A Piece of Writing");
+  assert.equal(result?.resource.cached?.card_extract, "the extract");
+});
+
+await check("leaves a page unhashed — bytes are a file's identity, not a url's", async () => {
+  const [result] = await pathsToResources([`${origin}/article`]);
+  assert.equal(result?.resource.contentHash, undefined);
+});
+
+await check("sniffs a mislabelled image url past its Content-Type", async () => {
+  const [result] = await pathsToResources([`${origin}/photo.bin`]);
+  assert.equal(result?.resource.cached?.mime, "image/png");
+  assert.equal(formatOfResource(result?.resource), "image");
+});
+
+await new Promise<void>((resolve) => server.close(() => resolve()));
 
 console.log("\nextraction: the field names the schema join must not break");
 

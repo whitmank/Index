@@ -20,8 +20,6 @@ const EMPTY: LinkMetadata = {
   card_extract: null,
 };
 
-const MAX_HTML_BYTES = 1_000_000; // PRODUCT-SPEC §2.4
-
 const FAVICON_SELECTORS = [
   'link[rel="icon"]',
   'link[rel="shortcut icon"]',
@@ -37,26 +35,19 @@ function resolveAgainst(href: string | undefined, base: string): string | null {
   }
 }
 
-/** Reads at most MAX_HTML_BYTES of the body — link and meta tags live in
- * <head>, so the full page is never needed. */
-async function readCappedText(response: Response): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) return "";
-  const decoder = new TextDecoder();
-  let text = "";
-  let bytesRead = 0;
-  while (bytesRead < MAX_HTML_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytesRead += value.byteLength;
-    text += decoder.decode(value, { stream: true });
-  }
-  void reader.cancel().catch(() => {});
-  return text;
-}
-
-export async function fetchLinkMetadata(url: string): Promise<LinkMetadata> {
-  const scraped = await scrape(url);
+/**
+ * What a page says about itself, read from html the ingestor's probe
+ * already fetched (ingest/probe.ts) rather than fetched again here —
+ * this module used to do its own request, parse it for four tags and
+ * discard the parse, which meant nothing else could ask the page a
+ * question without paying for a second round trip.
+ *
+ * `html` is empty when the page couldn't be reached, which is not an
+ * error: the Wikipedia fallback below still runs, so an unreachable
+ * article still gets a title and an extract.
+ */
+export async function linkMetadataFrom(url: string, html: string): Promise<LinkMetadata> {
+  const scraped = html ? scrape(url, html) : EMPTY;
 
   if (!isWikipediaUrl(url)) return scraped;
 
@@ -71,39 +62,34 @@ export async function fetchLinkMetadata(url: string): Promise<LinkMetadata> {
   };
 }
 
-async function scrape(url: string): Promise<LinkMetadata> {
+export function scrape(url: string, html: string): LinkMetadata {
   try {
-    return await withPreviewTimeout(async (signal) => {
-      const response = await previewFetch(url, signal);
-      if (!response.ok) return EMPTY;
+    const $ = cheerio.load(html);
 
-      const $ = cheerio.load(await readCappedText(response));
+    let favicon: string | null = null;
+    for (const selector of FAVICON_SELECTORS) {
+      favicon = resolveAgainst($(selector).first().attr("href"), url);
+      if (favicon) break;
+    }
+    favicon ??= resolveAgainst("/favicon.ico", url);
 
-      let favicon: string | null = null;
-      for (const selector of FAVICON_SELECTORS) {
-        favicon = resolveAgainst($(selector).first().attr("href"), url);
-        if (favicon) break;
-      }
-      favicon ??= resolveAgainst("/favicon.ico", url);
+    const ogImage =
+      $('meta[property="og:image"]').attr("content") ??
+      $('meta[name="twitter:image"]').attr("content");
 
-      const ogImage =
-        $('meta[property="og:image"]').attr("content") ??
-        $('meta[name="twitter:image"]').attr("content");
+    const title =
+      $('meta[property="og:title"]').attr("content") ?? $("title").first().text().trim();
 
-      const title =
-        $('meta[property="og:title"]').attr("content") ?? $("title").first().text().trim();
+    const extract =
+      $('meta[property="og:description"]').attr("content") ??
+      $('meta[name="description"]').attr("content");
 
-      const extract =
-        $('meta[property="og:description"]').attr("content") ??
-        $('meta[name="description"]').attr("content");
-
-      return {
-        favicon,
-        preview_image: resolveAgainst(ogImage, url),
-        card_title: title || null,
-        card_extract: extract?.trim() || null,
-      };
-    });
+    return {
+      favicon,
+      preview_image: resolveAgainst(ogImage, url),
+      card_title: title || null,
+      card_extract: extract?.trim() || null,
+    };
   } catch {
     return EMPTY;
   }

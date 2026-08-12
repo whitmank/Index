@@ -12,6 +12,7 @@ import type { Resource } from "@index/database/types";
 import { isWikipediaUrl } from "../previews/wikipedia.js";
 import { isSpotifyAlbumUrl } from "../spotify.js";
 import { openProbe, type Probe } from "./probe.js";
+import { declaresArticle } from "./signals/schemaOrg.js";
 
 /**
  * First match wins, same shape as the format ladder — but its own ladder,
@@ -40,21 +41,21 @@ import { openProbe, type Probe } from "./probe.js";
  * page is an article, which is a thing known about that host rather than
  * anything read off the page.
  *
- * `probe` is deliberately unread today: both current rules are answered
- * by the resource alone, one of them via the mime the probe already
- * deposited. It is in the signature because the rules that need to open
- * the file are the reason the probe exists, and taking it now means the
- * call sites do not have to be rewritten to add the first one.
+ * Host rules come first because they are free and certain. The page's
+ * own declaration is the general case and runs last: a site nobody has
+ * written a rule for still gets typed if it says plainly what it is.
  */
 export async function classifyResource(
   resource: Resource | undefined,
   probe: Probe | null,
 ): Promise<string | null> {
-  void probe;
   if (formatOfResource(resource) === "book") return "book";
   if (!resource) return null;
   if (isSpotifyAlbumUrl(resource.uri)) return "album";
   if (isWikipediaUrl(resource.uri)) return "article";
+
+  if (probe?.kind === "web" && declaresArticle(await probe.text())) return "article";
+
   return null;
 }
 

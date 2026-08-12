@@ -12,29 +12,44 @@
 // that could hold half a gigabyte) is reached only by a reader that has
 // already established the file is worth loading.
 //
-// [pinned here] Local files only in this pass. `openProbe` returns null
-// for a web uri so a web probe fits later, but implementing one now would
-// mean fetching a page here *and* again in derivations.ts — a regression
-// against today's single fetch. The follow-up that adds web absorbs that
-// scrape rather than racing it.
+// A web resource is probed the same way, and for the same reason: the
+// link scrape used to fetch a page, read four og: tags off it and throw
+// the parse away, so nothing downstream could ask the page anything else
+// without fetching it again. Now the fetch happens once here and both
+// the metadata and the classifier read the same body.
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { deviceOf } from "@index/database";
 import { sha256File } from "../hash.js";
+import { previewFetch, withPreviewTimeout } from "../previews/fetch.js";
 import { resolveExistingFile } from "../resolver.js";
 
 /** Enough for a zip's first local header, an image's signature block, and
  * a markdown file's opening section — the things classification reads. */
 const HEAD_BYTES = 64 * 1024;
 
+/** PRODUCT-SPEC §2.4: link and meta tags live in <head>, so the rest of a
+ * page is never needed and an enormous one can't hang resource creation. */
+const WEB_MAX_BYTES = 1_000_000;
+
 export interface Probe {
   readonly uri: string;
-  readonly filepath: string;
+  /** Which kind of thing was opened. Callers that mean something by the
+   * difference — a content hash is a *file's* identity, not a page's —
+   * branch on this rather than on `filepath` being null. */
+  readonly kind: "file" | "web";
+  readonly filepath: string | null;
   readonly size: number;
-  /** The first `HEAD_BYTES`, or the whole file when it is smaller. */
+  /** For a file, its first `HEAD_BYTES`. For a page, the body up to
+   * `WEB_MAX_BYTES` — the whole of what was fetched, since a page is
+   * read to be parsed rather than skimmed for a signature. */
   readonly head: Buffer;
 
-  /** Sniffed from `head` — what the bytes say they are, which is not
-   * always what the extension claims. Null when nothing matched. */
+  /** What the bytes say they are, which is not always what the extension
+   * claims — nor what a server's Content-Type claims, which is why this
+   * is sniffed for pages too. Null when nothing matched, including for
+   * ordinary html: that a page is html tells the format ladder nothing
+   * it doesn't already know from the url. */
   mime(): Promise<string | null>;
   text(): Promise<string>;
   bytes(): Promise<Buffer>;
@@ -140,13 +155,66 @@ function sha256Buffer(buffer: Buffer): string {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
+/** Reads at most `WEB_MAX_BYTES` of a response body, then hangs up. */
+async function readCapped(response: Response): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+
+  const chunks: Buffer[] = [];
+  let read = 0;
+  while (read < WEB_MAX_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value));
+    read += value.byteLength;
+  }
+  void reader.cancel().catch(() => {});
+  return Buffer.concat(chunks, Math.min(read, WEB_MAX_BYTES));
+}
+
 /**
- * The handle for a resource, or null when there is no local file behind it
- * — a web uri, an unreachable device, a path that has moved. Callers treat
- * a null probe the way they already treat a missing derivation: not an
- * error, just less to go on.
+ * The page behind a url, fetched once. Null when it can't be reached —
+ * no network, a refusal, a timeout — which callers already handle, since
+ * that was every web resource until now.
+ */
+async function openWebProbe(uri: string): Promise<Probe | null> {
+  let body: Buffer;
+  try {
+    body = await withPreviewTimeout(async (signal) => {
+      const response = await previewFetch(uri, signal);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return readCapped(response);
+    });
+  } catch {
+    return null;
+  }
+
+  return {
+    uri,
+    kind: "web",
+    filepath: null,
+    size: body.length,
+    head: body,
+    // Deliberately the sniff and not the Content-Type header: servers
+    // are careless with it, and a jpeg served as octet-stream is still a
+    // jpeg. Html sniffs to nothing, which is the right answer — the url
+    // is what places a page, not its media type.
+    mime: once(async () => sniff(body)),
+    text: once(async () => body.toString("utf8")),
+    bytes: once(async () => body),
+    hash: once(async () => sha256Buffer(body)),
+  };
+}
+
+/**
+ * The handle for a resource, or null when there is nothing to open — an
+ * unreachable device, a path that has moved, a url that won't answer.
+ * Callers treat a null probe the way they already treat a missing
+ * derivation: not an error, just less to go on.
  */
 export async function openProbe(uri: string): Promise<Probe | null> {
+  if (deviceOf(uri) === "web") return openWebProbe(uri);
+
   const filepath = resolveExistingFile(uri);
   if (!filepath) return null;
 
@@ -159,6 +227,7 @@ export async function openProbe(uri: string): Promise<Probe | null> {
 
     return {
       uri,
+      kind: "file",
       filepath,
       size: stat.size,
       head,

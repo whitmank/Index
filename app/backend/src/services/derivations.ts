@@ -10,7 +10,8 @@ import sharp from "sharp";
 import { deviceOf, formatOfResource, type CachedDerivations, type Resource } from "@index/database";
 import { CACHE_DIR } from "../config.js";
 import { resolveExistingFile } from "./resolver.js";
-import { fetchLinkMetadata } from "./previews/linkMetadata.js";
+import type { Probe } from "./ingest/probe.js";
+import { linkMetadataFrom } from "./previews/linkMetadata.js";
 import { previewFetch, withPreviewTimeout } from "./previews/fetch.js";
 
 const THUMBNAIL_MAX_DIMENSION = 480; // PRODUCT-SPEC §4
@@ -81,12 +82,20 @@ export async function thumbnail(uri: string): Promise<string | null> {
  * (PRODUCT-SPEC §2.4). Deliberately best-effort: whatever fails is simply
  * absent.
  */
-export async function deriveForResource(resource: Resource): Promise<CachedDerivations> {
+export async function deriveForResource(
+  resource: Resource,
+  probe: Probe | null = null,
+): Promise<CachedDerivations> {
   const format = formatOfResource(resource);
   const cached: CachedDerivations = { ...resource.cached };
 
   if (format === "link" || format === "video") {
-    const metadata = await fetchLinkMetadata(resource.uri);
+    // The page the probe already fetched, parsed here rather than
+    // fetched a second time. No probe (unreachable, or a caller that
+    // didn't open one) means an empty body, which the Wikipedia REST
+    // fallback inside still recovers a title and extract from.
+    const html = probe?.kind === "web" ? await probe.text() : "";
+    const metadata = await linkMetadataFrom(resource.uri, html);
     // Minted now, while there's definitely a network — not left for
     // whoever opens this item first to discover there isn't one.
     if (metadata.favicon) {

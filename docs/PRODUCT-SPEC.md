@@ -248,13 +248,19 @@ observations, derivations, type guess and extracted fields attached. No
 file watching in v1 **[pinned here]** — a stale pointer 404s gracefully
 instead.
 
-**ingest** — one **probe** per resource: a handle that opens a local file
-once and memoizes what was read. `head` is a bounded 64 KB and always
-paid; `bytes()` is opt-in; `hash()` streams unless the whole file is
-already in memory, in which case it signs that. Web resources get no
-probe in this pass **[pinned here]** — a web probe belongs with the
-follow-up that folds the link scrape into it, or the same page would be
-fetched twice.
+**ingest** — one **probe** per resource: a handle that opens it once and
+memoizes what was read. For a file, `head` is a bounded 64 KB and always
+paid, `bytes()` is opt-in, and `hash()` streams unless the whole file is
+already in memory, in which case it signs that. For a url, the body is
+fetched once under the same 1 MB cap and 10 s timeout the link scrape
+used, and `text()` hands it to both the metadata parse and the
+classifier — the fetch that used to be private to the scrape.
+
+Only a file is hashed **[pinned here]**: a page's bytes change under a
+stable url, which is the opposite of the identity relink searches by.
+`mime` is always sniffed from the bytes, never taken from a server's
+Content-Type, so a jpeg served as `octet-stream` is still a jpeg; html
+sniffs to nothing, which is correct, since a url is what places a page.
 
 Order inside `pathsToResources` is load-bearing: the probe's sniffed
 `mime` goes onto `resources[].cached` *before* derivations and
@@ -263,9 +269,16 @@ classification, since both consult the format ladder and the ladder reads
 anything that needed the whole file has loaded it.
 
 - **classify** — the type guess. Its own ladder, not a proxy for
-  `format`. Content-based via the sniffed `mime`, so an epub is
-  identified by the media type its first zip entry declares rather than
-  by its extension.
+  `format`. For files, content-based via the sniffed `mime`, so an epub
+  is identified by the media type its first zip entry declares rather
+  than by its extension. For urls, host rules first (Spotify → album,
+  Wikipedia `/wiki/` → article) and then the page's own schema.org
+  JSON-LD `@type`. **[pinned here]** No inferred web rules: measured
+  across real pages, `og:type` reads `website` on a Wikipedia article
+  and `object` on a GitHub repo, and an `<article>` element appears on
+  the BBC's front page and on a repo's README. Only a declaration the
+  page volunteers is trusted; declaring nothing earns no opinion, which
+  costs nothing because a null guess never overwrites a type.
 - **extract** — type-specific readers returning **observations** (a key
   in the format's own vocabulary), mapped to `fields` by one function.
   That map is the identity today; giving it the item's schema so a

@@ -48,7 +48,10 @@ async function withMime(resource: Resource, probe: Probe | null): Promise<Resour
  * to open is still streamed instead of buffered.
  */
 async function withIdentity(resource: Resource, probe: Probe | null): Promise<Resource> {
-  if (!probe) return resource;
+  // A page has bytes but no stable identity — they change under the url
+  // without the resource having moved, which is the opposite of what
+  // relink searches for. Only a file gets signed.
+  if (probe?.kind !== "file") return resource;
   try {
     return { ...resource, contentHash: await probe.hash(), size: probe.size };
   } catch {
@@ -104,7 +107,7 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const probe = await openProbe(uri);
       const sniffed = await withMime({ uri, name: nameFor(input) }, probe);
 
-      const cached = await deriveForResource(sniffed);
+      const cached = await deriveForResource(sniffed, probe);
       const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
 
       const type = await classifyResource(derived, probe);
