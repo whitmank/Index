@@ -1,0 +1,61 @@
+// Authored by Karter Whitman using Claude Sonnet 5
+// The classifier: a first guess at an item's type. Stored (Item.type) and
+// user-overridable from there — never a live derivation the way `format`
+// is, because the user can overrule it and a derivation would argue back.
+//
+// It re-runs only when the primary resource changes, and never over a
+// `type_source` of "user" (lib/resources.ts holds that rule, since it is
+// the layer that knows which resource became primary). A null answer here
+// means "no opinion", not "untyped": callers keep whatever type they had.
+import { formatOfResource } from "@index/database";
+import type { Resource } from "@index/database/types";
+import { isSpotifyAlbumUrl } from "../spotify.js";
+import { openProbe, type Probe } from "./probe.js";
+
+/**
+ * First match wins, same shape as the format ladder — but its own ladder,
+ * not a proxy for it: v1's only file rule happens to coincide with
+ * `format` (an epub is unambiguously a book), but a later rule need not
+ * (a recipe guessed from a markdown file's content, say).
+ *
+ * The probe is what makes those later rules possible, and it already pays
+ * off on the one rule there is. `formatOfResource` reads `cached.mime`
+ * before it falls back to the extension, and intake fills that in from
+ * the probe's sniff — so "is this a book?" is answered by the media type
+ * the file itself declares, catching a mis-named `.zip` and turning away
+ * an `.epub` that is not one. The extension remains the answer only when
+ * there was no probe to ask (a web uri, an unreachable device).
+ *
+ * The Spotify rule is a plain url match, not a network call — an item
+ * gets typed "album" (and so the album layout) the instant it's created,
+ * whether or not the heavier song-import that follows (lib/spotify.ts,
+ * frontend) ever succeeds.
+ *
+ * `probe` is deliberately unread today: both current rules are answered
+ * by the resource alone, one of them via the mime the probe already
+ * deposited. It is in the signature because the rules that need to open
+ * the file are the reason the probe exists, and taking it now means the
+ * call sites do not have to be rewritten to add the first one.
+ */
+export async function classifyResource(
+  resource: Resource | undefined,
+  probe: Probe | null,
+): Promise<string | null> {
+  void probe;
+  if (formatOfResource(resource) === "book") return "book";
+  if (resource && isSpotifyAlbumUrl(resource.uri)) return "album";
+  return null;
+}
+
+/**
+ * Classify a uri that is already on an item — the reorder and detach
+ * paths, which have a resource but no intake pipeline around it. Opens
+ * its own probe and mints the same `cached.mime` intake would, so the
+ * answer does not silently depend on which door it came through.
+ */
+export async function classifyUri(uri: string, name: string): Promise<string | null> {
+  const probe = await openProbe(uri);
+  const mime = (await probe?.mime()) ?? undefined;
+  const resource: Resource = mime ? { uri, name, cached: { mime } } : { uri, name };
+  return classifyResource(resource, probe);
+}

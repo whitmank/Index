@@ -3,16 +3,16 @@
 // (container.xml points at it; Dublin Core elements hold the rest) — no
 // network, no guessing beyond what the file already declares.
 //
-// Field names here are a v1 convention (title/author/published/genre/
-// isbn), not something read off the "book" schema itself — teaching the
-// ingestor to fill whatever names a user's schema happens to declare is
-// the "natural language operations" step the product notes name for
-// later, not this pass.
-import fs from "node:fs";
+// The keys here are the epub's own vocabulary flattened to a v1
+// convention (title/author/published/genre/isbn), not names read off any
+// "book" schema. Joining an observation's key to whatever a user's schema
+// actually calls that field is `extract.ts`'s job, and today it does the
+// identity map; see the note there.
 import * as cheerio from "cheerio";
 import JSZip from "jszip";
 import type { Element } from "domhandler";
-import type { Field } from "@index/database/types";
+import type { Observation } from "../extract.js";
+import type { Probe } from "../probe.js";
 
 function localName(tag: string): string {
   const at = tag.indexOf(":");
@@ -49,10 +49,12 @@ function normalizedDate(raw: string): string {
   return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString().slice(0, 10);
 }
 
-export async function ingestBook(filepath: string): Promise<Field[]> {
+export async function extractBook(probe: Probe): Promise<Observation[]> {
   try {
-    const buffer = await fs.promises.readFile(filepath);
-    const zip = await JSZip.loadAsync(buffer);
+    // The probe's buffer, not a read of our own — for an epub this is the
+    // only full read of the file that happens on the way in, and the hash
+    // shares it rather than streaming the same bytes a second time.
+    const zip = await JSZip.loadAsync(await probe.bytes());
 
     const containerXml = await zip.file("META-INF/container.xml")?.async("string");
     if (!containerXml) return [];
@@ -70,13 +72,15 @@ export async function ingestBook(filepath: string): Promise<Field[]> {
     const genre = textsOf(opf, "subject").join(", ");
     const isbn = isbnFrom(textsOf(opf, "identifier"));
 
-    const fields: Field[] = [];
-    if (title) fields.push({ name: "title", value: title, kind: "string" });
-    if (author) fields.push({ name: "author", value: author, kind: "string" });
-    if (published) fields.push({ name: "published", value: normalizedDate(published), kind: "date" });
-    if (genre) fields.push({ name: "genre", value: genre, kind: "string" });
-    if (isbn) fields.push({ name: "isbn", value: isbn, kind: "string" });
-    return fields;
+    const observations: Observation[] = [];
+    if (title) observations.push({ key: "title", value: title, kind: "string" });
+    if (author) observations.push({ key: "author", value: author, kind: "string" });
+    if (published) {
+      observations.push({ key: "published", value: normalizedDate(published), kind: "date" });
+    }
+    if (genre) observations.push({ key: "genre", value: genre, kind: "string" });
+    if (isbn) observations.push({ key: "isbn", value: isbn, kind: "string" });
+    return observations;
   } catch {
     // Best-effort, like every other derivation (derivations.ts): a book
     // with unreadable metadata still gets classified, just with nothing

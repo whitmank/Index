@@ -10,46 +10,47 @@
 // gives the renderer exactly one way to turn something the user handed
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
-import fs from "node:fs";
 import path from "node:path";
 import type { Field, Resource } from "@index/database";
 import { selfDevice } from "../config.js";
-import { classifyResource } from "./classify.js";
 import { deriveForResource } from "./derivations.js";
-import { sha256File } from "./hash.js";
-import { ingestBook } from "./ingest/book.js";
-import { resolveExistingFile } from "./resolver.js";
-
-/** Type-specific extractors, parallel to the renderer registry: additive
- * — a new type's ingestor is a new entry, not a change to this file's
- * control flow. */
-const INGESTORS: Record<string, (filepath: string) => Promise<Field[]>> = {
-  book: ingestBook,
-};
-
-async function ingest(type: string | null, resource: Resource): Promise<Field[]> {
-  const ingestor = type ? INGESTORS[type] : undefined;
-  if (!ingestor) return [];
-  const filepath = resolveExistingFile(resource.uri);
-  if (!filepath) return [];
-  return ingestor(filepath);
-}
+import { classifyResource } from "./ingest/classify.js";
+import { extract } from "./ingest/extract.js";
+import { openProbe, type Probe } from "./ingest/probe.js";
 
 function isWebUrl(input: string): boolean {
   return /^https?:\/\//i.test(input);
 }
 
-/** The content signature relink.ts searches by, captured now while the
- * file is known to exist — best-effort, like `deriveForResource`. */
-async function withIdentity(resource: Resource): Promise<Resource> {
-  const filepath = resolveExistingFile(resource.uri);
-  if (!filepath) return resource;
+/**
+ * The media type the bytes themselves declare, put on the resource before
+ * anything downstream reads it — the format ladder consults `cached.mime`
+ * before it falls back to guessing from the extension, so this is what
+ * lets a mis-named file still be understood.
+ *
+ * Best-effort, like every derivation: a resource with no probe (a link,
+ * an unreachable device) simply passes through unchanged.
+ */
+async function withMime(resource: Resource, probe: Probe | null): Promise<Resource> {
+  const mime = await probe?.mime();
+  if (!mime) return resource;
+  return { ...resource, cached: { ...resource.cached, mime } };
+}
+
+/**
+ * The content signature relink.ts searches by, captured while the file is
+ * known to exist — it is the one thing on a resource that cannot be
+ * recomputed once the file moves.
+ *
+ * Deliberately last: `Probe.hash` signs bytes already in memory when a
+ * reader has loaded them, so taking it after extraction means an epub is
+ * read once on the way in rather than twice, while a file nobody needed
+ * to open is still streamed instead of buffered.
+ */
+async function withIdentity(resource: Resource, probe: Probe | null): Promise<Resource> {
+  if (!probe) return resource;
   try {
-    const [contentHash, stat] = await Promise.all([
-      sha256File(filepath),
-      fs.promises.stat(filepath),
-    ]);
-    return { ...resource, contentHash, size: stat.size };
+    return { ...resource, contentHash: await probe.hash(), size: probe.size };
   } catch {
     return resource;
   }
@@ -71,36 +72,45 @@ function nameFor(input: string): string {
 
 export interface IntakeResult {
   resource: Resource;
-  /** The classifier's guess — null when nothing matched. Callers minting
-   * a brand-new item may use it; callers attaching a resource to one
-   * that already exists must not, or a second file would silently
-   * reclassify it. */
+  /** The classifier's guess — null when nothing matched. Whether it may
+   * be used is the caller's rule, not this one's: an item takes a guess
+   * only for the resource that becomes its *primary*, and never over a
+   * type its user set. `lib/resources.ts` owns that, since it is the
+   * layer that knows which position a resource landed in. */
   type: string | null;
-  /** Best-effort extraction, keyed to `type`'s ingestor; empty when
-   * there is no ingestor for the guessed type, or it found nothing. */
+  /** Best-effort extraction, keyed to `type`'s extractor; empty when
+   * there is none for the guessed type, or it found nothing. */
   fields: Field[];
 }
 
 /**
- * Paths and urls → resources with their derivations, classification and
- * ingested fields already attached, so the renderer can write them into
- * an item with one ordinary change (PRODUCT-SPEC §2.4: metadata is
- * fetched once, at resource creation, by the same change that adds the
- * resource).
+ * Paths and urls → resources with their observations, derivations,
+ * classification and extracted fields already attached, so the renderer
+ * can write them into an item with one ordinary change (PRODUCT-SPEC
+ * §2.4: metadata is fetched once, at resource creation, by the same
+ * change that adds the resource).
+ *
+ * The order is load-bearing at both ends. One probe is opened per input
+ * and every later step reads from it, rather than each opening the file
+ * for itself. `mime` goes on first, because `deriveForResource` and
+ * `classifyResource` both ask the format ladder and the ladder consults
+ * it. Hashing goes on last, because by then anything that needed the
+ * whole file has loaded it and the signature can be taken from memory.
  */
 export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]> {
   return Promise.all(
     inputs.map(async (input) => {
-      const resource: Resource = {
-        uri: isWebUrl(input) ? input : pathToUri(input),
-        name: nameFor(input),
-      };
-      const cached = await deriveForResource(resource);
-      const withCache = Object.keys(cached).length > 0 ? { ...resource, cached } : resource;
-      const withHash = await withIdentity(withCache);
-      const type = classifyResource(withHash);
-      const fields = await ingest(type, withHash);
-      return { resource: withHash, type, fields };
+      const uri = isWebUrl(input) ? input : pathToUri(input);
+      const probe = await openProbe(uri);
+      const sniffed = await withMime({ uri, name: nameFor(input) }, probe);
+
+      const cached = await deriveForResource(sniffed);
+      const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
+
+      const type = await classifyResource(derived, probe);
+      const fields = await extract(type, probe);
+
+      return { resource: await withIdentity(derived, probe), type, fields };
     }),
   );
 }

@@ -102,18 +102,16 @@ export async function deriveForResource(resource: Resource): Promise<CachedDeriv
     return cached;
   }
 
-  const file = resolveExistingFile(resource.uri);
-  if (!file) return cached;
+  if (!resolveExistingFile(resource.uri)) return cached;
 
+  // `mime` is the probe's to write (ingest/probe.ts), not this module's:
+  // it is an observation about the bytes, made once when they were first
+  // opened, rather than a disposable rendering aid like everything else
+  // here. By the time this runs, intake has already put it on `resource`,
+  // so the format read above is the sniffed one, not the extension's.
   if (format === "image") {
     const minted = await thumbnail(resource.uri);
     if (minted) cached.thumbnail = `thumb://${encodeURIComponent(resource.uri)}`;
-    try {
-      const metadata = await sharp(file).metadata();
-      if (metadata.format) cached.mime = `image/${metadata.format}`;
-    } catch {
-      /* the format ladder falls back to the extension */
-    }
   }
 
   return cached;
