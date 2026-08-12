@@ -19,6 +19,7 @@ import {
   itemId,
   listMembers,
   startDatabase,
+  upsertSchema,
   HOME_SET_ID,
   MEMBER_OF_LABEL_ID,
   PUBLIC_SET_ID,
@@ -374,6 +375,53 @@ async function main(): Promise<void> {
     const readBack = await findConnection(book.id, chapter.id, null);
     check("the connection round-trips with child: true", () => {
       assert.equal(readBack?.child, true);
+    });
+
+    console.log("\nschemas: the field that is the item's name");
+
+    const saved = await upsertSchema({
+      name: "book",
+      label: null,
+      fields: [
+        { name: "title", label: null, kind: "string", is_name: true },
+        { name: "author", label: null, kind: "string" },
+      ],
+    });
+
+    check("the flag survives the round trip", () => {
+      assert.equal(saved.fields[0]?.is_name, true);
+      assert.equal(saved.fields[1]?.is_name, false);
+    });
+
+    // An item has one name, so a write claiming two is resolved rather
+    // than stored — the answer must not depend on which write landed last.
+    const overclaimed = await upsertSchema({
+      name: "book",
+      label: null,
+      fields: [
+        { name: "title", label: null, kind: "string", is_name: true },
+        { name: "author", label: null, kind: "string", is_name: true },
+      ],
+    });
+
+    check("a second claim on the name is refused, not stored", () => {
+      assert.deepEqual(
+        overclaimed.fields.map((field) => field.is_name),
+        [true, false],
+      );
+    });
+
+    const released = await upsertSchema({
+      name: "book",
+      label: null,
+      fields: [
+        { name: "title", label: null, kind: "string" },
+        { name: "author", label: null, kind: "string" },
+      ],
+    });
+
+    check("a type may name nothing at all", () => {
+      assert.ok(released.fields.every((field) => !field.is_name));
     });
 
     console.log(`\n${passed} assertions passed\n`);

@@ -24,23 +24,22 @@ export interface Observation {
   kind: FieldKind;
 }
 
+export type Extractor = (probe: Probe) => Promise<Observation[]>;
+
 /**
- * What a reader found. The name is kept out of `observations` rather than
- * carried as one, because it is not a field: an item already has a `name`
- * column, and a book's title belongs in it. Routing it through the field
- * join would have meant storing the same fact in two places and drawing
- * two controls for editing it — the large name input at the top of Focus
- * being the one that already exists.
+ * What the join produced: rows for the item, and — when the type says so
+ * — what the item should be called.
  *
- * Only readers whose format has a name to offer set it. `undefined`
- * leaves whatever intake derived from the path or url standing.
+ * The name is the schema's decision, not a reader's. A book's title is
+ * the item's name and an author is a field, but a `person` type's
+ * `title` means Dr. or a job, and no amount of looking at the word tells
+ * the two apart. So the type declares which of its fields *is* the name
+ * (`SchemaField.is_name`), and readers go on reporting what they read.
  */
 export interface Extracted {
   name?: string;
-  observations: Observation[];
+  fields: Field[];
 }
-
-export type Extractor = (probe: Probe) => Promise<Extracted>;
 
 /** Type-specific extractors, parallel to the renderer's layout registry:
  * additive — a new type's extractor is a new entry, not a change to any
@@ -112,6 +111,11 @@ function asField(observation: Observation): Field {
   return { name: observation.key, value: observation.value, kind: observation.kind };
 }
 
+/** A name is one line, whatever shape the observation arrived in. */
+function asText(value: Field["value"]): string {
+  return Array.isArray(value) ? value.join(", ") : value;
+}
+
 /**
  * Observations → the rows written onto an item, against the schema for
  * the type they were extracted for.
@@ -129,13 +133,17 @@ function asField(observation: Observation): Field {
  *   (layouts/registry.tsx), so writing empty rows here would put the
  *   same blanks on the item twice.
  *
+ * The field a type marks `is_name` takes its match as the item's name
+ * and writes no row: the name is one fact, and the input at the top of
+ * Focus is already the control for editing it.
+ *
  * With no schema — an untyped item, or a type nobody has defined fields
  * for — every key passes through verbatim, which is what shipped before
  * this join existed.
  */
-export function toFields(observations: Observation[], schema?: Schema): Field[] {
+export function toFields(observations: Observation[], schema?: Schema): Extracted {
   const fields = schema?.fields ?? [];
-  if (fields.length === 0) return observations.map(asField);
+  if (fields.length === 0) return { fields: observations.map(asField) };
 
   const pairs = new Map<SchemaField, Observation>();
   const claimed = new Set<Observation>();
@@ -152,17 +160,23 @@ export function toFields(observations: Observation[], schema?: Schema): Field[] 
     }
   }
 
+  const naming = fields.find((field) => field.is_name);
+  const named = naming ? pairs.get(naming) : undefined;
+
   // Matched rows in the order the type declares them, so an item reads
   // the way its schema does; whatever the file said that the schema has
   // no word for follows, in the order it was read.
   const matched = fields
-    .filter((field) => pairs.has(field))
+    .filter((field) => pairs.has(field) && !field.is_name)
     .map((field) => {
       const observation = pairs.get(field) as Observation;
       return { name: field.name, value: coerce(observation.value, field.kind), kind: field.kind };
     });
 
-  return [...matched, ...observations.filter((o) => !claimed.has(o)).map(asField)];
+  return {
+    ...(named ? { name: asText(named.value) } : {}),
+    fields: [...matched, ...observations.filter((o) => !claimed.has(o)).map(asField)],
+  };
 }
 
 /**
@@ -175,12 +189,11 @@ export async function extract(
   type: string | null,
   probe: Probe | null,
   schema?: Schema,
-): Promise<{ name?: string; fields: Field[] }> {
+): Promise<Extracted> {
   const extractor = type ? EXTRACTORS[type] : undefined;
   if (!extractor || !probe) return { fields: [] };
   try {
-    const { name, observations } = await extractor(probe);
-    return { ...(name ? { name } : {}), fields: toFields(observations, schema) };
+    return toFields(await extractor(probe), schema);
   } catch {
     return { fields: [] };
   }

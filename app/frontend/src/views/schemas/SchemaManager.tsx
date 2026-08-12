@@ -156,6 +156,13 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
     commitFields(next);
   };
 
+  /** Exactly one field, or none at `-1`. Written as a whole-list rewrite
+   * rather than a patch because claiming the name for one field is the
+   * same act as releasing it from another. */
+  const setNameField = (index: number): void => {
+    commitFields(schema.fields.map((field, at) => ({ ...field, is_name: at === index })));
+  };
+
   const addDraft = (patch: Partial<SchemaField>): void => {
     const row = { ...draftRow, ...patch };
     if (row.name.trim() === "") {
@@ -241,6 +248,28 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
                 </option>
               ))}
             </select>
+            {/* Behaves as a radio group — an item has one name, so
+                claiming it for one field releases it from whichever had
+                it. Off-able too, which a real radio group cannot do, and
+                a type is allowed to have no field that names anything. */}
+            <button
+              aria-label={
+                field.is_name
+                  ? `stop using ${field.name} as the item name`
+                  : `use ${field.name} as the item name`
+              }
+              aria-pressed={Boolean(field.is_name)}
+              className={field.is_name ? "field-is-name is-on" : "field-is-name"}
+              onClick={() => setNameField(field.is_name ? -1 : index)}
+              title={
+                field.is_name
+                  ? "this field is the item's name — it isn't drawn again below"
+                  : "use this field as the item's name, instead of a row of its own"
+              }
+              type="button"
+            >
+              name
+            </button>
             <button
               aria-label={`remove ${field.name}`}
               className="field-remove"

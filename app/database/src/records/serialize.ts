@@ -173,6 +173,7 @@ export function schemaContent(schema: Pick<Schema, "name" | "label" | "fields">)
       name: field.name,
       label: field.label ?? undefined,
       kind: field.kind,
+      is_name: field.is_name ?? false,
     })),
   };
 }

@@ -220,29 +220,18 @@ await check("reads a dropped epub exactly once, start to finish", async () => {
   assert.equal(reads.total(), 1);
   assert.equal(result?.type, "book");
   assert.equal(result?.resource.contentHash, await sha256File(filepath));
-  assert.equal(result?.fields.length, 4);
-
-  // The whole way through: the filename is what the resource is called,
-  // the title is what the item is called.
+  assert.equal(result?.fields.length, 5);
   assert.equal(result?.resource.name, "once.epub");
-  assert.equal(result?.name, "Dune");
 });
 
-await check("offers no name for a format with none to give", async () => {
-  const [result] = await pathsToResources([write("plain.txt", Buffer.from("prose"))]);
 
-  // Nothing read it, so intake's derived name stands rather than being
-  // replaced by a blank.
-  assert.equal(result?.name, undefined);
-  assert.equal(result?.resource.name, "plain.txt");
-});
 
 await check("classifies a mis-named epub by its bytes, end to end", async () => {
   const [result] = await pathsToResources([await writeEpub("hidden.zip")]);
 
   assert.equal(result?.resource.cached?.mime, "application/epub+zip");
   assert.equal(result?.type, "book");
-  assert.equal(result?.name, "Dune");
+  assert.equal(result?.fields.find((f) => f.name === "title")?.value, "Dune");
 });
 
 await check("refuses a plain zip wearing .epub, end to end", async () => {
@@ -270,7 +259,7 @@ await check("still trusts an epub whose mimetype entry is deflated", async () =>
   const [result] = await pathsToResources([filepath]);
 
   assert.equal(result?.type, "book");
-  assert.equal(result?.name, "Dune");
+  assert.equal(result?.fields.find((f) => f.name === "title")?.value, "Dune");
 });
 
 console.log("\nclassification: hosts, not the web at large");
@@ -416,14 +405,15 @@ await new Promise<void>((resolve) => server.close(() => resolve()));
 
 console.log("\nextraction: the field names the schema join must not break");
 
-await check("names the item from the title, and does not repeat it as a field", async () => {
+await check("reports every element it read, naming nothing on its own", async () => {
   const probe = await probeOf(await writeEpub("fields.epub"));
   const { name, fields } = await extract("book", probe);
 
-  // The title is what the book is called, so it goes to the item's own
-  // `name` column rather than becoming a row beside the others.
-  assert.equal(name, "Dune");
+  // A reader has no opinion about which of its findings is the item's
+  // name — the type says so, and this one was asked without a schema.
+  assert.equal(name, undefined);
   assert.deepEqual(fields, [
+    { name: "title", value: "Dune", kind: "string" },
     { name: "author", value: "Frank Herbert", kind: "string" },
     { name: "published", value: "1965-08-01", kind: "date" },
     { name: "genre", value: ["Science Fiction", "Politics"], kind: "list" },
@@ -458,8 +448,12 @@ const schema = (fields: SchemaField[]): Schema => ({
   label: null,
   fields,
 });
-const field = (name: string, kind: FieldKind = "string", label: string | null = null) =>
-  ({ name, kind, label });
+const field = (
+  name: string,
+  kind: FieldKind = "string",
+  label: string | null = null,
+  is_name = false,
+) => ({ name, kind, label, is_name });
 
 const said = (key: string, value: Field["value"] = "x", kind: FieldKind = "string") =>
   ({ key, value, kind });
@@ -468,10 +462,12 @@ const namesOf = (fields: Field[]) => fields.map((f) => f.name);
 
 await check("passes keys through verbatim when the type declares no fields", () => {
   const observations = [said("title", "Dune"), said("author", "Frank Herbert")];
-  assert.deepEqual(toFields(observations), [
-    { name: "title", value: "Dune", kind: "string" },
-    { name: "author", value: "Frank Herbert", kind: "string" },
-  ]);
+  assert.deepEqual(toFields(observations), {
+    fields: [
+      { name: "title", value: "Dune", kind: "string" },
+      { name: "author", value: "Frank Herbert", kind: "string" },
+    ],
+  });
   assert.deepEqual(toFields(observations, schema([])), toFields(observations));
 });
 
@@ -480,13 +476,13 @@ await check("lands an observation in the field the schema calls it", () => {
 
   // The case the whole join exists for: one row, named as the type
   // declares, instead of an empty `writer` beside an orphan `author`.
-  assert.deepEqual(joined, [{ name: "writer", value: "Frank Herbert", kind: "string" }]);
+  assert.deepEqual(joined.fields, [{ name: "writer", value: "Frank Herbert", kind: "string" }]);
 });
 
 await check("ignores case, spaces, underscores and hyphens in a name", () => {
   for (const declared of ["Published", "PUBLISHED_DATE", "release-date", "Release Date"]) {
     assert.deepEqual(
-      namesOf(toFields([said("published", "1965")], schema([field(declared, "date")]))),
+      namesOf(toFields([said("published", "1965")], schema([field(declared, "date")])).fields),
       [declared],
       declared,
     );
@@ -495,7 +491,7 @@ await check("ignores case, spaces, underscores and hyphens in a name", () => {
 
 await check("matches a field by its display label too", () => {
   const joined = toFields([said("isbn", "9780441013593")], schema([field("code", "string", "ISBN")]));
-  assert.deepEqual(namesOf(joined), ["code"]);
+  assert.deepEqual(namesOf(joined.fields), ["code"]);
 });
 
 await check("prefers an exact name over another field's synonym", () => {
@@ -506,7 +502,7 @@ await check("prefers an exact name over another field's synonym", () => {
     [said("author", "Frank Herbert")],
     schema([field("writer"), field("author")]),
   );
-  assert.deepEqual(joined, [{ name: "author", value: "Frank Herbert", kind: "string" }]);
+  assert.deepEqual(joined.fields, [{ name: "author", value: "Frank Herbert", kind: "string" }]);
 });
 
 await check("never hands one observation to two fields", () => {
@@ -514,18 +510,18 @@ await check("never hands one observation to two fields", () => {
     [said("author", "Frank Herbert")],
     schema([field("author"), field("creator")]),
   );
-  assert.deepEqual(namesOf(joined), ["author"]);
+  assert.deepEqual(namesOf(joined.fields), ["author"]);
 });
 
 await check("takes the kind the schema declares, and reshapes the value", () => {
   const toList = toFields([said("genre", "Science Fiction")], schema([field("genre", "list")]));
-  assert.deepEqual(toList, [{ name: "genre", value: ["Science Fiction"], kind: "list" }]);
+  assert.deepEqual(toList.fields, [{ name: "genre", value: ["Science Fiction"], kind: "list" }]);
 
   const toText = toFields(
     [said("genre", ["Science Fiction", "Politics"], "list")],
     schema([field("genre", "string")]),
   );
-  assert.deepEqual(toText, [
+  assert.deepEqual(toText.fields, [
     { name: "genre", value: "Science Fiction, Politics", kind: "string" },
   ]);
 });
@@ -538,7 +534,7 @@ await check("keeps what the file said that the type has no word for", () => {
 
   // Dropping it would lose something the file really declared; a row the
   // user can delete is the honest fallback.
-  assert.deepEqual(namesOf(joined), ["title", "isbn"]);
+  assert.deepEqual(namesOf(joined.fields), ["title", "isbn"]);
 });
 
 await check("does not write empty rows for fields nothing matched", () => {
@@ -546,7 +542,7 @@ await check("does not write empty rows for fields nothing matched", () => {
 
   // The layout already draws a type's declared fields from the schema,
   // so emitting blanks here would put them on the item twice.
-  assert.deepEqual(namesOf(joined), ["title"]);
+  assert.deepEqual(namesOf(joined.fields), ["title"]);
 });
 
 await check("orders matched rows the way the type declares them", () => {
@@ -554,7 +550,7 @@ await check("orders matched rows the way the type declares them", () => {
     [said("isbn", "978"), said("title", "Dune"), said("author", "Frank Herbert")],
     schema([field("title"), field("writer"), field("isbn")]),
   );
-  assert.deepEqual(namesOf(joined), ["title", "writer", "isbn"]);
+  assert.deepEqual(namesOf(joined.fields), ["title", "writer", "isbn"]);
 });
 
 await check("joins a real epub's metadata onto a schema that renames it", async () => {
@@ -562,13 +558,18 @@ await check("joins a real epub's metadata onto a schema that renames it", async 
   const { name, fields } = await extract(
     "book",
     probe,
-    schema([field("writer"), field("year", "date"), field("categories", "list")]),
+    schema([
+      field("title", "string", null, true),
+      field("writer"),
+      field("year", "date"),
+      field("categories", "list"),
+    ]),
   );
 
-  // Every rung at once: a synonym (`writer`), a synonym that also narrows
-  // the kind (`year`), a synonym keeping the list (`categories`), and an
-  // observation the schema has no word for — with the title going to the
-  // name instead of any of them.
+  // Every rung at once: the field the type marks as its name, a synonym
+  // (`writer`), a synonym that also narrows the kind (`year`), a synonym
+  // keeping the list (`categories`), and an observation the schema has no
+  // word for.
   assert.equal(name, "Dune");
   assert.deepEqual(fields, [
     { name: "writer", value: "Frank Herbert", kind: "string" },
@@ -576,6 +577,70 @@ await check("joins a real epub's metadata onto a schema that renames it", async 
     { name: "categories", value: ["Science Fiction", "Politics"], kind: "list" },
     { name: "isbn", value: "9780441013593", kind: "string" },
   ]);
+});
+
+console.log("\nthe field a type says is its name");
+
+await check("takes the marked field's value as the name, and writes no row for it", () => {
+  const joined = toFields(
+    [said("title", "Flatland"), said("author", "Edwin Abbott Abbott")],
+    schema([field("title", "string", null, true), field("author")]),
+  );
+
+  assert.equal(joined.name, "Flatland");
+  assert.deepEqual(namesOf(joined.fields), ["author"]);
+});
+
+await check("claims the name through a synonym, same as any other match", () => {
+  const joined = toFields(
+    [said("title", "Flatland")],
+    schema([field("heading", "string", "Title", true)]),
+  );
+  assert.equal(joined.name, "Flatland");
+  assert.deepEqual(joined.fields, []);
+});
+
+await check("says nothing when the marked field matched nothing", () => {
+  const joined = toFields([said("author", "Edwin Abbott Abbott")], schema([
+    field("title", "string", null, true),
+    field("author"),
+  ]));
+
+  // The type wants a name from the title and the file never gave one, so
+  // whatever intake derived from the path stands.
+  assert.equal(joined.name, undefined);
+  assert.deepEqual(namesOf(joined.fields), ["author"]);
+});
+
+await check("marking a different field moves the name to it", () => {
+  const observations = [said("title", "Flatland"), said("author", "Edwin Abbott Abbott")];
+  const byAuthor = toFields(observations, schema([field("title"), field("author", "string", null, true)]));
+
+  // Nothing about the word `title` is special — the flag is, which is the
+  // point: a `person` type's `title` means Dr., not a name.
+  assert.equal(byAuthor.name, "Edwin Abbott Abbott");
+  assert.deepEqual(namesOf(byAuthor.fields), ["title"]);
+});
+
+await check("flattens a list into the one line a name has to be", () => {
+  const joined = toFields(
+    [said("author", ["Gilbert", "Sullivan"], "list")],
+    schema([field("author", "list", null, true)]),
+  );
+  assert.equal(joined.name, "Gilbert, Sullivan");
+});
+
+await check("names an item from a real epub, end to end", async () => {
+  const probe = await probeOf(await writeEpub("named.epub"));
+  const { name, fields } = await extract(
+    "book",
+    probe,
+    schema([field("title", "string", null, true), field("author")]),
+  );
+
+  assert.equal(name, "Dune");
+  assert.equal(fields.find((f) => f.name === "title"), undefined);
+  assert.deepEqual(fields.find((f) => f.name === "author")?.value, "Frank Herbert");
 });
 
 await check("joins the same epub onto a schema that wants one line instead", async () => {

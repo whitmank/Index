@@ -139,11 +139,45 @@
 
 .schema-field-row {
   display: grid;
-  grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto auto auto;
   gap: 0.6rem;
   align-items: center;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--line);
+}
+
+/* Marks the one field that *is* the item's name. Quiet while off — most
+   types never want it, and a row of shouting toggles would read as a
+   decision every field has to make. On, it takes --violet, which
+   index.css already reserves for "a chosen override": this is the user
+   overruling where a value would otherwise land. */
+.schema-editor-block .field-is-name {
+  font: inherit;
+  font-size: var(--text-xs, 11px);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--ink-faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.schema-field-row:hover .field-is-name {
+  color: var(--ink-quiet);
+}
+
+.schema-editor-block .field-is-name:hover {
+  color: var(--violet);
+  border-color: var(--line-strong);
+}
+
+.schema-editor-block .field-is-name.is-on {
+  color: var(--paper);
+  background: var(--violet);
+  border-color: var(--violet);
 }
 
 .schema-field-row.is-draft {

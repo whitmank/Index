@@ -117,6 +117,22 @@ export interface SchemaField {
   /** Display label; falls back to `name` when absent. */
   label: string | null;
   kind: FieldKind;
+  /**
+   * This field *is* the item's name, not a row beside it — a book's
+   * title being the obvious case, where the item is called Flatland and
+   * `Flatland.epub` was only ever where the file sat.
+   *
+   * Two consequences, and they are the same fact seen from either end:
+   * the ingestor writes what it extracted here into `Item.name` instead
+   * of into `fields` (ingest/extract.ts), and the layout stops drawing
+   * the field, since the name is already on screen above it
+   * (layouts/registry.tsx).
+   *
+   * At most one per schema, enforced on write. Off by default: a
+   * `person` type's `title` means Dr. or a job, and guessing from the
+   * word is exactly what this flag exists to avoid.
+   */
+  is_name?: boolean;
 }
 
 /**

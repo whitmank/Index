@@ -64,11 +64,24 @@ function asOptionalString(value: unknown, what: string): string | null {
 
 function asSchemaField(value: unknown, what: string): SchemaField {
   if (typeof value !== "object" || value === null) fail(`${what} must be an object`);
-  const { name, label, kind } = value as { name?: unknown; label?: unknown; kind?: unknown };
+  const { name, label, kind, is_name } = value as {
+    name?: unknown;
+    label?: unknown;
+    kind?: unknown;
+    is_name?: unknown;
+  };
+  if (is_name !== undefined && typeof is_name !== "boolean") {
+    fail(`${what}.is_name must be a boolean`);
+  }
+  // This function rebuilds the field rather than passing it through, so
+  // anything not named here is dropped on the way across the bridge —
+  // which is the point, but it means a new property has to be added in
+  // two places or it silently never arrives.
   return {
     name: asString(name, `${what}.name`),
     label: asOptionalString(label, `${what}.label`),
     kind: asFieldKind(kind, `${what}.kind`),
+    is_name: is_name === true,
   };
 }
 

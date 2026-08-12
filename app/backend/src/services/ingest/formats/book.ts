@@ -11,7 +11,7 @@
 import * as cheerio from "cheerio";
 import JSZip from "jszip";
 import type { Element } from "domhandler";
-import type { Extracted, Observation } from "../extract.js";
+import type { Observation } from "../extract.js";
 import type { Probe } from "../probe.js";
 
 function localName(tag: string): string {
@@ -64,7 +64,7 @@ function observed(key: string, values: string[]): Observation | null {
   return { key, value: values, kind: "list" };
 }
 
-export async function extractBook(probe: Probe): Promise<Extracted> {
+export async function extractBook(probe: Probe): Promise<Observation[]> {
   try {
     // The probe's buffer, not a read of our own — for an epub this is the
     // only full read of the file that happens on the way in, and the hash
@@ -72,23 +72,21 @@ export async function extractBook(probe: Probe): Promise<Extracted> {
     const zip = await JSZip.loadAsync(await probe.bytes());
 
     const containerXml = await zip.file("META-INF/container.xml")?.async("string");
-    if (!containerXml) return { observations: [] };
+    if (!containerXml) return [];
     const container = cheerio.load(containerXml, { xmlMode: true });
     const opfPath = container("rootfile").attr("full-path");
-    if (!opfPath) return { observations: [] };
+    if (!opfPath) return [];
 
     const opfXml = await zip.file(opfPath)?.async("string");
-    if (!opfXml) return { observations: [] };
+    if (!opfXml) return [];
     const opf = cheerio.load(opfXml, { xmlMode: true });
 
-    // The title names the item rather than becoming a field of it. A book
-    // called `Flatland.epub` is a filename; the book is called Flatland,
-    // and an item already has one place to say so.
     const title = textsOf(opf, "title")[0];
     const published = textsOf(opf, "date")[0];
     const isbn = isbnFrom(textsOf(opf, "identifier"));
 
     const observations: Observation[] = [];
+    if (title) observations.push({ key: "title", value: title, kind: "string" });
 
     const author = observed("author", textsOf(opf, "creator"));
     if (author) observations.push(author);
@@ -101,11 +99,11 @@ export async function extractBook(probe: Probe): Promise<Extracted> {
     if (genre) observations.push(genre);
 
     if (isbn) observations.push({ key: "isbn", value: isbn, kind: "string" });
-    return { ...(title ? { name: title } : {}), observations };
+    return observations;
   } catch {
     // Best-effort, like every other derivation (derivations.ts): a book
     // with unreadable metadata still gets classified, just with nothing
     // pre-filled.
-    return { observations: [] };
+    return [];
   }
 }
