@@ -284,6 +284,14 @@ anything that needed the whole file has loaded it.
   by one function, `toFields(observations, schema?)`. No extractor knows
   a schema exists.
 
+  A reader may also return a **name**, which is not an observation and
+  never becomes a field: an item already has a `name` column, and a
+  book's title belongs in it rather than in a row beside the author.
+  Intake passes it up as `IntakeResult.name`, and it beats the basename
+  or url that `nameFor` derived. Used only when minting an item
+  **[pinned here]** — extraction never runs against one that already
+  exists, so there is no name of the user's to overwrite.
+
   The join is four ordered rules, and the order decides ties: exact
   field name, then field `label`, then a synonym of the observation's
   key against a name, then against a label. Names are compared with

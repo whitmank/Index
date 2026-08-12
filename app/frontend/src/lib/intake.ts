@@ -25,11 +25,16 @@ export async function createItemsFromPaths(paths: string[], date?: string): Prom
   // This resource *is* the item's primary — it is the only one there — so
   // the guess applies and is recorded as the classifier's own, which is
   // what leaves a later promotion free to replace it (lib/resources.ts).
-  const drafts = answer.ok.results.map(({ resource, type, fields }) => ({
+  //
+  // `name` beats `resource.name` when the ingestor found one: a book's
+  // title is what the thing is called, where the filename is only where
+  // it happened to be saved. Nothing to overwrite at this point — the
+  // item is being minted, so the derived name has never been seen.
+  const drafts = answer.ok.results.map(({ resource, type, fields, name }) => ({
     resource,
     item: {
       ...changes.blankItem(date),
-      name: resource.name,
+      name: name ?? resource.name,
       resources: [resource],
       type,
       type_source: type ? "auto" : null,

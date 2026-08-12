@@ -24,7 +24,23 @@ export interface Observation {
   kind: FieldKind;
 }
 
-export type Extractor = (probe: Probe) => Promise<Observation[]>;
+/**
+ * What a reader found. The name is kept out of `observations` rather than
+ * carried as one, because it is not a field: an item already has a `name`
+ * column, and a book's title belongs in it. Routing it through the field
+ * join would have meant storing the same fact in two places and drawing
+ * two controls for editing it — the large name input at the top of Focus
+ * being the one that already exists.
+ *
+ * Only readers whose format has a name to offer set it. `undefined`
+ * leaves whatever intake derived from the path or url standing.
+ */
+export interface Extracted {
+  name?: string;
+  observations: Observation[];
+}
+
+export type Extractor = (probe: Probe) => Promise<Extracted>;
 
 /** Type-specific extractors, parallel to the renderer's layout registry:
  * additive — a new type's extractor is a new entry, not a change to any
@@ -159,12 +175,13 @@ export async function extract(
   type: string | null,
   probe: Probe | null,
   schema?: Schema,
-): Promise<Field[]> {
+): Promise<{ name?: string; fields: Field[] }> {
   const extractor = type ? EXTRACTORS[type] : undefined;
-  if (!extractor || !probe) return [];
+  if (!extractor || !probe) return { fields: [] };
   try {
-    return toFields(await extractor(probe), schema);
+    const { name, observations } = await extractor(probe);
+    return { ...(name ? { name } : {}), fields: toFields(observations, schema) };
   } catch {
-    return [];
+    return { fields: [] };
   }
 }

@@ -220,7 +220,21 @@ await check("reads a dropped epub exactly once, start to finish", async () => {
   assert.equal(reads.total(), 1);
   assert.equal(result?.type, "book");
   assert.equal(result?.resource.contentHash, await sha256File(filepath));
-  assert.equal(result?.fields.length, 5);
+  assert.equal(result?.fields.length, 4);
+
+  // The whole way through: the filename is what the resource is called,
+  // the title is what the item is called.
+  assert.equal(result?.resource.name, "once.epub");
+  assert.equal(result?.name, "Dune");
+});
+
+await check("offers no name for a format with none to give", async () => {
+  const [result] = await pathsToResources([write("plain.txt", Buffer.from("prose"))]);
+
+  // Nothing read it, so intake's derived name stands rather than being
+  // replaced by a blank.
+  assert.equal(result?.name, undefined);
+  assert.equal(result?.resource.name, "plain.txt");
 });
 
 await check("classifies a mis-named epub by its bytes, end to end", async () => {
@@ -228,7 +242,7 @@ await check("classifies a mis-named epub by its bytes, end to end", async () => 
 
   assert.equal(result?.resource.cached?.mime, "application/epub+zip");
   assert.equal(result?.type, "book");
-  assert.equal(result?.fields.find((field) => field.name === "title")?.value, "Dune");
+  assert.equal(result?.name, "Dune");
 });
 
 await check("refuses a plain zip wearing .epub, end to end", async () => {
@@ -256,7 +270,7 @@ await check("still trusts an epub whose mimetype entry is deflated", async () =>
   const [result] = await pathsToResources([filepath]);
 
   assert.equal(result?.type, "book");
-  assert.equal(result?.fields.find((field) => field.name === "title")?.value, "Dune");
+  assert.equal(result?.name, "Dune");
 });
 
 console.log("\nclassification: hosts, not the web at large");
@@ -402,18 +416,14 @@ await new Promise<void>((resolve) => server.close(() => resolve()));
 
 console.log("\nextraction: the field names the schema join must not break");
 
-await check("emits the same five field names, in the same order", async () => {
+await check("names the item from the title, and does not repeat it as a field", async () => {
   const probe = await probeOf(await writeEpub("fields.epub"));
-  const fields = await extract("book", probe);
+  const { name, fields } = await extract("book", probe);
 
-  // `genre` reports the two `dc:subject` elements as the two values they
-  // are, rather than one comma-joined line. That is the one deliberate
-  // change from what shipped before the schema join: a field declaring
-  // `list` would otherwise get a single entry with a comma inside it.
-  // With one value, or against a schema declaring `string`, the output is
-  // exactly what it was — both covered below.
+  // The title is what the book is called, so it goes to the item's own
+  // `name` column rather than becoming a row beside the others.
+  assert.equal(name, "Dune");
   assert.deepEqual(fields, [
-    { name: "title", value: "Dune", kind: "string" },
     { name: "author", value: "Frank Herbert", kind: "string" },
     { name: "published", value: "1965-08-01", kind: "date" },
     { name: "genre", value: ["Science Fiction", "Politics"], kind: "list" },
@@ -425,19 +435,19 @@ await check("reports a lone value as itself, not a list of one", async () => {
   const probe = await probeOf(
     await writeEpub("single.epub", "application/epub+zip", { subjects: ["Cyberpunk"] }),
   );
-  const genre = (await extract("book", probe)).find((f) => f.name === "genre");
+  const genre = (await extract("book", probe)).fields.find((f) => f.name === "genre");
   assert.deepEqual(genre, { name: "genre", value: "Cyberpunk", kind: "string" });
 });
 
 await check("has nothing to say about a type with no extractor", async () => {
   const probe = await probeOf(await writeEpub("untyped.epub"));
-  assert.deepEqual(await extract("movie", probe), []);
-  assert.deepEqual(await extract(null, probe), []);
+  assert.deepEqual(await extract("movie", probe), { fields: [] });
+  assert.deepEqual(await extract(null, probe), { fields: [] });
 });
 
 await check("survives a file that is not the book it was typed as", async () => {
   const probe = await probeOf(write("lying.epub", Buffer.from("not a zip at all")));
-  assert.deepEqual(await extract("book", probe), []);
+  assert.deepEqual(await extract("book", probe), { fields: [] });
 });
 
 console.log("\nthe schema join: the file's words, the type's names");
@@ -549,17 +559,18 @@ await check("orders matched rows the way the type declares them", () => {
 
 await check("joins a real epub's metadata onto a schema that renames it", async () => {
   const probe = await probeOf(await writeEpub("joined.epub"));
-  const fields = await extract(
+  const { name, fields } = await extract(
     "book",
     probe,
-    schema([field("title"), field("writer"), field("year", "date"), field("categories", "list")]),
+    schema([field("writer"), field("year", "date"), field("categories", "list")]),
   );
 
-  // Every rung at once: an exact name, a synonym (`writer`), a synonym
-  // that also narrows the kind (`year`), a synonym keeping the list
-  // (`categories`), and an observation the schema has no word for.
+  // Every rung at once: a synonym (`writer`), a synonym that also narrows
+  // the kind (`year`), a synonym keeping the list (`categories`), and an
+  // observation the schema has no word for — with the title going to the
+  // name instead of any of them.
+  assert.equal(name, "Dune");
   assert.deepEqual(fields, [
-    { name: "title", value: "Dune", kind: "string" },
     { name: "writer", value: "Frank Herbert", kind: "string" },
     { name: "year", value: "1965-08-01", kind: "date" },
     { name: "categories", value: ["Science Fiction", "Politics"], kind: "list" },
@@ -569,7 +580,7 @@ await check("joins a real epub's metadata onto a schema that renames it", async 
 
 await check("joins the same epub onto a schema that wants one line instead", async () => {
   const probe = await probeOf(await writeEpub("flattened.epub"));
-  const fields = await extract("book", probe, schema([field("genre", "string")]));
+  const { fields } = await extract("book", probe, schema([field("genre", "string")]));
 
   // The other direction, and the reason the extractor reports the shape
   // it found: a type declaring `string` still gets the joined line it

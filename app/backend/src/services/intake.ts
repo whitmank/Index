@@ -84,6 +84,11 @@ export interface IntakeResult {
   /** Best-effort extraction, keyed to `type`'s extractor; empty when
    * there is none for the guessed type, or it found nothing. */
   fields: Field[];
+  /** What the content says this should be called, when its format has a
+   * name to offer — a book's title, where `resource.name` is only ever
+   * the filename it happened to be saved under. Absent for everything
+   * else, which leaves the derived name standing. */
+  name?: string;
 }
 
 /**
@@ -117,13 +122,18 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
 
       const type = await classifyResource(derived, probe);
-      const fields = await extract(
+      const { name, fields } = await extract(
         type,
         probe,
         schemas.find((schema) => schema.name === type),
       );
 
-      return { resource: await withIdentity(derived, probe), type, fields };
+      return {
+        resource: await withIdentity(derived, probe),
+        type,
+        fields,
+        ...(name ? { name } : {}),
+      };
     }),
   );
 }
