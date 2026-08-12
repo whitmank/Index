@@ -117,14 +117,6 @@ export async function deriveForResource(resource: Resource): Promise<CachedDeriv
   return cached;
 }
 
-/** Warm a resource's derivations without making anyone wait: intake calls
- * this and moves on. */
-export function warm(resource: Resource): void {
-  void deriveForResource(resource).catch(() => {
-    /* best-effort by definition */
-  });
-}
-
 /** Cache files whose uri no longer appears in any live record — what the
  * GC sweeps. */
 export function orphanedCacheFiles(liveUris: string[]): string[] {

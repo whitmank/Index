@@ -243,8 +243,42 @@ written into `resources[].cached` by the same change.
 
 **intake** — `pathsToResources`: absolute path → `mbp://…` uri (current
 machine's device id from config, default `local`), `name` = basename;
-kicks derivation warming in the background. No file watching in v1
-**[pinned here]** — a stale pointer 404s gracefully instead.
+runs the ingest pipeline below and returns the resource with its
+observations, derivations, type guess and extracted fields attached. No
+file watching in v1 **[pinned here]** — a stale pointer 404s gracefully
+instead.
+
+**ingest** — one **probe** per resource: a handle that opens a local file
+once and memoizes what was read. `head` is a bounded 64 KB and always
+paid; `bytes()` is opt-in; `hash()` streams unless the whole file is
+already in memory, in which case it signs that. Web resources get no
+probe in this pass **[pinned here]** — a web probe belongs with the
+follow-up that folds the link scrape into it, or the same page would be
+fetched twice.
+
+Order inside `pathsToResources` is load-bearing: the probe's sniffed
+`mime` goes onto `resources[].cached` *before* derivations and
+classification, since both consult the format ladder and the ladder reads
+`mime` before falling back to the extension; hashing goes last, after
+anything that needed the whole file has loaded it.
+
+- **classify** — the type guess. Its own ladder, not a proxy for
+  `format`. Content-based via the sniffed `mime`, so an epub is
+  identified by the media type its first zip entry declares rather than
+  by its extension.
+- **extract** — type-specific readers returning **observations** (a key
+  in the format's own vocabulary), mapped to `fields` by one function.
+  That map is the identity today; giving it the item's schema so a
+  `creator` can land in a schema's `writer` is the next pass, and no
+  extractor changes when it does.
+
+**classification lifetime** — the guess is stored (`items.type`) with its
+provenance (`items.type_source`: `"auto"` | `"user"`), never recomputed
+as a live derivation. It re-runs only when `resources[0]` changes —
+attached to an empty item, promoted by a reorder, or exposed by a
+removal — and never over a `"user"` source. A null guess leaves an
+existing type alone. Resources appended past position 0 never classify:
+the primary resource is the subject, the rest are references about it.
 
 **gc** — §1.7 cadence; refuses `system` records; logs a summary line.
 
