@@ -55,6 +55,7 @@ export function blankItem(date = today()): Item {
     system: false,
     is_set: false,
     type: null,
+    type_source: null,
     fields: [],
     resources: [],
     deleted_at: null,

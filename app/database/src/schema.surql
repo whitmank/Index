@@ -14,6 +14,8 @@ DEFINE FIELD OVERWRITE query        ON items TYPE option<object> FLEXIBLE;  -- s
 DEFINE FIELD OVERWRITE system       ON items TYPE bool DEFAULT false;
 DEFINE FIELD OVERWRITE is_set       ON items TYPE bool DEFAULT false;  -- deliberately created as a set, before it has a query or any members
 DEFINE FIELD OVERWRITE type         ON items TYPE option<string>;  -- classification, names a schemas row
+DEFINE FIELD OVERWRITE type_source  ON items TYPE option<string>    -- who decided `type`; null while untyped
+    ASSERT $value = NONE OR $value IN ["auto", "user"];
 DEFINE FIELD OVERWRITE fields       ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE fields.*.name  ON items TYPE string;
 DEFINE FIELD OVERWRITE fields.*.value ON items TYPE string | array<string>;  -- array: the "list" kind

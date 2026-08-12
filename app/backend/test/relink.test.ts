@@ -51,6 +51,7 @@ function blankItem(overrides: Partial<Item> = {}): Item {
     system: false,
     is_set: false,
     type: null,
+    type_source: null,
     fields: [],
     resources: [],
     deleted_at: null,

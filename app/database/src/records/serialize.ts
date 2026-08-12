@@ -16,6 +16,7 @@ import type {
   SchemaField,
   SetQuery,
   StoredRecord,
+  TypeSource,
 } from "../types.js";
 import { isItem } from "../types.js";
 
@@ -30,6 +31,7 @@ export interface ItemRow {
   system?: boolean;
   is_set?: boolean;
   type?: string | null;
+  type_source?: TypeSource;
   fields?: Field[];
   resources?: Resource[];
   deleted_at?: unknown;
@@ -87,6 +89,7 @@ export function serializeItem(row: ItemRow): Item {
     system: row.system ?? false,
     is_set: row.is_set ?? false,
     type: row.type ?? null,
+    type_source: row.type_source ?? null,
     fields: row.fields ?? [],
     resources: row.resources ?? [],
     deleted_at: optionalDate(row.deleted_at),
@@ -142,6 +145,7 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
     system: item.system,
     is_set: item.is_set,
     type: item.type ?? undefined,
+    type_source: item.type_source ?? undefined,
     fields: item.fields.map((field) => ({
       name: field.name,
       value: field.value,

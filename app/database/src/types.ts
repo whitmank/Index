@@ -46,6 +46,11 @@ export interface Resource {
 /** Derived from the primary resource; selects the renderer. Never stored. */
 export type Format = "bare" | "image" | "markdown" | "book" | "video" | "link" | "file";
 
+/** The provenance of an item's `type`: the classifier's own guess, or a
+ * choice the user made. Stored rather than inferred — nothing else in the
+ * row records who decided, and the two are treated differently. */
+export type TypeSource = "auto" | "user" | null;
+
 export interface DateRange {
   gte?: string;
   lte?: string;
@@ -94,6 +99,12 @@ export interface Item {
    * at intake, user-overridable — the same shape as `opens`. Absence is
    * not an error: an untyped item just has no schema fields to show. */
   type: string | null;
+  /** Who decided `type`. The classifier may replace its own guess when
+   * the primary resource changes, but never a `"user"` one — so this is
+   * what keeps a hand-set type from being argued with. Null while
+   * untyped, and again after the type is cleared: clearing withdraws an
+   * opinion rather than asserting an empty one, which reopens guessing. */
+  type_source: TypeSource;
   fields: Field[];
   /** Ordered; `resources[0]` is primary. */
   resources: Resource[];
