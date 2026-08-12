@@ -76,8 +76,13 @@ export interface SpotifyExpansion {
    * `name` — a caller minting a brand-new item from the bare url has one
    * (`resource.name` is a placeholder worth replacing with `albumName`),
    * but a caller attaching this link to an item the user already named
-   * should leave that alone. */
-  itemPatch: Pick<Item, "type" | "fields">;
+   * should leave that alone.
+   *
+   * The type carries its provenance because the import decided it, not
+   * the user: an item is never left typed with nothing recorded about who
+   * typed it, or the classifier could not tell later whether it is
+   * allowed to revise the answer. */
+  itemPatch: Pick<Item, "type" | "type_source" | "fields">;
   /** The real album title, for callers that want it — see above. */
   albumName: string;
   /** One `createItem` pair and one connection pair per song — append
@@ -134,6 +139,7 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
       ...changes.blankItem(item.date),
       name: track.name,
       type: "song",
+      type_source: "auto",
       resources: [{ uri: track.url, name: track.name }],
       fields: [
         { name: "Duration", value: formatTrackDuration(track.durationMs), kind: "string" },
@@ -155,5 +161,9 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
     );
   }
 
-  return { itemPatch: { type: "album", fields: albumFields }, albumName: album.name, extraPairs };
+  return {
+    itemPatch: { type: "album", type_source: "auto", fields: albumFields },
+    albumName: album.name,
+    extraPairs,
+  };
 }

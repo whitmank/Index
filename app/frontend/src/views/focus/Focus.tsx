@@ -12,12 +12,13 @@
 // component's own dismiss ever firing, so it has to live where every
 // trail change is guaranteed to pass through.
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Schema } from "@index/database/types";
+import type { Item, Schema } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
+import { attachResource } from "../../lib/resources.js";
 import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
@@ -26,6 +27,19 @@ import { FieldsEditor } from "./FieldsEditor.tsx";
 import { ResourceCarousel } from "./ResourceCarousel.tsx";
 import { ResourceContent } from "./ResourceContent.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
+
+/** The type chip's tooltip. It used to claim "you classified this" for
+ * every typed item, including ones the classifier typed at intake and the
+ * user never touched — `type_source` is what lets it stop saying that,
+ * and lets a guess point at the resource it came from. */
+function typeProvenance(item: Item): string {
+  if (!item.type) return "not yet classified";
+  if (item.type_source === "user") return "you set this — click to change";
+  const primary = item.resources[0];
+  return primary
+    ? `guessed from ${primary.name} — click to change`
+    : "guessed — click to change";
+}
 
 export interface FocusProps {
   itemId: string;
@@ -193,7 +207,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       // link to it shouldn't rename it out from under you.
       const expansion = await expandSpotifyAlbum(item, resource);
       if (!expansion) {
-        await apply(changes.addResource(item, resource));
+        await apply(await attachResource(item, resource));
         continue;
       }
       await apply({
@@ -298,7 +312,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
             <button
               className="type-trigger"
               onClick={() => setTypeMenuOpen((open) => !open)}
-              title={item.type ? "you classified this — click to change" : "not yet classified"}
+              title={typeProvenance(item)}
               type="button"
             >
               <span className="type-trigger-label">{item.type ?? "untyped"}</span>

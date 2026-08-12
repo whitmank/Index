@@ -16,6 +16,7 @@ export const CHANNELS = {
   changesApply: "changes:apply",
   intakePathsToResources: "intake:pathsToResources",
   intakePick: "intake:pick",
+  ingestClassify: "ingest:classify",
   resourcesCheckMissing: "resources:checkMissing",
   resourcesLocate: "resources:locate",
   resourcesReseek: "resources:reseek",

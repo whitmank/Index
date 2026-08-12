@@ -22,9 +22,19 @@ export async function createItemsFromPaths(paths: string[], date?: string): Prom
   const answer = await window.index.intake.pathsToResources(paths);
   if ("err" in answer) return [];
 
+  // This resource *is* the item's primary — it is the only one there — so
+  // the guess applies and is recorded as the classifier's own, which is
+  // what leaves a later promotion free to replace it (lib/resources.ts).
   const drafts = answer.ok.results.map(({ resource, type, fields }) => ({
     resource,
-    item: { ...changes.blankItem(date), name: resource.name, resources: [resource], type, fields } as Item,
+    item: {
+      ...changes.blankItem(date),
+      name: resource.name,
+      resources: [resource],
+      type,
+      type_source: type ? "auto" : null,
+      fields,
+    } as Item,
   }));
 
   const created = await Promise.all(

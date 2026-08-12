@@ -116,10 +116,19 @@ export function setOpens(item: Item, opens: string | null): Change {
 
 /** The classification — written by the classifier's guess, or by the
  * user correcting it. Passing null clears it, same as `setOpens`. */
+/**
+ * Only the type picker reaches this, so every call is a decision the user
+ * made — which is what `type_source` records, and what stops the
+ * classifier ever arguing with it (lib/resources.ts).
+ *
+ * Clearing returns the source to null rather than pinning "user" on an
+ * empty type: clearing withdraws an opinion instead of asserting one, so
+ * a later primary resource is free to be guessed from again.
+ */
 export function setType(item: Item, type: string | null): Change {
   return swap(
     item,
-    { ...item, type },
+    { ...item, type, type_source: type ? "user" : null },
     type ? `Classify ${describe(item)} as ${type}` : `Clear the type on ${describe(item)}`,
   );
 }

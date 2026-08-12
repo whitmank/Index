@@ -28,6 +28,7 @@ import {
   saveWatchedFolders,
   selfDevice,
 } from "../config.js";
+import { classifyUri } from "../services/ingest/classify.js";
 import { pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
 import { isLocalUri, resolve, resolveExistingFile } from "../services/resolver.js";
@@ -106,6 +107,14 @@ export function registerHandlers(): void {
 
   handle(CHANNELS.intakePathsToResources, async (paths) => ({
     results: await pathsToResources(asStringArray(paths, "paths")),
+  }));
+
+  // The guess for a resource already sitting on an item — what the
+  // reorder and detach paths ask when the primary changes under them.
+  // Whether the answer may be used is the renderer's rule (lib/
+  // resources.ts): this only answers the question.
+  handle(CHANNELS.ingestClassify, async (uri, name) => ({
+    type: await classifyUri(asString(uri, "uri"), asString(name, "name")),
   }));
 
   handle(CHANNELS.intakePick, async () => {

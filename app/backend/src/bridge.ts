@@ -83,6 +83,14 @@ export interface IndexBridge {
      * this — the renderer has no filesystem of its own. */
     pathForFile(file: File): string;
   };
+  ingest: {
+    /** The type guess for a resource already on an item, for when the
+     * primary changes under it. Null means the classifier has no
+     * opinion, which is not the same as "untyped" — callers keep the
+     * type they had. `lib/resources.ts` owns when this may be asked at
+     * all, and when its answer may be used. */
+    classify(uri: string, name: string): Promise<Result<{ type: string | null }>>;
+  };
   resources: {
     /** Which of these uris currently 404 locally — drives the missing
      * badge in ResourcesEditor. */

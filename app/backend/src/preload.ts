@@ -38,6 +38,9 @@ const bridge: IndexBridge = {
     pick: () => invoke(CHANNELS.intakePick),
     pathForFile: (file) => webUtils.getPathForFile(file),
   },
+  ingest: {
+    classify: (uri, name) => invoke(CHANNELS.ingestClassify, uri, name),
+  },
   resources: {
     checkMissing: (uris) => invoke(CHANNELS.resourcesCheckMissing, uris),
     locate: (itemId, uri) => invoke(CHANNELS.resourcesLocate, itemId, uri),

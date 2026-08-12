@@ -9,9 +9,10 @@
 // is.
 import { useEffect, useState } from "react";
 import type { Item, Resource } from "@index/database/types";
-import { apply, changes } from "../../changes/index.js";
+import { apply } from "../../changes/index.js";
 import { DeviceIcon } from "../../components/DeviceIcon.tsx";
 import { deviceKindOf, deviceOf } from "../../lib/derive.js";
+import { attachResource, detachResource, moveResource } from "../../lib/resources.js";
 import { errors, useSelfDevice } from "../../store/index.js";
 
 /** Where the resource actually is: the absolute path for a local file,
@@ -103,7 +104,7 @@ export function ResourcesEditor({ item }: { item: Item }) {
         return;
       }
       for (const { resource } of answer.ok.results) {
-        await apply(changes.addResource(item, resource));
+        await apply(await attachResource(item, resource));
       }
     } finally {
       setBusy(false);
@@ -207,7 +208,7 @@ export function ResourcesEditor({ item }: { item: Item }) {
               aria-label="Move up"
               className="resource-move"
               disabled={index === 0}
-              onClick={() => void apply(changes.reorderResources(item, index, index - 1))}
+              onClick={() => void moveResource(item, index, index - 1).then(apply)}
               type="button"
             >
               ‹
@@ -216,7 +217,7 @@ export function ResourcesEditor({ item }: { item: Item }) {
               aria-label="Move down"
               className="resource-move resource-move-down"
               disabled={index === item.resources.length - 1}
-              onClick={() => void apply(changes.reorderResources(item, index, index + 1))}
+              onClick={() => void moveResource(item, index, index + 1).then(apply)}
               type="button"
             >
               ‹
@@ -224,7 +225,7 @@ export function ResourcesEditor({ item }: { item: Item }) {
 
             <button
               aria-label={`remove ${resource.name}`}
-              onClick={() => void apply(changes.removeResource(item, index))}
+              onClick={() => void detachResource(item, index).then(apply)}
               type="button"
             >
               ✕
