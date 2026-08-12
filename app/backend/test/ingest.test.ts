@@ -15,8 +15,9 @@ import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
 import { formatOfResource } from "@index/database";
+import type { Field, FieldKind, Schema, SchemaField } from "@index/database/types";
 import { classifyResource, classifyUri } from "../src/services/ingest/classify.js";
-import { extract } from "../src/services/ingest/extract.js";
+import { extract, toFields } from "../src/services/ingest/extract.js";
 import { openProbe } from "../src/services/ingest/probe.js";
 import { declaresArticle } from "../src/services/ingest/signals/schemaOrg.js";
 import { sha256File } from "../src/services/hash.js";
@@ -33,18 +34,22 @@ function check(what: string, assertion: () => void | Promise<void>): Promise<voi
 
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "index-ingest-"));
 
-const OPF = `<?xml version="1.0"?>
+/** Dublin Core repeats an element rather than delimiting it, so the
+ * number of `dc:subject`s a fixture declares is what decides whether the
+ * extractor reports a string or a list. */
+const opfFor = (subjects: string[]) => `<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:title>Dune</dc:title>
     <dc:creator>Frank Herbert</dc:creator>
     <dc:date>1965-08-01T00:00:00Z</dc:date>
-    <dc:subject>Science Fiction</dc:subject>
-    <dc:subject>Politics</dc:subject>
+${subjects.map((subject) => `    <dc:subject>${subject}</dc:subject>`).join("\n")}
     <dc:identifier>urn:uuid:not-an-isbn</dc:identifier>
     <dc:identifier>ISBN 978-0-441-01359-3</dc:identifier>
   </metadata>
 </package>`;
+
+const OPF = opfFor(["Science Fiction", "Politics"]);
 
 const CONTAINER = `<?xml version="1.0"?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -54,11 +59,15 @@ const CONTAINER = `<?xml version="1.0"?>
 
 /** The OCF layout: `mimetype` first and stored uncompressed, so its media
  * type sits at a fixed offset in the file's opening bytes. */
-async function writeEpub(filename: string, mimetype = "application/epub+zip"): Promise<string> {
+async function writeEpub(
+  filename: string,
+  mimetype = "application/epub+zip",
+  options: { subjects?: string[] } = {},
+): Promise<string> {
   const zip = new JSZip();
   zip.file("mimetype", mimetype, { compression: "STORE" });
   zip.file("META-INF/container.xml", CONTAINER);
-  zip.file("OEBPS/content.opf", OPF);
+  zip.file("OEBPS/content.opf", options.subjects ? opfFor(options.subjects) : OPF);
   const filepath = path.join(workspace, filename);
   await fs.promises.writeFile(filepath, await zip.generateAsync({ type: "nodebuffer" }));
   return filepath;
@@ -393,17 +402,31 @@ await new Promise<void>((resolve) => server.close(() => resolve()));
 
 console.log("\nextraction: the field names the schema join must not break");
 
-await check("emits the same five fields the ingestor did before the split", async () => {
+await check("emits the same five field names, in the same order", async () => {
   const probe = await probeOf(await writeEpub("fields.epub"));
   const fields = await extract("book", probe);
 
+  // `genre` reports the two `dc:subject` elements as the two values they
+  // are, rather than one comma-joined line. That is the one deliberate
+  // change from what shipped before the schema join: a field declaring
+  // `list` would otherwise get a single entry with a comma inside it.
+  // With one value, or against a schema declaring `string`, the output is
+  // exactly what it was — both covered below.
   assert.deepEqual(fields, [
     { name: "title", value: "Dune", kind: "string" },
     { name: "author", value: "Frank Herbert", kind: "string" },
     { name: "published", value: "1965-08-01", kind: "date" },
-    { name: "genre", value: "Science Fiction, Politics", kind: "string" },
+    { name: "genre", value: ["Science Fiction", "Politics"], kind: "list" },
     { name: "isbn", value: "9780441013593", kind: "string" },
   ]);
+});
+
+await check("reports a lone value as itself, not a list of one", async () => {
+  const probe = await probeOf(
+    await writeEpub("single.epub", "application/epub+zip", { subjects: ["Cyberpunk"] }),
+  );
+  const genre = (await extract("book", probe)).find((f) => f.name === "genre");
+  assert.deepEqual(genre, { name: "genre", value: "Cyberpunk", kind: "string" });
 });
 
 await check("has nothing to say about a type with no extractor", async () => {
@@ -415,6 +438,147 @@ await check("has nothing to say about a type with no extractor", async () => {
 await check("survives a file that is not the book it was typed as", async () => {
   const probe = await probeOf(write("lying.epub", Buffer.from("not a zip at all")));
   assert.deepEqual(await extract("book", probe), []);
+});
+
+console.log("\nthe schema join: the file's words, the type's names");
+
+const schema = (fields: SchemaField[]): Schema => ({
+  id: "schemas:book",
+  name: "book",
+  label: null,
+  fields,
+});
+const field = (name: string, kind: FieldKind = "string", label: string | null = null) =>
+  ({ name, kind, label });
+
+const said = (key: string, value: Field["value"] = "x", kind: FieldKind = "string") =>
+  ({ key, value, kind });
+
+const namesOf = (fields: Field[]) => fields.map((f) => f.name);
+
+await check("passes keys through verbatim when the type declares no fields", () => {
+  const observations = [said("title", "Dune"), said("author", "Frank Herbert")];
+  assert.deepEqual(toFields(observations), [
+    { name: "title", value: "Dune", kind: "string" },
+    { name: "author", value: "Frank Herbert", kind: "string" },
+  ]);
+  assert.deepEqual(toFields(observations, schema([])), toFields(observations));
+});
+
+await check("lands an observation in the field the schema calls it", () => {
+  const joined = toFields([said("author", "Frank Herbert")], schema([field("writer")]));
+
+  // The case the whole join exists for: one row, named as the type
+  // declares, instead of an empty `writer` beside an orphan `author`.
+  assert.deepEqual(joined, [{ name: "writer", value: "Frank Herbert", kind: "string" }]);
+});
+
+await check("ignores case, spaces, underscores and hyphens in a name", () => {
+  for (const declared of ["Published", "PUBLISHED_DATE", "release-date", "Release Date"]) {
+    assert.deepEqual(
+      namesOf(toFields([said("published", "1965")], schema([field(declared, "date")]))),
+      [declared],
+      declared,
+    );
+  }
+});
+
+await check("matches a field by its display label too", () => {
+  const joined = toFields([said("isbn", "9780441013593")], schema([field("code", "string", "ISBN")]));
+  assert.deepEqual(namesOf(joined), ["code"]);
+});
+
+await check("prefers an exact name over another field's synonym", () => {
+  // `writer` is declared first and would match by synonym, but `author`
+  // is what the observation is actually called, so it wins regardless of
+  // declaration order.
+  const joined = toFields(
+    [said("author", "Frank Herbert")],
+    schema([field("writer"), field("author")]),
+  );
+  assert.deepEqual(joined, [{ name: "author", value: "Frank Herbert", kind: "string" }]);
+});
+
+await check("never hands one observation to two fields", () => {
+  const joined = toFields(
+    [said("author", "Frank Herbert")],
+    schema([field("author"), field("creator")]),
+  );
+  assert.deepEqual(namesOf(joined), ["author"]);
+});
+
+await check("takes the kind the schema declares, and reshapes the value", () => {
+  const toList = toFields([said("genre", "Science Fiction")], schema([field("genre", "list")]));
+  assert.deepEqual(toList, [{ name: "genre", value: ["Science Fiction"], kind: "list" }]);
+
+  const toText = toFields(
+    [said("genre", ["Science Fiction", "Politics"], "list")],
+    schema([field("genre", "string")]),
+  );
+  assert.deepEqual(toText, [
+    { name: "genre", value: "Science Fiction, Politics", kind: "string" },
+  ]);
+});
+
+await check("keeps what the file said that the type has no word for", () => {
+  const joined = toFields(
+    [said("title", "Dune"), said("isbn", "9780441013593")],
+    schema([field("title")]),
+  );
+
+  // Dropping it would lose something the file really declared; a row the
+  // user can delete is the honest fallback.
+  assert.deepEqual(namesOf(joined), ["title", "isbn"]);
+});
+
+await check("does not write empty rows for fields nothing matched", () => {
+  const joined = toFields([said("title", "Dune")], schema([field("title"), field("pages", "number")]));
+
+  // The layout already draws a type's declared fields from the schema,
+  // so emitting blanks here would put them on the item twice.
+  assert.deepEqual(namesOf(joined), ["title"]);
+});
+
+await check("orders matched rows the way the type declares them", () => {
+  const joined = toFields(
+    [said("isbn", "978"), said("title", "Dune"), said("author", "Frank Herbert")],
+    schema([field("title"), field("writer"), field("isbn")]),
+  );
+  assert.deepEqual(namesOf(joined), ["title", "writer", "isbn"]);
+});
+
+await check("joins a real epub's metadata onto a schema that renames it", async () => {
+  const probe = await probeOf(await writeEpub("joined.epub"));
+  const fields = await extract(
+    "book",
+    probe,
+    schema([field("title"), field("writer"), field("year", "date"), field("categories", "list")]),
+  );
+
+  // Every rung at once: an exact name, a synonym (`writer`), a synonym
+  // that also narrows the kind (`year`), a synonym keeping the list
+  // (`categories`), and an observation the schema has no word for.
+  assert.deepEqual(fields, [
+    { name: "title", value: "Dune", kind: "string" },
+    { name: "writer", value: "Frank Herbert", kind: "string" },
+    { name: "year", value: "1965-08-01", kind: "date" },
+    { name: "categories", value: ["Science Fiction", "Politics"], kind: "list" },
+    { name: "isbn", value: "9780441013593", kind: "string" },
+  ]);
+});
+
+await check("joins the same epub onto a schema that wants one line instead", async () => {
+  const probe = await probeOf(await writeEpub("flattened.epub"));
+  const fields = await extract("book", probe, schema([field("genre", "string")]));
+
+  // The other direction, and the reason the extractor reports the shape
+  // it found: a type declaring `string` still gets the joined line it
+  // used to get, without the extractor knowing that type exists.
+  assert.deepEqual(fields.find((f) => f.name === "genre"), {
+    name: "genre",
+    value: "Science Fiction, Politics",
+    kind: "string",
+  });
 });
 
 fs.rmSync(workspace, { recursive: true, force: true });

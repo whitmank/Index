@@ -49,6 +49,21 @@ function normalizedDate(raw: string): string {
   return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString().slice(0, 10);
 }
 
+/**
+ * Dublin Core repeats an element rather than delimiting it, so `creator`
+ * and `subject` genuinely arrive as several values. Reporting the shape
+ * that was actually found — one string, or a list — is what lets the
+ * schema join do the right thing in both directions: `extract.ts` widens
+ * a lone value when a field declares `list`, and joins several back into
+ * one line when it declares `string`. Flattening here instead would make
+ * a `list` field hold a single entry with commas in it.
+ */
+function observed(key: string, values: string[]): Observation | null {
+  if (values.length === 0) return null;
+  if (values.length === 1) return { key, value: values[0] as string, kind: "string" };
+  return { key, value: values, kind: "list" };
+}
+
 export async function extractBook(probe: Probe): Promise<Observation[]> {
   try {
     // The probe's buffer, not a read of our own — for an epub this is the
@@ -67,18 +82,22 @@ export async function extractBook(probe: Probe): Promise<Observation[]> {
     const opf = cheerio.load(opfXml, { xmlMode: true });
 
     const title = textsOf(opf, "title")[0];
-    const author = textsOf(opf, "creator").join(", ");
     const published = textsOf(opf, "date")[0];
-    const genre = textsOf(opf, "subject").join(", ");
     const isbn = isbnFrom(textsOf(opf, "identifier"));
 
     const observations: Observation[] = [];
     if (title) observations.push({ key: "title", value: title, kind: "string" });
-    if (author) observations.push({ key: "author", value: author, kind: "string" });
+
+    const author = observed("author", textsOf(opf, "creator"));
+    if (author) observations.push(author);
+
     if (published) {
       observations.push({ key: "published", value: normalizedDate(published), kind: "date" });
     }
-    if (genre) observations.push({ key: "genre", value: genre, kind: "string" });
+
+    const genre = observed("genre", textsOf(opf, "subject"));
+    if (genre) observations.push(genre);
+
     if (isbn) observations.push({ key: "isbn", value: isbn, kind: "string" });
     return observations;
   } catch {

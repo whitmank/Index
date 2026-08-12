@@ -280,10 +280,28 @@ anything that needed the whole file has loaded it.
   page volunteers is trusted; declaring nothing earns no opinion, which
   costs nothing because a null guess never overwrites a type.
 - **extract** — type-specific readers returning **observations** (a key
-  in the format's own vocabulary), mapped to `fields` by one function.
-  That map is the identity today; giving it the item's schema so a
-  `creator` can land in a schema's `writer` is the next pass, and no
-  extractor changes when it does.
+  in the format's own vocabulary), joined to the type's declared fields
+  by one function, `toFields(observations, schema?)`. No extractor knows
+  a schema exists.
+
+  The join is four ordered rules, and the order decides ties: exact
+  field name, then field `label`, then a synonym of the observation's
+  key against a name, then against a label. Names are compared with
+  case, spaces, underscores and hyphens stripped, so `Release Date`,
+  `release_date` and `releaseDate` are one name. Synonyms are a claim
+  about the ingestor's own vocabulary (`author` may be called `writer`),
+  never about what a schema means by a word; a synonym that fires
+  wrongly hides a value where an unmatched one stays visible.
+
+  Three pinned choices **[pinned here]**: the schema's **kind** wins and
+  the value is reshaped to fit (a schema is the declaration of what a
+  type carries); an observation matching nothing is **kept** as its own
+  row, since the file really did say it; and a declared field matching
+  nothing writes **no row**, because the layout already draws a type's
+  fields from the schema. With no schema, every key passes through
+  verbatim. Extractors report the shape they found — one value, or
+  several — so the join can widen a lone value for a `list` field and
+  join several back for a `string` one.
 
 **classification lifetime** — the guess is stored (`items.type`) with its
 provenance (`items.type_source`: `"auto"` | `"user"`), never recomputed

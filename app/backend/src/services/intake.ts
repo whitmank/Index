@@ -11,7 +11,7 @@
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
 import path from "node:path";
-import type { Field, Resource } from "@index/database";
+import { listSchemas, type Field, type Resource, type Schema } from "@index/database";
 import { selfDevice } from "../config.js";
 import { deriveForResource } from "./derivations.js";
 import { classifyResource } from "./ingest/classify.js";
@@ -101,6 +101,12 @@ export interface IntakeResult {
  * whole file has loaded it and the signature can be taken from memory.
  */
 export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]> {
+  // Read once for the whole drop rather than once per file, and never
+  // fatally: a schema list that can't be loaded means extraction falls
+  // back to the format's own vocabulary, which is what it did before
+  // schemas were consulted at all.
+  const schemas = await listSchemas().catch(() => [] as Schema[]);
+
   return Promise.all(
     inputs.map(async (input) => {
       const uri = isWebUrl(input) ? input : pathToUri(input);
@@ -111,7 +117,11 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
 
       const type = await classifyResource(derived, probe);
-      const fields = await extract(type, probe);
+      const fields = await extract(
+        type,
+        probe,
+        schemas.find((schema) => schema.name === type),
+      );
 
       return { resource: await withIdentity(derived, probe), type, fields };
     }),
