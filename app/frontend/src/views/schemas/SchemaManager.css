@@ -139,45 +139,26 @@
 
 .schema-field-row {
   display: grid;
-  grid-template-columns: 1.1rem minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 1.1rem 0.9rem minmax(0, 1fr) auto auto;
   gap: 0.6rem;
   align-items: center;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--line);
 }
 
-/* Marks the one field that *is* the item's name. Quiet while off — most
-   types never want it, and a row of shouting toggles would read as a
-   decision every field has to make. On, it takes --violet, which
-   index.css already reserves for "a chosen override": this is the user
-   overruling where a value would otherwise land. */
-.schema-editor-block .field-is-name {
-  font: inherit;
+/* The first field is the item's name, the way the first resource is the
+   primary one — so it is marked the way that one is, with the same star
+   and the same fixed-width column keeping every row's input aligned
+   whether or not it holds one (ResourcesEditor.tsx). --good is what that
+   list uses for its star; a field naming its item is the same kind of
+   fact as a resource deciding its format. */
+.schema-field-primary-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--text-xs, 11px);
-  letter-spacing: 0.04em;
   line-height: 1;
-  color: var(--ink-faint);
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.25rem 0.4rem;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
-}
-
-.schema-field-row:hover .field-is-name {
-  color: var(--ink-quiet);
-}
-
-.schema-editor-block .field-is-name:hover {
-  color: var(--violet);
-  border-color: var(--line-strong);
-}
-
-.schema-editor-block .field-is-name.is-on {
-  color: var(--paper);
-  background: var(--violet);
-  border-color: var(--violet);
+  color: var(--good);
 }
 
 .schema-field-row.is-draft {

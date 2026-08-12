@@ -284,13 +284,20 @@ anything that needed the whole file has loaded it.
   by one function, `toFields(observations, schema?)`. No extractor knows
   a schema exists.
 
-  A reader may also return a **name**, which is not an observation and
-  never becomes a field: an item already has a `name` column, and a
-  book's title belongs in it rather than in a row beside the author.
-  Intake passes it up as `IntakeResult.name`, and it beats the basename
-  or url that `nameFor` derived. Used only when minting an item
-  **[pinned here]** — extraction never runs against one that already
-  exists, so there is no name of the user's to overwrite.
+  **`schema.fields[0]` is the item's name**, the same way
+  `resources[0]` is the primary resource — ordered, and reordering is
+  how the user says which one it is (the type manager drags them, as the
+  resources list does). Whatever matches the leading field becomes
+  `IntakeResult.name` instead of a row, beating the basename or url that
+  `nameFor` derived, and the layout draws only `fields.slice(1)` — the
+  name is already on screen above them.
+
+  Positional rather than a per-field flag **[pinned here]**: the word is
+  no guide, since a `person` type's `title` means Dr. or a job, and a
+  flag adds a second way to express an order the list already has. Used
+  only when minting an item — extraction never runs against one that
+  already exists, so there is no name of the user's to overwrite. A
+  leading field that matches nothing leaves the derived name standing.
 
   The join is four ordered rules, and the order decides ties: exact
   field name, then field `label`, then a synonym of the observation's

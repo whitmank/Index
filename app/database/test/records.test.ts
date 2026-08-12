@@ -377,41 +377,12 @@ async function main(): Promise<void> {
       assert.equal(readBack?.child, true);
     });
 
-    console.log("\nschemas: the field that is the item's name");
+    console.log("\nschemas: field order is the naming order");
 
+    // `fields[0]` is the item's name (types.ts), so the order a type is
+    // saved in is load-bearing and not merely cosmetic — this is the one
+    // place it round-trips through real storage.
     const saved = await upsertSchema({
-      name: "book",
-      label: null,
-      fields: [
-        { name: "title", label: null, kind: "string", is_name: true },
-        { name: "author", label: null, kind: "string" },
-      ],
-    });
-
-    check("the flag survives the round trip", () => {
-      assert.equal(saved.fields[0]?.is_name, true);
-      assert.equal(saved.fields[1]?.is_name, false);
-    });
-
-    // An item has one name, so a write claiming two is resolved rather
-    // than stored — the answer must not depend on which write landed last.
-    const overclaimed = await upsertSchema({
-      name: "book",
-      label: null,
-      fields: [
-        { name: "title", label: null, kind: "string", is_name: true },
-        { name: "author", label: null, kind: "string", is_name: true },
-      ],
-    });
-
-    check("a second claim on the name is refused, not stored", () => {
-      assert.deepEqual(
-        overclaimed.fields.map((field) => field.is_name),
-        [true, false],
-      );
-    });
-
-    const released = await upsertSchema({
       name: "book",
       label: null,
       fields: [
@@ -420,8 +391,21 @@ async function main(): Promise<void> {
       ],
     });
 
-    check("a type may name nothing at all", () => {
-      assert.ok(released.fields.every((field) => !field.is_name));
+    check("a type keeps the order its fields were written in", () => {
+      assert.deepEqual(saved.fields.map((field) => field.name), ["title", "author"]);
+    });
+
+    const reordered = await upsertSchema({
+      name: "book",
+      label: null,
+      fields: [
+        { name: "author", label: null, kind: "string" },
+        { name: "title", label: null, kind: "string" },
+      ],
+    });
+
+    check("reordering it is what changes which field names the item", () => {
+      assert.deepEqual(reordered.fields.map((field) => field.name), ["author", "title"]);
     });
 
     console.log(`\n${passed} assertions passed\n`);

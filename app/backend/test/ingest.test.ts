@@ -448,12 +448,8 @@ const schema = (fields: SchemaField[]): Schema => ({
   label: null,
   fields,
 });
-const field = (
-  name: string,
-  kind: FieldKind = "string",
-  label: string | null = null,
-  is_name = false,
-) => ({ name, kind, label, is_name });
+const field = (name: string, kind: FieldKind = "string", label: string | null = null) =>
+  ({ name, kind, label });
 
 const said = (key: string, value: Field["value"] = "x", kind: FieldKind = "string") =>
   ({ key, value, kind });
@@ -472,7 +468,10 @@ await check("passes keys through verbatim when the type declares no fields", () 
 });
 
 await check("lands an observation in the field the schema calls it", () => {
-  const joined = toFields([said("author", "Frank Herbert")], schema([field("writer")]));
+  const joined = toFields(
+    [said("title", "Dune"), said("author", "Frank Herbert")],
+    schema([field("title"), field("writer")]),
+  );
 
   // The case the whole join exists for: one row, named as the type
   // declares, instead of an empty `writer` beside an orphan `author`.
@@ -481,16 +480,21 @@ await check("lands an observation in the field the schema calls it", () => {
 
 await check("ignores case, spaces, underscores and hyphens in a name", () => {
   for (const declared of ["Published", "PUBLISHED_DATE", "release-date", "Release Date"]) {
-    assert.deepEqual(
-      namesOf(toFields([said("published", "1965")], schema([field(declared, "date")])).fields),
-      [declared],
-      declared,
+    // A leading field the observations never match, so the one under test
+    // is a row rather than the item's name.
+    const joined = toFields(
+      [said("published", "1965")],
+      schema([field("unmatched"), field(declared, "date")]),
     );
+    assert.deepEqual(namesOf(joined.fields), [declared], declared);
   }
 });
 
 await check("matches a field by its display label too", () => {
-  const joined = toFields([said("isbn", "9780441013593")], schema([field("code", "string", "ISBN")]));
+  const joined = toFields(
+    [said("isbn", "9780441013593")],
+    schema([field("unmatched"), field("code", "string", "ISBN")]),
+  );
   assert.deepEqual(namesOf(joined.fields), ["code"]);
 });
 
@@ -508,18 +512,21 @@ await check("prefers an exact name over another field's synonym", () => {
 await check("never hands one observation to two fields", () => {
   const joined = toFields(
     [said("author", "Frank Herbert")],
-    schema([field("author"), field("creator")]),
+    schema([field("unmatched"), field("author"), field("creator")]),
   );
   assert.deepEqual(namesOf(joined.fields), ["author"]);
 });
 
 await check("takes the kind the schema declares, and reshapes the value", () => {
-  const toList = toFields([said("genre", "Science Fiction")], schema([field("genre", "list")]));
+  const toList = toFields(
+    [said("genre", "Science Fiction")],
+    schema([field("unmatched"), field("genre", "list")]),
+  );
   assert.deepEqual(toList.fields, [{ name: "genre", value: ["Science Fiction"], kind: "list" }]);
 
   const toText = toFields(
     [said("genre", ["Science Fiction", "Politics"], "list")],
-    schema([field("genre", "string")]),
+    schema([field("unmatched"), field("genre", "string")]),
   );
   assert.deepEqual(toText.fields, [
     { name: "genre", value: "Science Fiction, Politics", kind: "string" },
@@ -534,15 +541,19 @@ await check("keeps what the file said that the type has no word for", () => {
 
   // Dropping it would lose something the file really declared; a row the
   // user can delete is the honest fallback.
-  assert.deepEqual(namesOf(joined.fields), ["title", "isbn"]);
+  assert.deepEqual(namesOf(joined.fields), ["isbn"]);
+  assert.equal(joined.name, "Dune");
 });
 
 await check("does not write empty rows for fields nothing matched", () => {
-  const joined = toFields([said("title", "Dune")], schema([field("title"), field("pages", "number")]));
+  const joined = toFields(
+    [said("title", "Dune"), said("isbn", "978")],
+    schema([field("title"), field("isbn"), field("pages", "number")]),
+  );
 
   // The layout already draws a type's declared fields from the schema,
   // so emitting blanks here would put them on the item twice.
-  assert.deepEqual(namesOf(joined.fields), ["title"]);
+  assert.deepEqual(namesOf(joined.fields), ["isbn"]);
 });
 
 await check("orders matched rows the way the type declares them", () => {
@@ -550,7 +561,7 @@ await check("orders matched rows the way the type declares them", () => {
     [said("isbn", "978"), said("title", "Dune"), said("author", "Frank Herbert")],
     schema([field("title"), field("writer"), field("isbn")]),
   );
-  assert.deepEqual(namesOf(joined.fields), ["title", "writer", "isbn"]);
+  assert.deepEqual(namesOf(joined.fields), ["writer", "isbn"]);
 });
 
 await check("joins a real epub's metadata onto a schema that renames it", async () => {
@@ -558,15 +569,10 @@ await check("joins a real epub's metadata onto a schema that renames it", async 
   const { name, fields } = await extract(
     "book",
     probe,
-    schema([
-      field("title", "string", null, true),
-      field("writer"),
-      field("year", "date"),
-      field("categories", "list"),
-    ]),
+    schema([field("title"), field("writer"), field("year", "date"), field("categories", "list")]),
   );
 
-  // Every rung at once: the field the type marks as its name, a synonym
+  // Every rung at once: the leading field taken as the name, a synonym
   // (`writer`), a synonym that also narrows the kind (`year`), a synonym
   // keeping the list (`categories`), and an observation the schema has no
   // word for.
@@ -579,12 +585,12 @@ await check("joins a real epub's metadata onto a schema that renames it", async 
   ]);
 });
 
-console.log("\nthe field a type says is its name");
+console.log("\nthe first field is the item's name");
 
-await check("takes the marked field's value as the name, and writes no row for it", () => {
+await check("takes the first field's value as the name, and writes no row for it", () => {
   const joined = toFields(
     [said("title", "Flatland"), said("author", "Edwin Abbott Abbott")],
-    schema([field("title", "string", null, true), field("author")]),
+    schema([field("title"), field("author")]),
   );
 
   assert.equal(joined.name, "Flatland");
@@ -592,32 +598,30 @@ await check("takes the marked field's value as the name, and writes no row for i
 });
 
 await check("claims the name through a synonym, same as any other match", () => {
-  const joined = toFields(
-    [said("title", "Flatland")],
-    schema([field("heading", "string", "Title", true)]),
-  );
+  const joined = toFields([said("title", "Flatland")], schema([field("heading", "string", "Title")]));
   assert.equal(joined.name, "Flatland");
   assert.deepEqual(joined.fields, []);
 });
 
-await check("says nothing when the marked field matched nothing", () => {
-  const joined = toFields([said("author", "Edwin Abbott Abbott")], schema([
-    field("title", "string", null, true),
-    field("author"),
-  ]));
+await check("says nothing when the first field matched nothing", () => {
+  const joined = toFields(
+    [said("author", "Edwin Abbott Abbott")],
+    schema([field("title"), field("author")]),
+  );
 
-  // The type wants a name from the title and the file never gave one, so
-  // whatever intake derived from the path stands.
+  // The type wants its name from the title and the file never gave one,
+  // so whatever intake derived from the path stands.
   assert.equal(joined.name, undefined);
   assert.deepEqual(namesOf(joined.fields), ["author"]);
 });
 
-await check("marking a different field moves the name to it", () => {
+await check("reordering the type moves the name with it", () => {
   const observations = [said("title", "Flatland"), said("author", "Edwin Abbott Abbott")];
-  const byAuthor = toFields(observations, schema([field("title"), field("author", "string", null, true)]));
+  const byAuthor = toFields(observations, schema([field("author"), field("title")]));
 
-  // Nothing about the word `title` is special — the flag is, which is the
-  // point: a `person` type's `title` means Dr., not a name.
+  // Nothing about the word `title` is special — position is, which is the
+  // point: a `person` type's `title` means Dr., not a name. Dragging a
+  // field to the top is the same gesture as promoting a resource.
   assert.equal(byAuthor.name, "Edwin Abbott Abbott");
   assert.deepEqual(namesOf(byAuthor.fields), ["title"]);
 });
@@ -625,18 +629,20 @@ await check("marking a different field moves the name to it", () => {
 await check("flattens a list into the one line a name has to be", () => {
   const joined = toFields(
     [said("author", ["Gilbert", "Sullivan"], "list")],
-    schema([field("author", "list", null, true)]),
+    schema([field("author", "list")]),
   );
   assert.equal(joined.name, "Gilbert, Sullivan");
 });
 
+await check("a type whose only field is its name draws no rows at all", () => {
+  const joined = toFields([said("title", "Flatland")], schema([field("title")]));
+  assert.equal(joined.name, "Flatland");
+  assert.deepEqual(joined.fields, []);
+});
+
 await check("names an item from a real epub, end to end", async () => {
   const probe = await probeOf(await writeEpub("named.epub"));
-  const { name, fields } = await extract(
-    "book",
-    probe,
-    schema([field("title", "string", null, true), field("author")]),
-  );
+  const { name, fields } = await extract("book", probe, schema([field("title"), field("author")]));
 
   assert.equal(name, "Dune");
   assert.equal(fields.find((f) => f.name === "title"), undefined);
@@ -645,7 +651,11 @@ await check("names an item from a real epub, end to end", async () => {
 
 await check("joins the same epub onto a schema that wants one line instead", async () => {
   const probe = await probeOf(await writeEpub("flattened.epub"));
-  const { fields } = await extract("book", probe, schema([field("genre", "string")]));
+  const { fields } = await extract(
+    "book",
+    probe,
+    schema([field("title"), field("genre", "string")]),
+  );
 
   // The other direction, and the reason the extractor reports the shape
   // it found: a type declaring `string` still gets the joined line it

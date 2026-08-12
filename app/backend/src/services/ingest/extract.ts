@@ -33,8 +33,9 @@ export type Extractor = (probe: Probe) => Promise<Observation[]>;
  * The name is the schema's decision, not a reader's. A book's title is
  * the item's name and an author is a field, but a `person` type's
  * `title` means Dr. or a job, and no amount of looking at the word tells
- * the two apart. So the type declares which of its fields *is* the name
- * (`SchemaField.is_name`), and readers go on reporting what they read.
+ * the two apart. So the type says which by putting it first — the way
+ * `resources[0]` is the primary resource — and readers go on reporting
+ * what they read.
  */
 export interface Extracted {
   name?: string;
@@ -133,9 +134,11 @@ function asText(value: Field["value"]): string {
  *   (layouts/registry.tsx), so writing empty rows here would put the
  *   same blanks on the item twice.
  *
- * The field a type marks `is_name` takes its match as the item's name
- * and writes no row: the name is one fact, and the input at the top of
- * Focus is already the control for editing it.
+ * The type's **first** field takes its match as the item's name and
+ * writes no row — `resources[0]` is the primary resource for the same
+ * reason, and reordering is the same gesture in both places. The name is
+ * one fact, and the input at the top of Focus is already the control for
+ * editing it.
  *
  * With no schema — an untyped item, or a type nobody has defined fields
  * for — every key passes through verbatim, which is what shipped before
@@ -160,14 +163,14 @@ export function toFields(observations: Observation[], schema?: Schema): Extracte
     }
   }
 
-  const naming = fields.find((field) => field.is_name);
+  const [naming, ...rest] = fields;
   const named = naming ? pairs.get(naming) : undefined;
 
   // Matched rows in the order the type declares them, so an item reads
   // the way its schema does; whatever the file said that the schema has
   // no word for follows, in the order it was read.
-  const matched = fields
-    .filter((field) => pairs.has(field) && !field.is_name)
+  const matched = rest
+    .filter((field) => pairs.has(field))
     .map((field) => {
       const observation = pairs.get(field) as Observation;
       return { name: field.name, value: coerce(observation.value, field.kind), kind: field.kind };

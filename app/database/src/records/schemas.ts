@@ -20,19 +20,6 @@ export interface SchemaInput {
 }
 
 /**
- * An item has one name, so at most one field can be it. Enforced here
- * rather than trusted of callers: the type manager keeps its toggles
- * behaving like a radio group, but a second window editing the same type
- * could still submit two, and "which one wins" should not depend on
- * which write landed last.
- */
-function withOneNameField(fields: SchemaField[]): SchemaField[] {
-  const first = fields.findIndex((field) => field.is_name);
-  if (first === -1) return fields;
-  return fields.map((field, at) => ({ ...field, is_name: at === first }));
-}
-
-/**
  * Create or edit a type. `name` is immutable once minted — it is the id
  * (`schemaId`), the same way a label's word is its id — so editing
  * always targets the same row a type started as, and there is no rename
@@ -43,7 +30,7 @@ export async function upsertSchema(input: SchemaInput): Promise<Schema> {
   const [rows] = await db
     .query<[SchemaRow[]]>("UPSERT $id CONTENT $content RETURN AFTER", {
       id: recordId(schemaId(input.name)),
-      content: schemaContent({ ...input, fields: withOneNameField(input.fields) }),
+      content: schemaContent(input),
     })
     .collect();
   const row = rows[0];

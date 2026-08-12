@@ -117,12 +117,11 @@ export function resolveLayout(item: Item, tags: { name: string }[], schemas: Sch
   const inferred = tags.find((tag) => tag.name in layouts)?.name ?? null;
 
   const schema = item.type ? schemas.find((candidate) => candidate.name === item.type) : undefined;
-  // A field the type marks `is_name` is drawn already — as the item's
-  // name, at the top of the panel — so drawing it again here would be two
-  // controls editing one fact, which is the redundancy the flag exists to
-  // remove. Filtered before the length check, so a type whose only field
-  // is its name resolves the same as one with no fields at all.
-  const declared = schema?.fields.filter((field) => !field.is_name) ?? [];
+  // A type's first field is drawn already — as the item's name, at the
+  // top of the panel — so drawing it again here would be two controls
+  // editing one fact. Dropped before the length check, so a type whose
+  // only field is its name resolves the same as one with no fields.
+  const declared = schema?.fields.slice(1) ?? [];
   const schemaFields: KnownField[] | undefined =
     declared.length > 0
       ? declared.map((field) => ({ name: field.name, kind: field.kind }))

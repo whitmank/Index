@@ -117,28 +117,25 @@ export interface SchemaField {
   /** Display label; falls back to `name` when absent. */
   label: string | null;
   kind: FieldKind;
-  /**
-   * This field *is* the item's name, not a row beside it — a book's
-   * title being the obvious case, where the item is called Flatland and
-   * `Flatland.epub` was only ever where the file sat.
-   *
-   * Two consequences, and they are the same fact seen from either end:
-   * the ingestor writes what it extracted here into `Item.name` instead
-   * of into `fields` (ingest/extract.ts), and the layout stops drawing
-   * the field, since the name is already on screen above it
-   * (layouts/registry.tsx).
-   *
-   * At most one per schema, enforced on write. Off by default: a
-   * `person` type's `title` means Dr. or a job, and guessing from the
-   * word is exactly what this flag exists to avoid.
-   */
-  is_name?: boolean;
 }
 
 /**
  * A type's field list, as data — not a code table (PRODUCT-SPEC-style
  * "schema-free" extension applied one level up: adding a type is adding a
- * row, not shipping code). `name` is the classification key an item's
+ * row, not shipping code).
+ *
+ * **`fields[0]` is the item's name**, the same way `resources[0]` is the
+ * primary resource: ordered, and reordering is how the user says which
+ * one it is. A book's title is what the book is called, so it leads —
+ * the ingestor writes what it extracted there into `Item.name`
+ * (ingest/extract.ts) and the layout draws the rest (layouts/registry.tsx),
+ * since the name is already on screen above them.
+ *
+ * Positional rather than flagged because the word is no guide: a
+ * `person` type's `title` means Dr. or a job, not a name. What decides
+ * is where the user put it.
+ *
+ * `name` is the classification key an item's
  * `type` matches, and is immutable once created — the id is minted from
  * it (`schemaId`), the same way a label's id is minted from its word.
  */

@@ -156,13 +156,6 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
     commitFields(next);
   };
 
-  /** Exactly one field, or none at `-1`. Written as a whole-list rewrite
-   * rather than a patch because claiming the name for one field is the
-   * same act as releasing it from another. */
-  const setNameField = (index: number): void => {
-    commitFields(schema.fields.map((field, at) => ({ ...field, is_name: at === index })));
-  };
-
   const addDraft = (patch: Partial<SchemaField>): void => {
     const row = { ...draftRow, ...patch };
     if (row.name.trim() === "") {
@@ -231,6 +224,21 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
             >
               ⠿
             </button>
+
+            {/* Fixed width whether or not it holds a star, so every row's
+                input starts at the same x — the resources list marks its
+                primary the same way, and for the same reason: the first
+                one is the one that decides something. */}
+            <span
+              className="schema-field-primary-indicator"
+              title={index === 0 ? "names the item — drag another field above to change it" : undefined}
+            >
+              {index === 0 && (
+                <>
+                  ★<span className="sr-only">Names the item</span>
+                </>
+              )}
+            </span>
             <SettleInput
               ariaLabel="field name"
               onCommit={(name) => updateField(index, { name })}
@@ -248,28 +256,6 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
                 </option>
               ))}
             </select>
-            {/* Behaves as a radio group — an item has one name, so
-                claiming it for one field releases it from whichever had
-                it. Off-able too, which a real radio group cannot do, and
-                a type is allowed to have no field that names anything. */}
-            <button
-              aria-label={
-                field.is_name
-                  ? `stop using ${field.name} as the item name`
-                  : `use ${field.name} as the item name`
-              }
-              aria-pressed={Boolean(field.is_name)}
-              className={field.is_name ? "field-is-name is-on" : "field-is-name"}
-              onClick={() => setNameField(field.is_name ? -1 : index)}
-              title={
-                field.is_name
-                  ? "this field is the item's name — it isn't drawn again below"
-                  : "use this field as the item's name, instead of a row of its own"
-              }
-              type="button"
-            >
-              name
-            </button>
             <button
               aria-label={`remove ${field.name}`}
               className="field-remove"

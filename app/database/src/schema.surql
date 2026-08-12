@@ -58,7 +58,4 @@ DEFINE FIELD OVERWRITE fields.*.name  ON schemas TYPE string;
 DEFINE FIELD OVERWRITE fields.*.label ON schemas TYPE option<string>;
 DEFINE FIELD OVERWRITE fields.*.kind  ON schemas TYPE string DEFAULT "string"
     ASSERT $value IN ["string", "number", "date", "list"];
--- At most one per schema (enforced on write, records/schemas.ts): the
--- field that *is* the item's name rather than a row beside it.
-DEFINE FIELD OVERWRITE fields.*.is_name ON schemas TYPE bool DEFAULT false;
 DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;
