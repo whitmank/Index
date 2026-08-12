@@ -41,13 +41,12 @@ function typeProvenance(item: Item): string {
     : "guessed — click to change";
 }
 
-/** What the confirm control says it will do. Both halves name the
- * consequence rather than the state, because the state is already legible
- * from the mark and the consequence is the part that isn't. */
-function confirmHint(item: Item): string {
-  return item.type_source === "user"
-    ? "confirmed — click to let the type follow the primary resource again"
-    : "confirm this type, so changing resources won't revise it";
+/** Whether there is a guess standing unanswered. A type the user chose
+ * needs no agreeing with — picking it from the menu already said so — and
+ * a legacy row with no recorded source counts as unanswered, since
+ * nothing on it says a person decided. */
+function awaitsConfirmation(item: Item): boolean {
+  return Boolean(item.type) && item.type_source !== "user";
 }
 
 export interface FocusProps {
@@ -330,20 +329,15 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
               </span>
             </button>
 
-            {/* Only a typed item has a guess to stand behind. Untyped
-                shows nothing rather than a disabled control, since there
-                is no state to communicate yet. */}
-            {item.type && (
+            {/* Present only while a guess is unanswered. Accepting it is
+                what makes it go away, so the control's absence is the
+                confirmed state — there is nothing left to ask. */}
+            {awaitsConfirmation(item) && (
               <button
-                aria-label={confirmHint(item)}
-                aria-pressed={item.type_source === "user"}
-                className={
-                  item.type_source === "user" ? "type-confirm is-confirmed" : "type-confirm"
-                }
-                onClick={() =>
-                  void apply(changes.setTypeConfirmed(item, item.type_source !== "user"))
-                }
-                title={confirmHint(item)}
+                aria-label={`confirm this item is a ${item.type}`}
+                className="type-confirm"
+                onClick={() => void apply(changes.confirmType(item))}
+                title="confirm this type, so changing resources won't revise it"
                 type="button"
               >
                 <span aria-hidden="true">✓</span>
