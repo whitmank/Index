@@ -11,6 +11,7 @@ import { formatOfResource } from "@index/database";
 import type { Resource } from "@index/database/types";
 import { isWikipediaUrl } from "../previews/wikipedia.js";
 import { isSpotifyAlbumUrl } from "../spotify.js";
+import { PDF_MIME, readPdf, typeOfPdf } from "./formats/pdf.js";
 import { openProbe, type Probe } from "./probe.js";
 import { declaresArticle } from "./signals/schemaOrg.js";
 
@@ -41,6 +42,13 @@ import { declaresArticle } from "./signals/schemaOrg.js";
  * page is an article, which is a thing known about that host rather than
  * anything read off the page.
  *
+ * The pdf rung is the one place a media type is not enough to name the
+ * thing, and so the only one that reads inside the file: an epub is a
+ * book by construction, but the same pdf bytes carry a novel, a paper
+ * and a receipt. What separates them is what the file itself declares —
+ * a doi, an isbn, a length — which is `typeOfPdf`'s ladder to walk
+ * (formats/pdf.ts), off the same reading extraction will use.
+ *
  * Host rules come first because they are free and certain. The page's
  * own declaration is the general case and runs last: a site nobody has
  * written a rule for still gets typed if it says plainly what it is.
@@ -50,6 +58,7 @@ export async function classifyResource(
   probe: Probe | null,
 ): Promise<string | null> {
   if (formatOfResource(resource) === "book") return "book";
+  if (probe && (await probe.mime()) === PDF_MIME) return typeOfPdf(await readPdf(probe));
   if (!resource) return null;
   if (isSpotifyAlbumUrl(resource.uri)) return "album";
   if (isWikipediaUrl(resource.uri)) return "article";

@@ -302,3 +302,92 @@ writes. Every imported song had been quietly losing its schema fields.
 Nothing failed; a lookup simply returned nothing, three times over. It
 surfaced only because a *cosmetic* bug — the types list reordering itself
 after the first edit — shared the root cause.
+
+## Phase 10 — Reading pdfs
+
+**What was built:** the pdf rung of the ingestor, so a paper, a book scan
+or a lease arrives with what it says about itself already filled in. A pdf
+is unlike every format read so far in two ways, and both showed up in the
+design. Its index is at the *end*, which the 64 KB head can never reach —
+so the probe grew `tail()`, a bounded 256 KB read from the far end, and a
+half-gigabyte scan is now classified and read for its metadata without
+ever being held in memory. And its media type does not name the thing: the
+same bytes carry a novel, a paper and a receipt, so the classifier's pdf
+rung reads inside the file and asks what it declared (doi or journal ⇒
+article, isbn ⇒ book, 50+ pages ⇒ book, else document).
+
+The reader takes both places a pdf keeps metadata — the Info dictionary
+the trailer points at, and the XMP packet the catalog names — preferring
+XMP, since Info predates unicode and producers keep it for compatibility.
+It parses object syntax directly rather than taking a dependency: strings
+in three encodings, dates in two, deflated object streams for the pdf 1.5
+producers that hide the Info dictionary inside one. Extraction split along
+the seam this exposed: a *type* decides whether a file is worth opening, a
+*file* decides how it is read — `book` now has two readers and one pdf
+reader serves book, article and document alike.
+
+**Pinned:** two bounded reads, never the file. A pdf that keeps its
+metadata in the unread middle reports nothing, the same answer every other
+derivation gives when it cannot see — three of the sixty-three real files
+this was measured against do exactly that, and give up only their page
+count. `document` is not a guess about the contents but a statement of
+what a pdf is, which is why the ladder's last rung always answers.
+
+**Surprised us:** the fixtures all passed and the real files were wrong.
+A journal article came back titled `CROSSMARK_BW_txt_100x100.eps` and
+authored by a typesetting job number, because an embedded logo carries its
+own XMP packet and the producer writes it a hundred kilobytes *ahead* of
+the document's. Nothing about a packet's contents says which one it is;
+what says so is the catalog naming one, and `dc:format` on the other
+admitting it is postscript. The same file then classified correctly as an
+article, with its doi and journal — the fix and the feature were one
+change. A generated fixture can only contain what the person writing it
+already knew to put in.
+
+## Phase 11 — The parse verb
+
+**What was built:** `parse` — read this item's resource and fill in the
+fields its type declares. Said three ways over one implementation: the
+command bar, a button in Focus's toolbar, the context menu.
+
+The premise is a concession. Classifying a file will always be a guess,
+and a guess is a poor thing to hang extraction on; but *given* a type,
+finding the values that belong to its fields is deterministic. So the
+reliable half got the verb, and the user supplies the half that isn't —
+which also means parsing confirms the type, because asking for a book's
+fields is saying it is a book.
+
+Two things fell out of it. Extraction's table was keyed by *type* and
+re-dispatched on media type inside every entry; it is now keyed by media
+type alone, with the type gate reduced to what it always was — a gate.
+Naming your own `textbook` used to turn extraction off silently. And a
+second **source** arrived beside the file readers: the filename, which
+outranks them.
+
+**Pinned:** a field carrying a value is never overwritten — undo makes
+that recoverable, not acceptable. The name is replaced only while it is
+still the resource's own, which keeps the old promise (extraction never
+overwrites a name the user chose) by a narrower rule now that extraction
+runs against items that already exist. Only the type's declared fields
+are written, unlike intake: someone filling in a curated item did not ask
+for loose rows. And the filename claims a title or an author only from a
+shape it recognises, because a wrong author costs more than a missing
+one.
+
+**Surprised us:** the book the feature was built for declares nothing
+about itself. No title, no author, no keywords, no XMP — and the one
+thing it does declare, a creation date, is when somebody re-wrapped the
+scan five years after Yale published it. Reading the file harder was
+never going to work; everything was in the name it was saved under. The
+guard rules then came from the corpus rather than from thinking about it:
+a CIA document number reads as a valid-length isbn until you check the
+check digit, and `IMG_2024.pdf` is frame 2024, not a year, so a bare
+four-digit run stopped counting as a date.
+
+**The one that cost three runs:** the feature worked and the harness
+said otherwise. `clickAt` synthesises pointer events for canvas nodes,
+and a `<button onClick>` never hears them — so every assertion after the
+click failed, in the shape a broken feature fails. Before that, a stale
+`surreal` still holding 8422 meant one whole run was measuring the
+previous run's database. Both were minutes of reading logs that looked
+exactly like a bug in the thing under test.

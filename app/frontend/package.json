@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/resources.test.ts"
+    "test": "tsx test/resources.test.ts && tsx test/parsing.test.ts"
   },
   "author": "Karter Whitman",
   "license": "ISC",

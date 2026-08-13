@@ -158,6 +158,79 @@ export function confirmType(item: Item): Change {
   );
 }
 
+/**
+ * `parse` — what the item's resource says about itself, written into the
+ * fields its type declares.
+ *
+ * Four rules, and each is a decision about whose work is at stake:
+ *
+ * - **Blanks only.** A field carrying a value is left exactly as it is.
+ *   Undo makes an overwrite recoverable, not acceptable: the point of
+ *   parsing an item you already curated is to finish it, not to argue
+ *   with it.
+ * - **The name, only if it was never yours.** When the item is still
+ *   called what its resource is called, nothing of the user's is at
+ *   stake and a book's real title beats the filename it was saved
+ *   under. The moment you have renamed it, the name is a decision and
+ *   this stops touching it. (PRODUCT-SPEC pinned "extraction never runs
+ *   against one that already exists" precisely to protect a name; this
+ *   keeps that promise while letting the verb do the obvious thing on a
+ *   fresh import.)
+ * - **The type becomes yours.** Asking for a book's fields to be filled
+ *   in is saying it is a book, so parsing confirms the guess the same
+ *   way choosing a type by hand does. Nothing gets filled from a guess
+ *   nobody has endorsed.
+ * - **Nothing to do is null**, not an empty change — a verb that always
+ *   reports success teaches you to stop reading it.
+ */
+export function parseItem(
+  item: Item,
+  found: { name?: string; fields: Field[] },
+  derivedName: string,
+): Change | null {
+  const existing = item.fields ?? [];
+  const has = (name: string) =>
+    existing.some(
+      (field) => field.name.toLowerCase() === name.toLowerCase() && !isBlankFieldValue(field.value),
+    );
+
+  const filled = found.fields.filter((field) => !has(field.name));
+  const takesName = Boolean(found.name) && nameOf(item) === derivedName;
+  const confirms = Boolean(item.type) && item.type_source !== "user";
+  if (filled.length === 0 && !takesName && !confirms) return null;
+
+  // A found field replaces the blank row already standing for it, rather
+  // than landing beside it — the layout draws a type's declared fields
+  // whether or not they carry anything, so appending would show the name
+  // twice with one of them empty.
+  const written = existing.map(
+    (field) => filled.find((one) => one.name.toLowerCase() === field.name.toLowerCase()) ?? field,
+  );
+  const added = filled.filter(
+    (one) => !existing.some((field) => field.name.toLowerCase() === one.name.toLowerCase()),
+  );
+
+  const what = [...(takesName ? ["name"] : []), ...filled.map((field) => field.name)];
+  return swap(
+    item,
+    {
+      ...item,
+      ...(takesName ? { name: found.name as string } : {}),
+      ...(item.type ? { type_source: "user" as const } : {}),
+      fields: [...written, ...added],
+    },
+    what.length > 0
+      ? `Parse ${describe(item)}: filled ${list(what)}`
+      : `Confirm ${describe(item)} is a ${item.type}`,
+  );
+}
+
+/** `a, b and c` — a description is read, not parsed. */
+function list(words: string[]): string {
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1] as string}`;
+}
+
 /** Blank rows vanish on commit — an empty name and value is a row the
  * user abandoned, not a fact. */
 export function setFields(item: Item, fields: Field[]): Change {

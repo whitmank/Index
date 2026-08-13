@@ -8,8 +8,9 @@
 // Set VITE_INDEX_UICHECK=1 to run them on launch; results go to the
 // console, which the dev runner forwards to the terminal.
 import type { Item } from "@index/database/types";
-import { apply, changes, undo } from "../changes/index.js";
+import { apply, applyUntracked, changes, undo } from "../changes/index.js";
 import { captionOf } from "../lib/derive.js";
+import { createItemsFromPaths } from "../lib/intake.js";
 import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { history, pool, selection } from "../store/index.js";
 
@@ -1437,4 +1438,134 @@ export async function checkList(
   await undo();
   await sleep(400);
   setKind("canvas");
+}
+
+/**
+ * The `parse` verb, end to end against a real file on disk.
+ *
+ * This is the check that could not be written any other way. The unit
+ * tests prove the filename parser, the merge rules and the join
+ * separately; only this one proves that clicking the button in Focus
+ * reaches a probe, reads a 15 MB scan whose own metadata is empty and a
+ * lie, and writes the right six facts into the database.
+ *
+ * The fixture is a book whose bytes declare nothing except a re-wrapper's
+ * 2019 timestamp, and whose name carries everything — so a pass here is
+ * also the precedence rule holding in the real pipeline.
+ */
+export async function checkParsing(checks: Checks, filepath: string): Promise<void> {
+  const type = await window.index.schemas.upsert({
+    name: "book",
+    label: null,
+    fields: [
+      { name: "title", label: null, kind: "string" },
+      { name: "author", label: null, kind: "string" },
+      { name: "published", label: null, kind: "date" },
+      { name: "publisher", label: null, kind: "string" },
+      { name: "isbn", label: null, kind: "string" },
+      { name: "pages", label: null, kind: "number" },
+    ],
+  });
+  if ("err" in type) {
+    checks.say(false, `parse — could not define the book type (${String(type.err)})`);
+    return;
+  }
+
+  const made = await createItemsFromPaths([filepath]);
+  const item = made[0];
+  if (!item) {
+    checks.say(false, `parse — nothing was created from ${filepath}`);
+    return;
+  }
+  checks.say(item.type === "book", `a 366-page pdf arrives typed "${item.type}"`);
+
+  // Stripped back to what an item added before this feature existed looks
+  // like: named after its file, typed but unconfirmed, no fields. That is
+  // the item `parse` is for, and it is the state the user's own copy of
+  // this book is in. Untracked, so the undo below undoes the *parsing*.
+  // Renamed to something a command-bar search can find, on both the item
+  // and its resource — the rename rule fires when the two match, and what
+  // is actually read is the resource's *uri*, which still points at the
+  // real 15 MB file.
+  const stub = "buddha check";
+  const bare: Item = {
+    ...item,
+    name: stub,
+    type_source: "auto",
+    fields: [],
+    resources: item.resources.map((one, at) => (at === 0 ? { ...one, name: stub } : one)),
+  };
+  await applyUntracked({ description: "strip", pairs: [{ before: item, after: bare }] });
+  await sleep(300);
+  checks.say(
+    (pool.getItem(item.id)?.fields ?? []).length === 0,
+    "starting from an item with nothing filled in",
+  );
+
+  // Opened through the nav bar — ⌘L, type, ↵ — which is how a person
+  // reaches a thing by name. Not the canvas: home's membership is a
+  // query, and the canvas reloads on arrows rather than on someone
+  // minting a record behind it.
+  const before = stub;
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "l", metaKey: true, bubbles: true, cancelable: true }),
+  );
+  const search = await waitFor<HTMLInputElement>(".nav-input");
+  if (!search) {
+    checks.say(false, "parse — the nav bar never opened");
+    return;
+  }
+  typeInto(search, "buddha");
+  const listed = await waitUntil(
+    () => [...document.querySelectorAll(".nav-row-name")].some((r) => r.textContent === stub),
+    5000,
+  );
+  checks.say(listed, `search finds the item ("${stub}")`);
+  search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const focus = await waitFor<HTMLElement>(".focus");
+  if (!focus) {
+    checks.say(false, "parse — the focus view never opened");
+    return;
+  }
+
+  const button = focus.querySelector<HTMLButtonElement>('.item-screen-icon-button[aria-label="parse"]');
+  checks.say(Boolean(button), "focus offers a parse button");
+  if (!button) return;
+  checks.say(!button.disabled, "and it is available on a typed item");
+
+  // A real click, not `clickAt`: that one synthesises pointer events for
+  // the canvas, and a button's onClick never hears them.
+  const depth = historyDepth();
+  button.click();
+  await settledChange(depth, 15000);
+  await sleep(400);
+
+  const parsed = await itemFromDatabase(item.id);
+  const value = (name: string) =>
+    (parsed?.fields ?? []).find((f) => f.name === name)?.value ?? "";
+
+  checks.say(
+    parsed?.name === "The Buddha in the Machine: Art, Technology, and the Meeting of East and West",
+    `it took the book's real title — "${parsed?.name}" (was "${before}")`,
+  );
+  checks.say(value("author") === "R. John Williams", `author = "${value("author")}"`);
+  checks.say(
+    value("published") === "2014-01-01",
+    `published = "${value("published")}" — the name's year, not the file's 2019 re-wrap`,
+  );
+  checks.say(value("publisher") === "Yale University Press", `publisher = "${value("publisher")}"`);
+  checks.say(value("isbn") === "9780300206579", `isbn = "${value("isbn")}"`);
+  checks.say(value("pages") === "366", `pages = "${value("pages")}" — read from the file itself`);
+  checks.say(parsed?.type_source === "user", "parsing settled the type as yours");
+
+  await undo();
+  await sleep(500);
+  const reverted = await itemFromDatabase(item.id);
+  checks.say(
+    reverted?.name === before && (reverted?.fields ?? []).length <= 2,
+    "one undo takes the whole parsing back",
+  );
+
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(300);
 }

@@ -28,6 +28,7 @@ import {
   checkCommandBar,
   checkDeleteKeys,
   checkFocus,
+  checkParsing,
   checkList,
   checkNavBar,
   checkNavigation,
@@ -39,6 +40,7 @@ import { useArrowNav } from "./hooks/useArrowNav.ts";
 import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
 import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
+import { parseItems } from "./lib/parseItems.js";
 import { createItemsFromPaths } from "./lib/intake.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
 import { holdsEverything } from "./lib/sets.js";
@@ -412,6 +414,7 @@ export function App() {
         handlers: {
           addPickedTo: (target, targetIsNew) => void addPickedTo(target, targetIsNew),
           addPickedToNew,
+          parsePicked: () => void parseItems(pickedItems()),
         },
         picked: pickedItems(),
       }),
@@ -632,6 +635,9 @@ export function App() {
       await checkRemoveFromSet(checks, setViewMode);
       await checkDeleteKeys(checks, setViewMode);
       await checkPointing(checks, setViewMode);
+      // Needs a real file to read, so it runs only when pointed at one.
+      const toParse = import.meta.env.VITE_INDEX_UICHECK_FILE;
+      if (toParse) await checkParsing(checks, toParse);
       console.log(
         checks.failures
           ? `${checks.failures} of ${checks.lines.length} ui checks failed`

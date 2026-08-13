@@ -28,6 +28,17 @@ import { resolveExistingFile } from "../resolver.js";
  * a markdown file's opening section — the things classification reads. */
 const HEAD_BYTES = 64 * 1024;
 
+/**
+ * A pdf keeps its trailer — and with it the pointer to everything the
+ * file says about itself — at the *end*, which is the one place a head
+ * can never reach. Bigger than the head because the objects the trailer
+ * points at trail behind it, and generous enough that a producer which
+ * writes its metadata a few objects earlier is still caught; still a
+ * fixed price, so a 400 MB scan costs a quarter megabyte to read rather
+ * than 400 MB.
+ */
+const TAIL_BYTES = 256 * 1024;
+
 /** PRODUCT-SPEC §2.4: link and meta tags live in <head>, so the rest of a
  * page is never needed and an enormous one can't hang resource creation. */
 const WEB_MAX_BYTES = 1_000_000;
@@ -44,6 +55,19 @@ export interface Probe {
    * `WEB_MAX_BYTES` — the whole of what was fetched, since a page is
    * read to be parsed rather than skimmed for a signature. */
   readonly head: Buffer;
+
+  /**
+   * The file's last `TAIL_BYTES`, for the formats that keep their
+   * self-description at the end rather than the beginning. Bounded like
+   * `head` and paid only when asked — a second small read of an open
+   * file, never the whole of it.
+   *
+   * For a page, the end of what was fetched, which is the end of the
+   * resource only when it fitted under the cap. A reader that meets a
+   * truncated body simply finds no trailer there, which is the same
+   * answer it gives for a file that never had one.
+   */
+  tail(): Promise<Buffer>;
 
   /** What the bytes say they are, which is not always what the extension
    * claims — nor what a server's Content-Type claims, which is why this
@@ -69,7 +93,7 @@ function ascii(head: Buffer, start: number, end: number): string {
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04]; // "PK\x03\x04"
 const ZIP_HEADER_BYTES = 30;
 const EPUB_MIMETYPE_MAX = 128; // a media type, not a payload
-const EPUB_MIME = "application/epub+zip";
+export const EPUB_MIME = "application/epub+zip";
 
 /**
  * An epub is a zip whose *first* entry is an uncompressed file called
@@ -145,6 +169,22 @@ async function readHead(filepath: string, size: number): Promise<Buffer> {
   }
 }
 
+/** The mirror of `readHead`: at most `TAIL_BYTES`, read from the far end
+ * with the same single fd and partial read. */
+async function readTail(filepath: string, size: number): Promise<Buffer> {
+  const length = Math.min(size, TAIL_BYTES);
+  if (length === 0) return Buffer.alloc(0);
+
+  const handle = await fs.promises.open(filepath, "r");
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, size - length);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 /** Runs `work` once and hands every later caller the same promise. */
 function once<T>(work: () => Promise<T>): () => Promise<T> {
   let pending: Promise<T> | undefined;
@@ -195,6 +235,7 @@ async function openWebProbe(uri: string): Promise<Probe | null> {
     filepath: null,
     size: body.length,
     head: body,
+    tail: once(async () => body.subarray(Math.max(0, body.length - TAIL_BYTES))),
     // Deliberately the sniff and not the Content-Type header: servers
     // are careless with it, and a jpeg served as octet-stream is still a
     // jpeg. Html sniffs to nothing, which is the right answer — the url
@@ -231,6 +272,15 @@ export async function openProbe(uri: string): Promise<Probe | null> {
       filepath,
       size: stat.size,
       head,
+      // Slices what is already in memory when a reader has loaded the
+      // file, so asking for the end of an epub nobody needed to open
+      // costs a small read and asking for the end of one that was
+      // unzipped costs nothing.
+      tail: once(async () =>
+        loaded
+          ? loaded.subarray(Math.max(0, loaded.length - TAIL_BYTES))
+          : readTail(filepath, stat.size),
+      ),
       mime: once(async () => sniff(head)),
       text: once(async () => head.toString("utf8")),
       bytes,

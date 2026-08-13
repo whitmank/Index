@@ -14,9 +14,11 @@ import {
   listPlacesAmong,
   listSchemas,
   listSets,
+  schemaFor,
   searchItems,
   upsertSchema,
 } from "@index/database";
+import type { Schema } from "@index/database/types";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
 import {
@@ -29,6 +31,8 @@ import {
   selfDevice,
 } from "../config.js";
 import { classifyUri } from "../services/ingest/classify.js";
+import { extract } from "../services/ingest/extract.js";
+import { openProbe } from "../services/ingest/probe.js";
 import { pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
 import { isLocalUri, resolve, resolveExistingFile } from "../services/resolver.js";
@@ -116,6 +120,18 @@ export function registerHandlers(): void {
   handle(CHANNELS.ingestClassify, async (uri, name) => ({
     type: await classifyUri(asString(uri, "uri"), asString(name, "name")),
   }));
+
+  // `parse` — read a resource already on an item and fill in the fields
+  // its settled type declares. The mirror image of classification: there
+  // the file suggests the type, here the type is given and the file is
+  // asked to fill it in. Schemas are loaded here rather than sent across
+  // the bridge, the same way intake does it.
+  handle(CHANNELS.ingestParse, async (uri, type) => {
+    const wanted = asString(type, "type");
+    const probe = await openProbe(asString(uri, "uri"));
+    const schemas = await listSchemas().catch(() => [] as Schema[]);
+    return extract(wanted, probe, schemaFor(schemas, wanted), { keepUnmatched: false });
+  });
 
   handle(CHANNELS.intakePick, async () => {
     const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];

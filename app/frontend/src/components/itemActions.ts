@@ -5,6 +5,7 @@ import type { Item } from "@index/database/types";
 import { apply, changes } from "../changes/index.js";
 import { captionOf, deviceOf } from "../lib/derive.js";
 import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
+import { parseItems } from "../lib/parseItems.js";
 import { holdsEverything } from "../lib/sets.js";
 import { errors, pool } from "../store/index.js";
 import type { MenuItem } from "./ContextMenu.tsx";
@@ -72,6 +73,14 @@ export function itemMenu(
           if ("err" in result) errors.surface(result.err);
         });
       },
+    },
+    // Reads the resource and fills in the type's fields. Needs both a
+    // type to answer against and something to read, and says which is
+    // missing rather than going quiet.
+    {
+      label: "Parse",
+      disabled: !item.type || !resource,
+      onChoose: () => void parseItems([item]),
     },
     {
       label: shared ? "Make private" : "Make public",

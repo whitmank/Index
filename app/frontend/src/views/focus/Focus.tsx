@@ -14,11 +14,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Item, Schema } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
+import { ParseIcon } from "../../components/ParseIcon.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
 import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
 import { sameTypeName } from "../../lib/derive.js";
+import { parseItems } from "../../lib/parseItems.js";
 import { attachResource } from "../../lib/resources.js";
 import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
@@ -62,6 +64,7 @@ export interface FocusProps {
 
 export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   // Fetched eagerly, once per mount — the layout cascade now needs the
   // full list to resolve a typed item's known fields, not just the type
@@ -431,6 +434,28 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 />
                 public
               </label>
+
+              {/* Reads the file and fills in what this type declares.
+                  Available only once the item has a type, because the
+                  type is the question it answers against — and using it
+                  settles that type, the way choosing one by hand does. */}
+              <button
+                aria-label="parse"
+                className="item-screen-icon-button"
+                disabled={!item.type || parsing}
+                onClick={() => {
+                  setParsing(true);
+                  void parseItems([item]).finally(() => setParsing(false));
+                }}
+                title={
+                  item.type
+                    ? `read this file and fill in what a ${item.type} declares`
+                    : "give it a type first"
+                }
+                type="button"
+              >
+                <ParseIcon />
+              </button>
 
               <button
                 aria-label="Delete"

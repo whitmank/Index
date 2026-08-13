@@ -17,6 +17,7 @@ export const CHANNELS = {
   intakePathsToResources: "intake:pathsToResources",
   intakePick: "intake:pick",
   ingestClassify: "ingest:classify",
+  ingestParse: "ingest:parse",
   resourcesCheckMissing: "resources:checkMissing",
   resourcesLocate: "resources:locate",
   resourcesReseek: "resources:reseek",

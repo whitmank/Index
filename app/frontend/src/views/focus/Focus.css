@@ -123,6 +123,14 @@
   color: var(--is-danger-icon);
 }
 
+/* The parse glyph is drawn, not typed, so it takes its size here rather
+   than from the font-size the emoji buttons ride on. */
+.parse-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
 .item-screen-icon-button:disabled {
   opacity: 0.3;
   cursor: default;

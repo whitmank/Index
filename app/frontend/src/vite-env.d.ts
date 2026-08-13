@@ -10,6 +10,9 @@ interface ImportMetaEnv {
   readonly VITE_INDEX_DEBUG?: string;
   /** Set to drive the live UI with synthetic gestures on launch. */
   readonly VITE_INDEX_UICHECK?: string;
+  /** An absolute path for the parsing check to read — that check needs a
+   * real file on disk, so it runs only when pointed at one. */
+  readonly VITE_INDEX_UICHECK_FILE?: string;
   /** Open the first item whose name contains this, on launch. */
   readonly VITE_INDEX_OPEN?: string;
   /** The view kind to open on: timeline (default), canvas or list. */

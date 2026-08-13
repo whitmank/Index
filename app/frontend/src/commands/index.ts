@@ -40,6 +40,7 @@ export interface Command {
 export interface CommandHandlers {
   addPickedTo: (target: Item, targetIsNew?: boolean) => void;
   addPickedToNew: (name: string) => void;
+  parsePicked: () => void;
 }
 
 export interface CommandContext {
@@ -70,7 +71,23 @@ export function commandsFor({ picked, handlers }: CommandContext): Command[] {
         else handlers.addPickedToNew(target.newSetNamed);
       },
     },
+    {
+      id: "parse",
+      title: "parse",
+      keywords: ["read", "extract", "fill", "metadata", "fields", "scan", "index"],
+      // A type is the question parsing answers against, so having none
+      // is not a failure to report afterwards — it is a reason the verb
+      // cannot be said yet, and the bar is where that belongs.
+      unavailable: nothingPicked ?? nothingTyped(picked),
+      run: () => handlers.parsePicked(),
+    },
   ];
+}
+
+/** Why parsing can't run over this selection, when it can't. */
+function nothingTyped(picked: Item[]): string | undefined {
+  if (picked.some((item) => item.type)) return undefined;
+  return picked.length === 1 ? "give it a type first" : "none of these have a type";
 }
 
 /** How the bar refers to what is picked, in a verb's own prompt. */

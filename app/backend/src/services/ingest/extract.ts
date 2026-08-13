@@ -1,27 +1,33 @@
 // Authored by Karter Whitman using Claude Opus 5
-// What a resource can say about itself once its type is known, and the
-// one place that decides what those sayings are called.
+// The join: observations in a format's own words → the rows a type
+// declares. Where those observations come from is sources.ts's business;
+// this file is only about what they end up called.
 //
-// Extractors return *observations*, not fields: a key in whatever
-// vocabulary the format itself uses (an epub's OPF says "creator"; the
-// v1 book extractor calls it "author"), which is a different thing from
+// Sources return *observations*, not fields: a key in whatever
+// vocabulary the thing itself uses (an epub's OPF says "creator"; the
+// v1 book reader calls it "author"), which is a different thing from
 // the field name a user's schema happens to declare. `toFields` is the
 // join between the two, and the only thing that has to change when the
-// matching gets smarter — no extractor knows a schema exists.
+// matching gets smarter — no source knows a schema exists.
 //
 // Before the join, a `book` schema declaring `writer` got an empty
 // `writer` row from the layout and an orphan `author` row underneath it:
 // two rows for one fact, one of them blank, in the panel opened to see
 // what was extracted.
 import type { Field, FieldKind, Schema, SchemaField } from "@index/database/types";
-import { extractBook } from "./formats/book.js";
 import type { Probe } from "./probe.js";
+import { observeAll } from "./sources.js";
 
-/** One thing a file declared about itself, in the format's own words. */
+/** One thing a resource declared about itself, in its own words. */
 export interface Observation {
   key: string;
   value: Field["value"];
   kind: FieldKind;
+  /** Which source said it, when anything cares to explain itself — the
+   * change `index` writes names where each value came from, since a
+   * filename beating a file's own metadata is surprising enough to be
+   * worth saying out loud. Nothing matches on this. */
+  source?: string;
 }
 
 export type Extractor = (probe: Probe) => Promise<Observation[]>;
@@ -42,13 +48,6 @@ export interface Extracted {
   fields: Field[];
 }
 
-/** Type-specific extractors, parallel to the renderer's layout registry:
- * additive — a new type's extractor is a new entry, not a change to any
- * control flow. */
-const EXTRACTORS: Record<string, Extractor> = {
-  book: extractBook,
-};
-
 /**
  * Other names for the ingestor's own vocabulary — a claim about what
  * *this* module's `author` could reasonably be called, not a guess at
@@ -66,6 +65,9 @@ const SYNONYMS: Record<string, string[]> = {
   published: ["published date", "publication date", "release date", "year", "date"],
   genre: ["genres", "subject", "subjects", "category", "categories"],
   isbn: ["isbn13", "isbn10"],
+  pages: ["page count", "length"],
+  publication: ["journal", "publication name", "periodical", "venue"],
+  description: ["summary", "abstract", "blurb"],
 };
 
 /** Case, spaces, underscores and hyphens all stop mattering: `Release
@@ -128,7 +130,10 @@ function asText(value: Field["value"]): string {
  *   field takes the declared kind and the value is reshaped to fit.
  * - **Unmatched observations are kept**, as rows of their own, rather
  *   than dropped. The file really did say them, and a visible row the
- *   user can delete beats data that silently never arrived.
+ *   user can delete beats data that silently never arrived. `index`
+ *   turns this off (`keepUnmatched: false`): a person filling in a type
+ *   on an item they already curated asked for that type's fields, and
+ *   loose rows they never asked for are noise there rather than rescue.
  * - **Unmatched schema fields are not emitted.** The layout already
  *   draws a type's declared fields from the schema itself
  *   (layouts/registry.tsx), so writing empty rows here would put the
@@ -144,9 +149,14 @@ function asText(value: Field["value"]): string {
  * for — every key passes through verbatim, which is what shipped before
  * this join existed.
  */
-export function toFields(observations: Observation[], schema?: Schema): Extracted {
+export function toFields(
+  observations: Observation[],
+  schema?: Schema,
+  options: { keepUnmatched?: boolean } = {},
+): Extracted {
+  const keepUnmatched = options.keepUnmatched ?? true;
   const fields = schema?.fields ?? [];
-  if (fields.length === 0) return { fields: observations.map(asField) };
+  if (fields.length === 0) return { fields: keepUnmatched ? observations.map(asField) : [] };
 
   const pairs = new Map<SchemaField, Observation>();
   const claimed = new Set<Observation>();
@@ -176,27 +186,37 @@ export function toFields(observations: Observation[], schema?: Schema): Extracte
       return { name: field.name, value: coerce(observation.value, field.kind), kind: field.kind };
     });
 
+  const unmatched = keepUnmatched
+    ? observations.filter((observation) => !claimed.has(observation)).map(asField)
+    : [];
+
   return {
     ...(named ? { name: asText(named.value) } : {}),
-    fields: [...matched, ...observations.filter((o) => !claimed.has(o)).map(asField)],
+    fields: [...matched, ...unmatched],
   };
 }
 
 /**
- * Best-effort, like every derivation: no type, no extractor for it, or
- * no probe to read means no fields — never an error. An item whose
- * metadata is unreadable still gets created and still gets classified,
- * just with nothing pre-filled.
+ * Best-effort, like every derivation: no type, nothing to read it with,
+ * or no probe means no fields — never an error. An item whose metadata
+ * is unreadable still gets created and still gets classified, just with
+ * nothing pre-filled.
+ *
+ * The type gate is deliberately only a gate. It asks whether this is a
+ * thing worth reading a file for, and nothing else: which reader runs is
+ * the file's business (`observe`), and which type this is says nothing
+ * about that. So an unfamiliar type still gets read, and no type at all
+ * still gets nothing.
  */
 export async function extract(
   type: string | null,
   probe: Probe | null,
   schema?: Schema,
+  options?: { keepUnmatched?: boolean },
 ): Promise<Extracted> {
-  const extractor = type ? EXTRACTORS[type] : undefined;
-  if (!extractor || !probe) return { fields: [] };
+  if (!type || !probe) return { fields: [] };
   try {
-    return toFields(await extractor(probe), schema);
+    return toFields(await observeAll(probe), schema, options);
   } catch {
     return { fields: [] };
   }

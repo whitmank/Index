@@ -250,11 +250,19 @@ instead.
 
 **ingest** — one **probe** per resource: a handle that opens it once and
 memoizes what was read. For a file, `head` is a bounded 64 KB and always
-paid, `bytes()` is opt-in, and `hash()` streams unless the whole file is
-already in memory, in which case it signs that. For a url, the body is
-fetched once under the same 1 MB cap and 10 s timeout the link scrape
-used, and `text()` hands it to both the metadata parse and the
-classifier — the fetch that used to be private to the scrape.
+paid, `tail()` is a bounded 256 KB paid on request, `bytes()` is opt-in,
+and `hash()` streams unless the whole file is already in memory, in which
+case it signs that. For a url, the body is fetched once under the same
+1 MB cap and 10 s timeout the link scrape used, and `text()` hands it to
+both the metadata parse and the classifier — the fetch that used to be
+private to the scrape.
+
+The tail exists because a pdf keeps its index — and the pointer to
+everything it says about itself — at the *end*, where a head can never
+reach **[pinned here]**. Two bounded reads, never the file: a
+half-gigabyte scan is classified and read for its metadata at fixed cost,
+and a file that keeps its metadata in the unread middle reports nothing,
+which is what every derivation does when it cannot see.
 
 Only a file is hashed **[pinned here]**: a page's bytes change under a
 stable url, which is the opposite of the identity relink searches by.
@@ -271,7 +279,19 @@ anything that needed the whole file has loaded it.
 - **classify** — the type guess. Its own ladder, not a proxy for
   `format`. For files, content-based via the sniffed `mime`, so an epub
   is identified by the media type its first zip entry declares rather
-  than by its extension. For urls, host rules first (Spotify → album,
+  than by its extension.
+
+  A pdf is the one media type that does not name the thing: the same
+  bytes carry a novel, a paper and a receipt. So its rung reads inside
+  the file and asks what it declared — a doi or a journal name ⇒
+  `article`, an isbn ⇒ `book`, and failing both, a length of 50 pages or
+  more ⇒ `book`, else `document`. The length rung is the only guess in
+  the classifier and is deliberately last, under everything the file
+  actually said. Unlike every other rung this one always answers:
+  `document` is not a guess about the contents but a statement of what a
+  pdf is, and it gives the extracted title somewhere to land.
+
+  For urls, host rules first (Spotify → album,
   Wikipedia `/wiki/` → article) and then the page's own schema.org
   JSON-LD `@type`. **[pinned here]** No inferred web rules: measured
   across real pages, `og:type` reads `website` on a Wikipedia article
@@ -279,10 +299,47 @@ anything that needed the whole file has loaded it.
   the BBC's front page and on a repo's README. Only a declaration the
   page volunteers is trusted; declaring nothing earns no opinion, which
   costs nothing because a null guess never overwrites a type.
-- **extract** — type-specific readers returning **observations** (a key
-  in the format's own vocabulary), joined to the type's declared fields
-  by one function, `toFields(observations, schema?)`. No extractor knows
-  a schema exists.
+- **extract** — **sources** returning **observations** (a key in the
+  source's own vocabulary), joined to the type's declared fields by one
+  function, `toFields(observations, schema?)`. No source knows a schema
+  exists.
+
+  A type says whether a file is worth opening; the file says how it is
+  read. Readers are keyed by **media type, never by type** — `book`
+  arrives as an epub (Dublin Core out of the OPF package) or as a pdf,
+  and one pdf reader serves a book, a paper and a receipt alike. The
+  type gate is only a gate: no type means nothing is read, but a type
+  nobody here has heard of — a user's `textbook`, `zine` — is read the
+  same as any other. The pdf reader takes the Info dictionary the
+  trailer points at and the XMP packet the catalog names, preferring XMP
+  where both speak, since Info predates unicode and producers keep it
+  for compatibility. Its vocabulary: `title`, `author`, `published`,
+  `genre`, `publisher`, `publication`, `doi`, `isbn`, `pages`,
+  `description`. **[pinned here]** Not every packet in a pdf is the
+  pdf's — an embedded illustration carries its own, written *ahead* of
+  the document's — so a packet declaring a media type that is not a pdf
+  is passed over.
+
+  **Sources, in order of authority: the filename, then the file's own
+  metadata** (`ingest/sources.ts`; the order of that array *is* the
+  precedence rule, since `toFields` takes the first unclaimed match).
+  **[pinned here]** The name outranking the bytes is deliberate: an Info
+  dictionary is what a *tool* wrote about a *file*, a filename is what a
+  person or an archive wrote about the *work*. Measured against a real
+  library, a book whose only internal date was a re-wrapper's 2019
+  timestamp carries its real year, publisher and isbn in its name.
+
+  The filename source claims `title`/`author`/`published` **only from a
+  recognised shape** (`Author - Title (Year, Publisher)`, a Calibre
+  path); identifiers are read from any name because they carry their own
+  proof — a doi is shaped unmistakably and an isbn is checked against
+  its check digit. Everything else stays silent: `A - B` does not say
+  which half is the author, `IMG_2024` is a counter and not a year, and
+  a claim that is wrong costs more than one that is absent.
+
+  Two sources naming the same key is settled to one observation, first
+  heard winning. Without that, the loser survives as an *unmatched*
+  observation and becomes a duplicate row.
 
   **`schema.fields[0]` is the item's name**, the same way
   `resources[0]` is the primary resource — ordered, and reordering is
@@ -294,10 +351,15 @@ anything that needed the whole file has loaded it.
 
   Positional rather than a per-field flag **[pinned here]**: the word is
   no guide, since a `person` type's `title` means Dr. or a job, and a
-  flag adds a second way to express an order the list already has. Used
-  only when minting an item — extraction never runs against one that
-  already exists, so there is no name of the user's to overwrite. A
+  flag adds a second way to express an order the list already has. A
   leading field that matches nothing leaves the derived name standing.
+
+  Extraction used to run only when minting an item, so no name of the
+  user's could be overwritten. The **`parse`** verb (§3.3) runs it
+  against an item that already exists, and keeps that promise by a
+  narrower rule instead: it replaces the name only while the item is
+  still called what its primary resource is called. Once you have
+  renamed it, the name is a decision and parsing leaves it alone.
 
   A field marked **`hidden`** is left out of that laid-out block too. It
   is not a secret and not a deletion: the value is still extracted, still
@@ -377,7 +439,25 @@ One constructor per user intention; each returns a complete change.
 | reorder(item, set, index) | arrow(s): moved row + displaced neighbours' order |
 | connect(item, label, target) / disconnect | labelled connection null→rec / rec→deleted |
 | setPublic(item, bool) | arrow (item → public): null→rec / rec→deleted |
+| parseItem(item, found) | item swap: blank fields filled, type confirmed, name taken only if still the resource's |
 | deleteItem | item + its live connections → deleted (one change) |
+
+**parse** — the one verb that reads a file *after* the fact. Classifying
+a file will always be a guess; given a type, finding the values that
+belong to its fields is deterministic, so the reliable half is the half
+that gets a verb. Said three ways over one implementation
+(`lib/parseItems.ts`): the command bar, a button in Focus's toolbar, and
+the item's context menu.
+
+Four rules, each about whose work is at stake **[pinned here]**: a field
+carrying a value is never overwritten (undo makes that recoverable, not
+acceptable); the name is replaced only while it is still the resource's
+own; the type becomes `"user"`, because asking for a book's fields is
+saying it is a book; and only the type's declared fields are written,
+unlike intake, since someone filling in a curated item did not ask for
+loose rows. An item with no type is refused up front — the type is the
+question parsing answers against — and a run over a selection is one
+change, so one undo takes it all back.
 
 ### 3.4 Views — UX and affordances
 

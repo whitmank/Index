@@ -13,12 +13,14 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import JSZip from "jszip";
 import { formatOfResource } from "@index/database";
 import type { Field, FieldKind, Schema, SchemaField } from "@index/database/types";
 import { classifyResource, classifyUri } from "../src/services/ingest/classify.js";
 import { extract, toFields } from "../src/services/ingest/extract.js";
 import { openProbe } from "../src/services/ingest/probe.js";
+import { fromFilename } from "../src/services/ingest/signals/filename.js";
 import { declaresArticle } from "../src/services/ingest/signals/schemaOrg.js";
 import { sha256File } from "../src/services/hash.js";
 import { pathsToResources, pathToUri } from "../src/services/intake.js";
@@ -78,6 +80,122 @@ function write(filename: string, bytes: Buffer): string {
   fs.writeFileSync(filepath, bytes);
   return filepath;
 }
+
+// ---------------------------------------------------------------------
+// pdf fixtures
+//
+// Built here for the same reason the epubs are: what the reader has to
+// cope with *is* the structure — an index at the end of the file, the
+// same fact spelled two different ways, a dictionary hidden inside a
+// deflated stream — and a checked-in binary would hide every bit of it.
+// ---------------------------------------------------------------------
+
+/** A pdf literal string, escaped the way the syntax requires. */
+const literal = (text: string) => `(${text.replace(/([\\()])/g, "\\$1")})`;
+
+/** A pdf hex string, which is how a title carries anything utf-16. */
+const utf16 = (text: string) =>
+  `<FEFF${Buffer.from(text, "utf16le").swap16().toString("hex").toUpperCase()}>`;
+
+const dict = (entries: Record<string, string>) =>
+  `<< ${Object.entries(entries)
+    .map(([key, value]) => `/${key} ${value}`)
+    .join(" ")} >>`;
+
+const object = (number: number, body: string) => `${number} 0 obj\n${body}\nendobj\n`;
+
+const streamObject = (number: number, entries: Record<string, string>, data: Buffer) =>
+  `${number} 0 obj\n${dict({ ...entries, Length: String(data.length) })}\n` +
+  `stream\n${data.toString("latin1")}\nendstream\nendobj\n`;
+
+const INFO: Record<string, string> = {
+  Title: literal("Dune"),
+  Author: literal("Frank Herbert"),
+  Subject: literal("A boy, a desert, a spice"),
+  Keywords: literal("Science Fiction, Politics"),
+  CreationDate: literal("D:19650801120000-05'00'"),
+  Producer: literal("Index Test Suite"),
+};
+
+/** The packet a producer writes, with room for whichever properties a
+ * case is about. Namespaces are declared as real files declare them, so
+ * the prefix-insensitivity the reader relies on is actually exercised. */
+const xmpWith = (body: string, attributes = "") => `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" ${attributes}
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+    xmlns:pdf="http://ns.adobe.com/pdf/1.3/"
+    xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/">
+${body}
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+
+interface PdfOptions {
+  /** Null writes a file with no Info dictionary at all. */
+  info?: Record<string, string> | null;
+  pages?: number;
+  xmp?: string;
+  /** Hide the Info dictionary inside a deflated object stream — what a
+   * pdf 1.5 producer does, and what defeats reading the file as text. */
+  packed?: boolean;
+  /** Bytes of padding between the header and everything else, to push
+   * the objects and the trailer past anything a head could reach. */
+  filler?: number;
+}
+
+function writePdf(filename: string, options: PdfOptions = {}): string {
+  const info = options.info === undefined ? INFO : options.info;
+  const parts = ["%PDF-1.7\n"];
+
+  if (options.filler) parts.push(`%${"f".repeat(options.filler)}\n`);
+
+  parts.push(
+    object(1, dict({ Type: "/Catalog", Pages: "2 0 R", ...(options.xmp ? { Metadata: "4 0 R" } : {}) })),
+    object(2, dict({ Type: "/Pages", Count: String(options.pages ?? 3), Kids: "[]" })),
+  );
+
+  if (info && !options.packed) parts.push(object(3, dict(info)));
+  if (info && options.packed) {
+    // An object stream is a header of `number offset` pairs followed by
+    // the objects themselves, the whole thing deflated.
+    const header = "3 0";
+    const packed = Buffer.from(`${header}\n${dict(info)}`, "latin1");
+    parts.push(
+      streamObject(
+        5,
+        { Type: "/ObjStm", N: "1", First: String(header.length + 1), Filter: "/FlateDecode" },
+        zlib.deflateSync(packed),
+      ),
+    );
+  }
+  if (options.xmp) {
+    parts.push(streamObject(4, { Type: "/Metadata", Subtype: "/XML" }, Buffer.from(options.xmp, "utf8")));
+  }
+
+  parts.push(
+    `trailer\n${dict({ Size: "6", Root: "1 0 R", ...(info ? { Info: "3 0 R" } : {}) })}\n`,
+    "startxref\n0\n%%EOF\n",
+  );
+  return write(filename, Buffer.from(parts.join(""), "latin1"));
+}
+
+const schema = (fields: SchemaField[]): Schema => ({
+  id: "schemas:book",
+  name: "book",
+  label: null,
+  fields,
+});
+const field = (name: string, kind: FieldKind = "string", label: string | null = null) =>
+  ({ name, kind, label });
+
+const fieldsOf = async (filepath: string, type = "document") =>
+  (await extract(type, await probeOf(filepath))).fields;
+
+const valueOf = (fields: Field[], name: string) => fields.find((f) => f.name === name)?.value;
 
 /** Counts the two ways this codebase reads a file end to end — buffered
  * (`readFile`) and streamed (`createReadStream`, what the hasher uses) —
@@ -139,6 +257,10 @@ await check("recognizes a png by signature", async () => {
   assert.equal(await (await probeOf(write("shot.png", png)))?.mime(), "image/png");
 });
 
+await check("recognizes a pdf by its header", async () => {
+  assert.equal(await (await probeOf(writePdf("paper.pdf")))?.mime(), "application/pdf");
+});
+
 await check("has no opinion about bytes it does not know", async () => {
   const probe = await probeOf(write("notes.md", Buffer.from("# just prose\n")));
   assert.equal(await probe?.mime(), null);
@@ -164,6 +286,31 @@ await check("reads a bounded head, not the whole file", async () => {
 await check("reads a short file's head whole", async () => {
   const probe = await probeOf(write("tiny.bin", Buffer.from("hello")));
   assert.equal(probe?.head.length, 5);
+});
+
+await check("reads a bounded tail, and the end of the file is what is in it", async () => {
+  const bytes = Buffer.concat([Buffer.alloc(300_000, 0x41), Buffer.from("%%EOF")]);
+  const tail = await (await probeOf(write("ended.bin", bytes)))?.tail();
+
+  assert.equal(tail?.length, 256 * 1024);
+  assert.equal(tail?.subarray(-5).toString(), "%%EOF");
+});
+
+await check("hands back the whole of a file shorter than the tail", async () => {
+  const probe = await probeOf(write("brief.bin", Buffer.from("all of it")));
+  assert.equal((await probe?.tail())?.toString(), "all of it");
+});
+
+await check("slices the tail out of memory when the file is already loaded", async () => {
+  const probe = await probeOf(write("both.bin", Buffer.alloc(1024, 3)));
+  await probe?.bytes();
+
+  const reads = countFullReads();
+  const tail = await probe?.tail();
+  reads.stop();
+
+  assert.equal(reads.total(), 0);
+  assert.equal(tail?.length, 1024);
 });
 
 await check("hashes the same bytes the streaming hasher does", async () => {
@@ -260,6 +407,278 @@ await check("still trusts an epub whose mimetype entry is deflated", async () =>
 
   assert.equal(result?.type, "book");
   assert.equal(result?.fields.find((f) => f.name === "title")?.value, "Dune");
+});
+
+console.log("\npdf: reading a file that keeps its metadata at the end");
+
+await check("reads the Info dictionary the trailer points at", async () => {
+  const fields = await fieldsOf(writePdf("info.pdf"));
+
+  assert.deepEqual(fields, [
+    { name: "title", value: "Dune", kind: "string" },
+    { name: "author", value: "Frank Herbert", kind: "string" },
+    { name: "published", value: "1965-08-01", kind: "date" },
+    { name: "genre", value: ["Science Fiction", "Politics"], kind: "list" },
+    { name: "pages", value: "3", kind: "number" },
+    // Info's `/Subject` is the document's *about*, not a category — a
+    // preprint puts a whole abstract in it.
+    { name: "description", value: "A boy, a desert, a spice", kind: "string" },
+  ]);
+});
+
+await check("decodes a title written in utf-16", async () => {
+  const fields = await fieldsOf(writePdf("wide.pdf", { info: { Title: utf16("Kafka on the Shore 海辺のカフカ") } }));
+  assert.equal(valueOf(fields, "title"), "Kafka on the Shore 海辺のカフカ");
+});
+
+await check("splits several authors, and only where the file was unambiguous", async () => {
+  const many = await fieldsOf(writePdf("duo.pdf", { info: { Author: literal("Gilbert; Sullivan") } }));
+  assert.deepEqual(valueOf(many, "author"), ["Gilbert", "Sullivan"]);
+
+  // A comma is as likely to be a surname-first name as a separator, so
+  // it is left alone — one author, said the way the file said it.
+  const one = await fieldsOf(writePdf("solo.pdf", { info: { Author: literal("Herbert, Frank") } }));
+  assert.equal(valueOf(one, "author"), "Herbert, Frank");
+});
+
+await check("prefers what XMP says over the Info dictionary", async () => {
+  const xmp = xmpWith(`   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Neuromancer</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>William Gibson</rdf:li></rdf:Seq></dc:creator>
+   <dc:subject><rdf:Bag><rdf:li>Cyberpunk</rdf:li><rdf:li>Noir</rdf:li></rdf:Bag></dc:subject>`);
+  const fields = await fieldsOf(writePdf("xmp.pdf", { xmp }));
+
+  // Both are present and they disagree: Info predates unicode and
+  // producers keep it for compatibility, so the newer packet wins.
+  assert.equal(valueOf(fields, "title"), "Neuromancer");
+  assert.equal(valueOf(fields, "author"), "William Gibson");
+  assert.deepEqual(valueOf(fields, "genre"), ["Cyberpunk", "Noir"]);
+});
+
+await check("does not mistake rdf's own scaffolding for a property", async () => {
+  // `rdf:Description` is the element every property is wrapped in, one
+  // local name away from `dc:description` — and reading it as one hands
+  // back the whole packet's text. A real book came back described as its
+  // own timestamps and toolchain.
+  const xmp = xmpWith(`   <dc:title><rdf:Alt><rdf:li>Dune</rdf:li></rdf:Alt></dc:title>
+   <dc:description><rdf:Alt><rdf:li>A boy on a desert world</rdf:li></rdf:Alt></dc:description>`);
+  const fields = await fieldsOf(writePdf("described.pdf", { info: null, xmp }));
+
+  assert.equal(valueOf(fields, "title"), "Dune");
+  assert.equal(valueOf(fields, "description"), "A boy on a desert world");
+});
+
+await check("reads XMP properties written as attributes", async () => {
+  // The other spelling, and just as ordinary: a packet routinely uses
+  // elements for the title and attributes for everything scalar.
+  const xmp = xmpWith("", 'xmp:CreateDate="1984-07-01T00:00:00Z" dc:publisher="Ace Books"');
+  const fields = await fieldsOf(writePdf("attributes.pdf", { info: null, xmp }));
+
+  assert.equal(valueOf(fields, "published"), "1984-07-01");
+  assert.equal(valueOf(fields, "publisher"), "Ace Books");
+});
+
+await check("finds an Info dictionary packed into a compressed object stream", async () => {
+  // A pdf 1.5 producer deflates its objects into one stream, which is
+  // what defeats reading the file as text — the trailer's `/Info 3 0 R`
+  // now points at something that is not in the file's plain bytes at all.
+  const fields = await fieldsOf(writePdf("packed.pdf", { packed: true }));
+  assert.equal(valueOf(fields, "title"), "Dune");
+  assert.equal(valueOf(fields, "author"), "Frank Herbert");
+});
+
+await check("reads the trailer of a file far too big to hold in a head", async () => {
+  const filepath = writePdf("thick.pdf", { filler: 500_000 });
+  assert.ok(fs.statSync(filepath).size > 500_000);
+
+  // Everything worth reading sits past the 64 KB head and inside the
+  // 256 KB tail, which is the arrangement of every real pdf.
+  assert.equal(valueOf(await fieldsOf(filepath), "title"), "Dune");
+});
+
+await check("reports the length of a pdf that declares nothing else", async () => {
+  const fields = await fieldsOf(writePdf("silent.pdf", { info: null, pages: 12 }));
+  assert.deepEqual(fields, [{ name: "pages", value: "12", kind: "number" }]);
+});
+
+await check("survives a file that claims to be a pdf and is not", async () => {
+  const probe = await probeOf(write("torn.pdf", Buffer.from("%PDF-1.7\nand then nothing")));
+  assert.equal(await probe?.mime(), "application/pdf");
+  assert.deepEqual(await extract("document", probe), { fields: [] });
+});
+
+console.log("\npdf: which kind of document it is");
+
+const typeOf = async (filepath: string) => await classifyUri(pathToUri(filepath), path.basename(filepath));
+
+await check("types a pdf that declares a doi as an article", async () => {
+  const xmp = xmpWith("   <prism:doi>10.1145/3373376.3378500</prism:doi>");
+  assert.equal(await typeOf(writePdf("paper-doi.pdf", { xmp, pages: 400 })), "article");
+});
+
+await check("types a pdf that names the journal it appeared in as an article", async () => {
+  const xmp = xmpWith("   <prism:publicationName>Nature</prism:publicationName>");
+  assert.equal(await typeOf(writePdf("paper-journal.pdf", { xmp })), "article");
+});
+
+await check("types a pdf that declares an isbn as a book", async () => {
+  const xmp = xmpWith("   <dc:identifier>ISBN 978-0-441-01359-3</dc:identifier>");
+  assert.equal(await typeOf(writePdf("isbn.pdf", { xmp, pages: 4 })), "book");
+});
+
+await check("types a pdf long enough to be a book as one", async () => {
+  // The one rung that is a guess rather than a reading, and the last:
+  // nothing an article or a receipt plausibly reaches.
+  assert.equal(await typeOf(writePdf("long.pdf", { pages: 412 })), "book");
+});
+
+await check("types every other pdf a document", async () => {
+  assert.equal(await typeOf(writePdf("memo.pdf", { pages: 4 })), "document");
+  assert.equal(await typeOf(writePdf("blank.pdf", { info: null })), "document");
+});
+
+await check("reads a dropped pdf without ever holding it in memory", async () => {
+  const filepath = writePdf("dropped.pdf", { filler: 500_000 });
+  const reads = countFullReads();
+  const [result] = await pathsToResources([filepath]);
+  reads.stop();
+
+  // The whole point of the tail: a half-gigabyte scan is classified and
+  // read for its metadata at the cost of two bounded reads, and the only
+  // pass over the file is the streamed one that signs it.
+  assert.equal(reads.buffered, 0);
+  assert.equal(reads.streamed, 1);
+  assert.equal(result?.type, "document");
+  assert.equal(result?.fields.find((f) => f.name === "title")?.value, "Dune");
+  assert.equal(result?.resource.cached?.mime, "application/pdf");
+  assert.equal(result?.resource.contentHash, await sha256File(filepath));
+});
+
+console.log("\nthe name a file was saved under");
+
+/** The parser reads a uri, so the fixtures are uris — and the ones that
+ * must stay silent matter more than the ones that speak. */
+const nameSays = (name: string) =>
+  Object.fromEntries(fromFilename(`mbp:///Users/k/${name}`).map((o) => [o.key, o.value]));
+
+await check("reads an archive's whole naming convention", () => {
+  // The file this source exists for. It declares nothing internally, and
+  // its only internal date is when someone re-wrapped the scan in 2019.
+  assert.deepEqual(
+    nameSays(
+      " R. John Williams - The Buddha in the Machine_ Art, Technology, and the Meeting of " +
+        "East and West (2014, Yale University Press) [10.12987_9780300206579] - libgen.li.pdf",
+    ),
+    {
+      title: "The Buddha in the Machine: Art, Technology, and the Meeting of East and West",
+      author: "R. John Williams",
+      publisher: "Yale University Press",
+      published: "2014-01-01",
+      doi: "10.12987/9780300206579",
+      isbn: "9780300206579",
+    },
+  );
+});
+
+await check("reads author and title from a year alone", () => {
+  assert.deepEqual(nameSays("Frank Herbert - Dune (1965).epub"), {
+    title: "Dune",
+    author: "Frank Herbert",
+    published: "1965-01-01",
+  });
+});
+
+await check("takes the author from a calibre folder, where the name is ambiguous", () => {
+  const inLibrary = fromFilename(
+    "mbp:///Users/k/Calibre Library/Ted Chiang/Exhalation (417)/Exhalation - Ted Chiang.epub",
+  );
+  assert.deepEqual(
+    Object.fromEntries(inLibrary.map((o) => [o.key, o.value])),
+    { title: "Exhalation", author: "Ted Chiang" },
+  );
+});
+
+await check("reads an identifier out of any name at all", () => {
+  // No structure to speak of, but an isbn is an isbn and a doi is a doi.
+  assert.deepEqual(nameSays("web-browser-engineering-9780198913870-0198913877_compress.pdf"), {
+    isbn: "9780198913870",
+  });
+  assert.deepEqual(nameSays("10.48550_arxiv.2501.12948.pdf"), {
+    doi: "10.48550/arxiv.2501.12948",
+  });
+});
+
+await check("says nothing about a name with no shape to it", () => {
+  // Each of these is a real file. `A - B` genuinely does not say which
+  // half is the author, and claiming one would be a fact the user then
+  // has to notice and delete.
+  for (const name of [
+    "Egan-Learning-to-Be-Me.pdf",
+    "resume - Karter Whitman.pdf",
+    "Transport Card-WhitmanKarter.pdf",
+    "202._mind_wandering.pdf",
+    "notes.md",
+  ]) {
+    assert.deepEqual(nameSays(name), {}, name);
+  }
+});
+
+await check("refuses a number that merely looks like an isbn", () => {
+  // A real CIA document number: thirteen digits with hyphens in the
+  // right places. The check digit is what says it isn't an isbn, and a
+  // wrong identifier is worse than none because nothing downstream can
+  // tell it is wrong.
+  assert.deepEqual(nameSays("cia-rdp96-00788r001900760001-9.pdf"), {});
+});
+
+await check("dates a file only where the name annotates a year", () => {
+  // A bare four-digit run is a counter far more often than a year:
+  // IMG_2024 is frame 2024, and dating it would be inventing a fact.
+  assert.deepEqual(nameSays("IMG_2024.pdf"), {});
+  assert.deepEqual(nameSays("DSC_1999.jpg"), {});
+  assert.equal(nameSays("Dune (1965).epub")["published"], "1965-01-01");
+});
+
+console.log("\nwhen two sources disagree");
+
+await check("lets the name outrank the file's own metadata", async () => {
+  // The whole reason the filename is a source and not a fallback: a
+  // producer's date is about the file, a name's year is about the work.
+  const filepath = writePdf("Frank Herbert - Dune Messiah (1969).pdf", {
+    info: { Title: literal("Dune"), CreationDate: literal("D:20190725100934+03'00'") },
+  });
+  const { fields } = await extract("book", await probeOf(filepath));
+
+  assert.equal(valueOf(fields, "published"), "1969-01-01");
+  assert.equal(valueOf(fields, "title"), "Dune Messiah");
+});
+
+await check("keeps one row when both sources name the same thing", async () => {
+  // The trap: without settling by key, the schema's field claims the
+  // filename's title and the file's own title survives as a loose row
+  // beside it. Invisible in any test with a single source in it.
+  const filepath = writePdf("Frank Herbert - Dune Messiah (1969).pdf", {
+    info: { Title: literal("Dune") },
+  });
+  const { fields } = await extract("book", await probeOf(filepath));
+
+  assert.deepEqual(
+    fields.filter((f) => f.name === "title").map((f) => f.value),
+    ["Dune Messiah"],
+  );
+});
+
+await check("drops what the type has no word for when asked to", async () => {
+  const probe = await probeOf(writePdf("quiet.pdf"));
+  const wanted = schema([field("title"), field("author")]);
+
+  // What `index` passes: someone filling in a curated item asked for
+  // that type's fields, and rows it never asked for are noise there.
+  const { fields } = await extract("book", probe, wanted, { keepUnmatched: false });
+  assert.deepEqual(fields.map((f) => f.name), ["author"]);
+
+  // Intake still keeps them, which is what it shipped doing.
+  const kept = await extract("book", probe, wanted);
+  assert.ok(kept.fields.length > 1);
 });
 
 console.log("\nclassification: hosts, not the web at large");
@@ -429,9 +848,18 @@ await check("reports a lone value as itself, not a list of one", async () => {
   assert.deepEqual(genre, { name: "genre", value: "Cyberpunk", kind: "string" });
 });
 
-await check("has nothing to say about a type with no extractor", async () => {
+await check("reads the file for a type it has never heard of", async () => {
+  // The type gate is only a gate: it asks whether this is worth opening
+  // a file for, never which reader runs. Before, extraction fired only
+  // for the three types the classifier itself invents, so a user naming
+  // their own `textbook` silently turned it off.
+  const probe = await probeOf(await writeEpub("textbook.epub"));
+  const { fields } = await extract("textbook", probe);
+  assert.equal(fields.find((f) => f.name === "title")?.value, "Dune");
+});
+
+await check("has nothing to say about an item with no type at all", async () => {
   const probe = await probeOf(await writeEpub("untyped.epub"));
-  assert.deepEqual(await extract("movie", probe), { fields: [] });
   assert.deepEqual(await extract(null, probe), { fields: [] });
 });
 
@@ -441,15 +869,6 @@ await check("survives a file that is not the book it was typed as", async () => 
 });
 
 console.log("\nthe schema join: the file's words, the type's names");
-
-const schema = (fields: SchemaField[]): Schema => ({
-  id: "schemas:book",
-  name: "book",
-  label: null,
-  fields,
-});
-const field = (name: string, kind: FieldKind = "string", label: string | null = null) =>
-  ({ name, kind, label });
 
 const said = (key: string, value: Field["value"] = "x", kind: FieldKind = "string") =>
   ({ key, value, kind });
@@ -665,6 +1084,28 @@ await check("joins the same epub onto a schema that wants one line instead", asy
     value: "Science Fiction, Politics",
     kind: "string",
   });
+});
+
+await check("names an item from a pdf against the type its schema declares", async () => {
+  const probe = await probeOf(writePdf("joined.pdf"));
+  const { name, fields } = await extract(
+    "document",
+    probe,
+    schema([field("title"), field("writer"), field("summary"), field("length", "number")]),
+  );
+
+  // The same join the epub goes through, over a different vocabulary:
+  // the leading field takes the name, and `writer`/`summary`/`length`
+  // reach author/description/pages by synonym, while what the type has
+  // no word for stays visible as its own row.
+  assert.equal(name, "Dune");
+  assert.deepEqual(fields, [
+    { name: "writer", value: "Frank Herbert", kind: "string" },
+    { name: "summary", value: "A boy, a desert, a spice", kind: "string" },
+    { name: "length", value: "3", kind: "number" },
+    { name: "published", value: "1965-08-01", kind: "date" },
+    { name: "genre", value: ["Science Fiction", "Politics"], kind: "list" },
+  ]);
 });
 
 fs.rmSync(workspace, { recursive: true, force: true });

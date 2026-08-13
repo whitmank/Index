@@ -4,6 +4,7 @@
 // of what the renderer can see: records and changes in, records out.
 import type {
   Change,
+  Field,
   Item,
   ItemDetail,
   Label,
@@ -90,6 +91,21 @@ export interface IndexBridge {
      * type they had. `lib/resources.ts` owns when this may be asked at
      * all, and when its answer may be used. */
     classify(uri: string, name: string): Promise<Result<{ type: string | null }>>;
+    /**
+     * What this resource says about itself, joined to the fields `type`
+     * declares — the `parse` verb, asked for a resource already on an
+     * item whose type its user has settled on.
+     *
+     * Only the type's own fields come back, unlike intake: someone
+     * filling in a curated item asked for that type, and rows it has no
+     * word for are noise there. `name` is present when the type's
+     * leading field matched; whether it may be used is the renderer's
+     * rule, since only it knows whether the current name was ever the
+     * user's (changes/catalog.ts).
+     *
+     * Finding nothing is an empty list, never an error.
+     */
+    parse(uri: string, type: string): Promise<Result<{ name?: string; fields: Field[] }>>;
   };
   resources: {
     /** Which of these uris currently 404 locally — drives the missing
