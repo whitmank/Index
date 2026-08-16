@@ -19,3 +19,13 @@ excludelist.json
 .env
 .env.*
 !.env.example
+
+# The item modeler's evaluation corpus: absolute paths into a personal
+# library, plus hand-written ground truth about books nobody here has the
+# right to redistribute. The harness that reads it is checked in
+# (app/item-modeler/test/evaluation/); the manifest never is.
+app/item-modeler/test/evaluation/corpus.json
+
+# `npm run survey` output — a page listing what is on somebody's shelves,
+# by title and author. The generator is checked in; its results are not.
+item-modeler-survey.html

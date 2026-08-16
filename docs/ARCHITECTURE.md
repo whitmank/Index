@@ -17,11 +17,18 @@ kwhitman.xyz — a **database** package that owns truth, a **backend** that
 serves it, a **frontend** that renders it — with the backend running as the
 Electron main process and the frontend as its renderer.
 
+A fourth package sits beside them: **item-modeler**, which owns one
+concern end to end rather than a layer of the stack. It is a library, not
+a process — nothing runs it but a caller.
+
 ```
 index/
 ├── package.json            -- workspaces + dev runner
 ├── app/
 │   ├── database/           -- schema, repository, shared shapes
+│   ├── item-modeler/       -- sources → an expanded Item: evidence,
+│   │                          claims, reconciliation, validation, and
+│   │                          an audited change set  (see its SPEC.md)
 │   ├── backend/            -- Electron main process: db lifecycle, IPC,
 │   │                          resolver, derivations, GC  (+ thin preload)
 │   └── frontend/           -- the renderer: views, store, layouts, renderers
@@ -34,6 +41,8 @@ Dependencies point one way; the two processes meet only at the bridge:
 ```
 frontend ──(type-only imports)──► database ◄──(runtime imports)── backend
 frontend ──(IPC bridge + resource protocol)──────────────────────► backend
+item-modeler ──(type-only imports)──► database
+backend ──(runtime imports)──► item-modeler
 ```
 
 ---
@@ -58,6 +67,43 @@ Conventions carried from kwhitman.xyz: the repository absorbs every
 database-ism (record ids, NONE coercion, serialization) so callers speak
 only in the wire shapes; the frontend imports `types` type-only, so nothing
 of the package reaches the renderer bundle.
+
+## app/item-modeler
+
+Owns one question: given an Item and the sources attached to it, what can
+be said about it, and on what evidence? Its own specification is `SPEC.md`
+in the package.
+
+```
+contracts/          -- claims, provenance, change set, warnings, conflicts,
+                       options, result. The vocabulary a caller reads.
+evidence/           -- resources → bounded, normalized SourceEvidence;
+                       the SourceGateway port; the priority ladder
+extraction/         -- readers (epub, pdf, filename) reporting observations
+                       in each format's own words, and the mapper that
+                       joins those to a schema's declared fields
+reconciliation/     -- many claims about one field → one answer, or a
+                       recorded disagreement
+normalization/      -- one fact, one spelling: identifiers, dates, names
+validation/         -- may this be written at all?
+application/        -- ownership precedence, and the Item it produces
+```
+
+Three properties are load-bearing:
+
+- **Pure with respect to persistence.** An Item goes in, an Item comes
+  out, and nothing is saved. The caller decides when a result is worth
+  writing down, which is what makes a run cheap to preview, retry and
+  background.
+- **No Electron, no database.** `@index/database` is imported type-only,
+  and reaching a source is a port (`SourceGateway`) the app fills in with
+  its own resolver. So the package tests under plain `tsx`.
+- **Nothing is guessed.** An item arrives with the type its user chose;
+  a value with no evidence behind it is not written, and a disagreement
+  is recorded rather than resolved.
+
+Not yet built, and named in the spec rather than scaffolded: the local
+extraction model, and automatic type classification.
 
 ## app/backend — the Electron main process
 

@@ -391,3 +391,71 @@ click failed, in the shape a broken feature fails. Before that, a stale
 `surreal` still holding 8422 meant one whole run was measuring the
 previous run's database. Both were minutes of reading logs that looked
 exactly like a bug in the thing under test.
+
+## Phase — app/item-modeler
+
+A fourth workspace, built from its own `SPEC.md` rather than refactored
+out of `services/ingest/`: given an Item and the sources attached to it,
+say what can be said about it and on what evidence. `modelItem(item,
+schema, options)` in, an expanded Item plus a change set out; nothing is
+persisted, `@index/database` is imported type-only, and reaching a source
+is a port the app fills in. `services/ingest/` and the `parse` verb still
+run unchanged — this is not wired into the app yet.
+
+It shipped twice. The first version was deterministic throughout: readers
+per format, a confidence-graded priority ladder, reconciliation, conflict
+detection. Thirty-five tests passed. Then it met a real shelf of
+twenty-five books and produced **ten wrong titles**, every one of them a
+naming convention the regexes had not been taught — Anna's Archive's
+` -- `, a publisher glued on with no space, a three-author list, a stray
+double space. Each fix was a day's work and an invitation to the next
+convention.
+
+So the module was rebuilt around one line: **locating knowledge is
+finite, interpreting it is not.** Deterministic code now gathers and
+verifies; a local `LFM2-1.2B-Extract` (Q4_K_M, in-process via
+`node-llama-cpp`, grammar-constrained to a JSON schema generated from the
+item's own type) reads the whole evidence basket at once and interprets.
+That deleted the priority ladder, reconciliation, the synonym table and
+90% of the filename reader — roughly a thousand lines — and fixed every
+one of the ten titles. The publisher ending `…Everyday Chaos…-Harvard
+Business Review Press` is named outright in that book's own package
+document two entries away; no regex could ever see that, and the model
+does not have to be told.
+
+**Pinned:** collectors find and never decide. A value with no evidence
+behind it is not written, whatever produced it. Transcription beats
+synthesis where a format *declares* a field — copying `dc:title` is
+perfect and asking a 1.2B model to do it is not, so EPUBs are transcribed
+and PDFs (whose Info dictionary is an optional grab-bag, not a required
+metadata document) are synthesised. `published` is never transcribed,
+because a `dc:date` is so often the ebook conversion date. And the run
+fingerprint covers the prompt version: with a model in the loop, the
+question asked is as much an input as the evidence.
+
+**Surprised us:** three separate failure modes, and grounding only stops
+one of them. Values from *outside* the evidence are caught by the
+token-level grounding check — the model produced `isbn: "10.1234/9781"`
+out of nothing, twice. But `publisher: Antenna House PDF Output Library`
+and `subject: <the title>` both ground *perfectly*, because they really
+are in the basket; what makes them wrong is where they landed, not where
+they came from. Those needed leaving the fact out of the basket at all
+(tool metadata) and a cross-field echo check (a synthesised value that
+duplicates an earlier field is not an answer). A model asked for a field
+the evidence cannot support does not return null — it returns the most
+prominent string in front of it.
+
+**The one worth remembering:** the prompt format was the whole ballgame,
+and getting it wrong is silent. Liquid's spec puts the *schema* in the
+system prompt and the document in the user turn; we had it backwards, so
+the grammar still produced well-formed JSON while the model had never
+seen the schema it was filling. Correcting it turned a run that invented
+an ISBN, a date and a publisher for a camera-roll scan into one that
+returned five clean nulls. Few-shot examples then made it worse, and a
+six-rule prose system prompt parsed worse than no rules at all — at this
+size, guidance belongs in the schema's field descriptions.
+
+**And the number that lies:** fixing `subject` and `publisher` moved the
+fill rate *down*, 92% → 74%, because most of what filled those cells was
+wrong. `npm run survey` prints the values, not just the counts, for
+exactly that reason.
