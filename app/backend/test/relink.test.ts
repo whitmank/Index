@@ -44,6 +44,7 @@ function blankItem(overrides: Partial<Item> = {}): Item {
     id: itemId(),
     name: "",
     display_name: null,
+    description: null,
     date: "2026-07-20",
     created_at: new Date().toISOString(),
     opens: null,

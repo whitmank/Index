@@ -48,6 +48,7 @@ export function blankItem(date = today()): Item {
     id: itemId(),
     name: "",
     display_name: null,
+    description: null,
     date,
     created_at: now(),
     opens: null,

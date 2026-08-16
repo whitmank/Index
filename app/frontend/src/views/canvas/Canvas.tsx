@@ -21,7 +21,7 @@ import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, nodeImageUrl } from "../../lib/derive.js";
-import { createItemsFromPaths } from "../../lib/intake.js";
+import { captureFromPaths, type DescribePrompt } from "../../lib/intake.js";
 import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection } from "../../store/index.js";
 import {
@@ -56,6 +56,9 @@ export interface CanvasProps {
   /** The shell's one navigation primitive. `isNew` is true when this
    * gesture created the item it hands over. */
   onGoTo: (item: Item, isNew?: boolean) => void;
+  /** The "what is this?" prompt (App.tsx's `useCapturePrompt`), asked of
+   * a single-file drop before it becomes an item. */
+  describe: DescribePrompt;
   /** Someone left the set; who is in it has to be read again, since
    * membership is the union of a query and the arrows, and only the
    * backend knows the first half. */
@@ -71,6 +74,7 @@ export function Canvas({
   date,
   active = true,
   onGoTo,
+  describe,
   onMembersChanged,
 }: CanvasProps) {
   const container = useRef<HTMLDivElement>(null);
@@ -426,12 +430,12 @@ export function Canvas({
       const paths = [...event.dataTransfer.files].map((file) =>
         window.index.intake.pathForFile(file),
       );
-      void createItemsFromPaths(paths, date).then((created) => {
+      void captureFromPaths(paths, describe, date).then((created) => {
         const last = created[created.length - 1];
         if (last) onGoTo(last, true);
       });
     },
-    [date, onGoTo],
+    [date, onGoTo, describe],
   );
 
   return (

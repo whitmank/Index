@@ -42,6 +42,18 @@ const bridge: IndexBridge = {
     classify: (uri, name) => invoke(CHANNELS.ingestClassify, uri, name),
     parse: (uri, type) => invoke(CHANNELS.ingestParse, uri, type),
   },
+  models: {
+    locations: {
+      list: () => invoke(CHANNELS.modelsLocationsList),
+      add: () => invoke(CHANNELS.modelsLocationsAdd),
+      remove: (dir) => invoke(CHANNELS.modelsLocationsRemove, dir),
+    },
+    scan: () => invoke(CHANNELS.modelsScan),
+    setActive: (task, path) => invoke(CHANNELS.modelsSetActive, task, path),
+  },
+  itemClassifier: {
+    classify: (description) => invoke(CHANNELS.itemClassifierClassify, description),
+  },
   resources: {
     checkMissing: (uris) => invoke(CHANNELS.resourcesCheckMissing, uris),
     locate: (itemId, uri) => invoke(CHANNELS.resourcesLocate, itemId, uri),

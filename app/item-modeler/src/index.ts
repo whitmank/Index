@@ -23,3 +23,10 @@ export {
   summarize,
   type ModelingCounts,
 } from "./observability/modeling-events.js";
+export {
+  classifyItemType,
+  type ClassifyItemTypeRequest,
+  type ClassifyItemTypeResult,
+  type ItemType,
+} from "./item-classifier/classify.js";
+export { closeItemClassifierModel } from "./item-classifier/model-client.js";

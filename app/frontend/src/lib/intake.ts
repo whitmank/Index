@@ -4,33 +4,26 @@
 // dated onto the given day — today's, unless a specific page is in
 // view. Shared by every drop target so each is a one-line call rather
 // than its own copy of the loop.
-import type { Item } from "@index/database/types";
+import type { IntakeResult } from "@index/backend/bridge";
+import type { Item, Resource } from "@index/database/types";
 import { apply, changes } from "../changes/index.js";
 import { expandSpotifyAlbum } from "./spotify.js";
 
-/** Returns the items that actually landed, in drop order — so a caller
- * can open the last one (PRODUCT-SPEC precedent: `+` opens what it just
- * made) regardless of how many files came in at once.
- *
- * A Spotify album link is still one path in, one item out here — its
- * songs ride along as extra pairs in the *same* `Change` that creates the
- * album item, so one undo takes the whole import back out, and every
- * other path in the same drop/paste still becomes its own separate item
- * with its own undo entry, exactly as before. */
-export async function createItemsFromPaths(paths: string[], date?: string): Promise<Item[]> {
-  if (paths.length === 0) return [];
-  const answer = await window.index.intake.pathsToResources(paths);
-  if ("err" in answer) return [];
+interface Draft {
+  resource: Resource;
+  item: Item;
+}
 
-  // This resource *is* the item's primary — it is the only one there — so
-  // the guess applies and is recorded as the classifier's own, which is
-  // what leaves a later promotion free to replace it (lib/resources.ts).
-  //
-  // `name` beats `resource.name` when the ingestor found one: a book's
-  // title is what the thing is called, where the filename is only where
-  // it happened to be saved. Nothing to overwrite at this point — the
-  // item is being minted, so the derived name has never been seen.
-  const drafts = answer.ok.results.map(({ resource, type, fields, name }) => ({
+// This resource *is* the item's primary — it is the only one there — so
+// the guess applies and is recorded as the classifier's own, which is
+// what leaves a later promotion free to replace it (lib/resources.ts).
+//
+// `name` beats `resource.name` when the ingestor found one: a book's
+// title is what the thing is called, where the filename is only where
+// it happened to be saved. Nothing to overwrite at this point — the
+// item is being minted, so the derived name has never been seen.
+function draftFrom({ resource, type, fields, name }: IntakeResult, date?: string): Draft {
+  return {
     resource,
     item: {
       ...changes.blankItem(date),
@@ -40,8 +33,17 @@ export async function createItemsFromPaths(paths: string[], date?: string): Prom
       type_source: type ? "auto" : null,
       fields,
     } as Item,
-  }));
+  };
+}
 
+/**
+ * A Spotify album link is still one draft in, one item out here — its
+ * songs ride along as extra pairs in the *same* `Change` that creates the
+ * album item, so one undo takes the whole import back out, and every
+ * other draft in the same batch still becomes its own separate item with
+ * its own undo entry, exactly as before.
+ */
+async function commitDrafts(drafts: Draft[]): Promise<Item[]> {
   const created = await Promise.all(
     drafts.map(async ({ item, resource }) => {
       const expansion = await expandSpotifyAlbum(item, resource);
@@ -56,4 +58,64 @@ export async function createItemsFromPaths(paths: string[], date?: string): Prom
     }),
   );
   return created.filter((entry) => entry.ok).map((entry) => entry.item);
+}
+
+/** Returns the items that actually landed, in drop order — so a caller
+ * can open the last one (PRODUCT-SPEC precedent: `+` opens what it just
+ * made) regardless of how many files came in at once. */
+export async function createItemsFromPaths(paths: string[], date?: string): Promise<Item[]> {
+  if (paths.length === 0) return [];
+  const answer = await window.index.intake.pathsToResources(paths);
+  if ("err" in answer) return [];
+  return commitDrafts(answer.ok.results.map((result) => draftFrom(result, date)));
+}
+
+/** Asked of exactly one captured resource, before it becomes an item.
+ * Resolves to the description the user gave — possibly empty, when they
+ * submitted without typing anything — or `null` when they dismissed the
+ * prompt, which aborts the capture. The UI side lives in
+ * `hooks/useCapturePrompt.ts`, so this module stays free of React. */
+export type DescribePrompt = (resource: Resource) => Promise<string | null>;
+
+/**
+ * The single-capture path: pause between resolving what was dropped and
+ * minting the item, to ask what it is (components/DescribeCapture.tsx). A
+ * batch of more than one path skips the prompt entirely and falls
+ * through to `createItemsFromPaths`, unchanged — asking "what is this?"
+ * of a pile of files has no one answer.
+ */
+export async function captureFromPaths(
+  paths: string[],
+  describe: DescribePrompt,
+  date?: string,
+): Promise<Item[]> {
+  const [path, ...rest] = paths;
+  if (!path || rest.length > 0) return createItemsFromPaths(paths, date);
+
+  const answer = await window.index.intake.pathsToResources([path]);
+  if ("err" in answer) return [];
+  const [result] = answer.ok.results;
+  if (!result) return [];
+
+  const description = await describe(result.resource);
+  if (description === null) return [];
+
+  // `draftFrom` already carries the deterministic classifier's guess
+  // (classifyResource, run inside pathsToResources) in `type`/`type_source`.
+  // The description is the primary signal when there is one: ask the item
+  // classifier first, and only a real (non-null) answer overwrites the
+  // deterministic guess. A blank description, or an inconclusive answer,
+  // leaves the deterministic guess exactly as `draftFrom` set it. Never
+  // blocks or fails item creation either way — an `err` from the bridge is
+  // treated the same as "no opinion".
+  const draft = draftFrom(result, date);
+  const trimmed = description.trim();
+  if (trimmed) {
+    draft.item = { ...draft.item, description };
+    const guess = await window.index.itemClassifier.classify(trimmed);
+    if ("ok" in guess && guess.ok.type) {
+      draft.item = { ...draft.item, type: guess.ok.type, type_source: "auto" };
+    }
+  }
+  return commitDrafts([draft]);
 }

@@ -19,6 +19,7 @@ import { apply, applyUntracked, changes } from "./changes/index.js";
 import { commandsFor } from "./commands/index.js";
 import { CommandBar } from "./components/CommandBar.tsx";
 import { Confirm } from "./components/Confirm.tsx";
+import { DescribeCapture } from "./components/DescribeCapture.tsx";
 import { NavBar, type NavBarHandle } from "./components/NavBar.tsx";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
 import {
@@ -37,11 +38,12 @@ import {
   checkSelection,
 } from "./debug/uiChecks.js";
 import { useArrowNav } from "./hooks/useArrowNav.ts";
+import { useCapturePrompt } from "./hooks/useCapturePrompt.ts";
 import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
 import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { parseItems } from "./lib/parseItems.js";
-import { createItemsFromPaths } from "./lib/intake.js";
+import { captureFromPaths } from "./lib/intake.js";
 import { HOME_SET_ID } from "./lib/seeds.js";
 import { holdsEverything } from "./lib/sets.js";
 import { homeEntry, readStoredPath, storePath, type PathEntry } from "./store/location.js";
@@ -65,6 +67,7 @@ import { List } from "./views/list/List.tsx";
 import { Settings, type SettingsTab } from "./views/settings/Settings.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
+import "./components/DescribeCapture.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/list/List.css";
@@ -103,6 +106,7 @@ export function App() {
   const [commanding, setCommanding] = useState(false);
   const navBarRef = useRef<NavBarHandle>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const capturePrompt = useCapturePrompt();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const troubles = useTroubles();
@@ -335,12 +339,12 @@ export function App() {
       if (event.defaultPrevented) return;
       event.preventDefault();
       const paths = [...event.dataTransfer.files].map((file) => window.index.intake.pathForFile(file));
-      void createItemsFromPaths(paths).then((created) => {
+      void captureFromPaths(paths, capturePrompt.describe).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
       });
     },
-    [goTo],
+    [goTo, capturePrompt.describe],
   );
 
   /**
@@ -482,7 +486,8 @@ export function App() {
   // Everything on this list is over the stage in the same sense: while
   // any of them is up, the surface underneath stops answering to keys
   // that would otherwise reach it.
-  const overlayOpen = opened !== null || commanding || confirmingDelete || settingsOpen;
+  const overlayOpen =
+    opened !== null || commanding || confirmingDelete || settingsOpen || capturePrompt.pending !== null;
 
   /**
    * Paste's counterpart to `onDropAnywhere`, for a gesture that has never
@@ -512,12 +517,12 @@ export function App() {
       if (paths.length === 0) return;
 
       event.preventDefault();
-      void createItemsFromPaths(paths).then((created) => {
+      void captureFromPaths(paths, capturePrompt.describe).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
       });
     },
-    [overlayOpen, goTo],
+    [overlayOpen, goTo, capturePrompt.describe],
   );
 
   // The selection's keys are live only while nothing is over the stage:
@@ -706,6 +711,7 @@ export function App() {
       <div className="stage">
         {viewMode === "canvas" && (
           <Canvas
+            describe={capturePrompt.describe}
             itemIds={memberIds}
             onGoTo={goTo}
             onMembersChanged={readMembers}
@@ -749,6 +755,14 @@ export function App() {
           onConfirm={deletePicked}
           question={deleteQuestion(pickedItems())}
           verb="delete"
+        />
+      )}
+
+      {capturePrompt.pending && (
+        <DescribeCapture
+          onCancel={capturePrompt.cancel}
+          onSubmit={capturePrompt.submit}
+          resource={capturePrompt.pending}
         />
       )}
 

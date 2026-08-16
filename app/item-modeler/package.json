@@ -12,7 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/modeling.test.ts",
+    "test": "tsx test/modeling.test.ts && tsx test/item-classifier.test.ts",
     "eval": "tsx test/evaluation/run.ts",
     "survey": "tsx test/survey.ts"
   },

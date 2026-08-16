@@ -20,9 +20,12 @@ const dependenciesOf = (workspace) =>
     JSON.parse(readFileSync(path.join(here, workspace, "package.json"), "utf8")).dependencies ?? {},
   );
 
-const external = ["electron", ...dependenciesOf("."), ...dependenciesOf("../database")].filter(
-  (name) => !name.startsWith("@index/"),
-);
+const external = [
+  "electron",
+  ...dependenciesOf("."),
+  ...dependenciesOf("../database"),
+  ...dependenciesOf("../item-modeler"),
+].filter((name) => !name.startsWith("@index/"));
 
 const targets = [
   {

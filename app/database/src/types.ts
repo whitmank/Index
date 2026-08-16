@@ -80,6 +80,9 @@ export interface Item {
   id: string;
   name: string;
   display_name: string | null;
+  /** What the user said this is, in their own words — captured once at
+   * intake, optional, and freeform rather than derived. */
+  description: string | null;
   /** The intrinsic journal day, ISO `YYYY-MM-DD`. */
   date: string;
   created_at: string;

@@ -178,3 +178,44 @@ export function saveSpotifyCredentials(credentials: SpotifyCredentials): void {
     console.error("[config] could not save spotify credentials:", error);
   }
 }
+
+export const MODELS_FILE = path.join(INDEX_DIR, "models.json");
+
+export interface ModelSettings {
+  /** Directories to look for `.gguf` files in — a person's own model
+   * library, not something this app fetches into. No default: this is a
+   * specialized, personal location with nothing sensible to guess. */
+  locations: string[];
+  /** Which discovered model file is active, keyed by task (e.g.
+   * "classification"). Absent means "nothing chosen yet" for that task —
+   * the caller's own default, not this file's. */
+  active: Record<string, string>;
+}
+
+const EMPTY_MODEL_SETTINGS: ModelSettings = { locations: [], active: {} };
+
+export function loadModelSettings(): ModelSettings {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(MODELS_FILE, "utf8")) as Partial<ModelSettings>;
+    const locations = isStringArray(parsed.locations) ? parsed.locations : [];
+    const active: Record<string, string> = {};
+    if (parsed.active && typeof parsed.active === "object") {
+      for (const [task, value] of Object.entries(parsed.active)) {
+        if (typeof value === "string") active[task] = value;
+      }
+    }
+    return { locations, active };
+  } catch {
+    // No file yet, or a hand-edited one that no longer parses — nothing
+    // chosen is the right fallback either way.
+    return { ...EMPTY_MODEL_SETTINGS, active: {} };
+  }
+}
+
+export function saveModelSettings(settings: ModelSettings): void {
+  try {
+    fs.writeFileSync(MODELS_FILE, `${JSON.stringify(settings, null, 2)}\n`);
+  } catch (error) {
+    console.error("[config] could not save model settings:", error);
+  }
+}

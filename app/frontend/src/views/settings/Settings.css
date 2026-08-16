@@ -280,6 +280,81 @@
   border-color: var(--accent);
 }
 
+/* ── Models ─────────────────────────────────────────────────────────── */
+
+.model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.model-row:last-child {
+  border-bottom: none;
+}
+
+.model-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.model-filename {
+  font-size: var(--text-base);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-dir {
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-size {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+}
+
+.model-row button {
+  flex: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--ink-quiet);
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.model-row button:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.model-active {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
 /* ── Spotify (and any future single-field settings section) ──────────── */
 
 .settings-link {

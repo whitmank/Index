@@ -24,6 +24,7 @@ export interface ItemRow {
   id: unknown;
   name: string;
   display_name?: string | null;
+  description?: string | null;
   date: string;
   created_at: unknown;
   opens?: string | null;
@@ -82,6 +83,7 @@ export function serializeItem(row: ItemRow): Item {
     id: idToString(row.id),
     name: row.name ?? "",
     display_name: row.display_name ?? null,
+    description: row.description ?? null,
     date: row.date,
     created_at: dateToString(row.created_at),
     opens: row.opens ?? null,
@@ -138,6 +140,7 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
   return {
     name: item.name,
     display_name: item.display_name ?? undefined,
+    description: item.description ?? undefined,
     date: item.date,
     ...(includeCreatedAt ? { created_at: new Date(item.created_at) } : {}),
     opens: item.opens ?? undefined,

@@ -21,17 +21,21 @@ import {
 import type { Schema } from "@index/database/types";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
+import { classifyItemType } from "@index/item-modeler";
 import {
   loadExcludedFolders,
+  loadModelSettings,
   loadSpotifyCredentials,
   loadWatchedFolders,
   saveExcludedFolders,
+  saveModelSettings,
   saveSpotifyCredentials,
   saveWatchedFolders,
   selfDevice,
 } from "../config.js";
 import { classifyUri } from "../services/ingest/classify.js";
 import { extract } from "../services/ingest/extract.js";
+import { getActiveModel, scanForModels, setActiveModel } from "../services/models.js";
 import { openProbe } from "../services/ingest/probe.js";
 import { pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
@@ -131,6 +135,64 @@ export function registerHandlers(): void {
     const probe = await openProbe(asString(uri, "uri"));
     const schemas = await listSchemas().catch(() => [] as Schema[]);
     return extract(wanted, probe, schemaFor(schemas, wanted), { keepUnmatched: false });
+  });
+
+  handle(CHANNELS.modelsLocationsList, async () => ({ locations: loadModelSettings().locations }));
+
+  // A person's own model library, picked the same way a watched folder
+  // is — a directory dialog, appended in the order the OS returns them.
+  handle(CHANNELS.modelsLocationsAdd, async () => {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const picked = window
+      ? await dialog.showOpenDialog(window, { properties: ["openDirectory", "multiSelections"] })
+      : await dialog.showOpenDialog({ properties: ["openDirectory", "multiSelections"] });
+    const settings = loadModelSettings();
+    if (picked.canceled || picked.filePaths.length === 0) return { locations: settings.locations };
+
+    const additions = picked.filePaths.filter((dir) => !settings.locations.includes(dir));
+    if (additions.length === 0) return { locations: settings.locations };
+
+    const locations = [...settings.locations, ...additions];
+    saveModelSettings({ ...settings, locations });
+    return { locations };
+  });
+
+  handle(CHANNELS.modelsLocationsRemove, async (dir) => {
+    const settings = loadModelSettings();
+    const locations = settings.locations.filter((entry) => entry !== asString(dir, "dir"));
+    saveModelSettings({ ...settings, locations });
+    return { locations };
+  });
+
+  // Every `.gguf` findable under the configured locations, plus which one
+  // is active per task — one round trip for the whole Models tab to
+  // redraw itself from.
+  handle(CHANNELS.modelsScan, async () => ({
+    models: scanForModels(),
+    active: loadModelSettings().active,
+  }));
+
+  handle(CHANNELS.modelsSetActive, async (task, path) => {
+    setActiveModel(asString(task, "task"), asString(path, "path"));
+    return { active: loadModelSettings().active };
+  });
+
+  // A small-model guess at which of the user's own types a one-line
+  // description matches, using whichever model is active for
+  // "classification" in Settings → Models. Schemas and the active model
+  // are loaded here rather than trusted from the renderer, same as
+  // ingestParse. Never throws: classifyItemType degrades to
+  // `{ type: null, warnings }` on any failure — missing model, a stale
+  // selection pointing at a deleted file, a timeout, a malformed answer —
+  // so this handler needs no try/catch beyond handle()'s generic backstop.
+  handle(CHANNELS.itemClassifierClassify, async (description) => {
+    const schemas = await listSchemas().catch(() => [] as Schema[]);
+    const result = await classifyItemType({
+      description: asString(description, "description"),
+      types: schemas.map((schema) => ({ name: schema.name, label: schema.label })),
+      modelPath: getActiveModel("classification") ?? undefined,
+    });
+    return { type: result.type };
   });
 
   handle(CHANNELS.intakePick, async () => {

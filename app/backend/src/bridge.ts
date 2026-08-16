@@ -15,6 +15,8 @@ import type {
 } from "@index/database/types";
 import type { SchemaInput } from "@index/database";
 import type { IntakeResult } from "./services/intake.js";
+import type { FoundModel as ModelFile } from "./services/models.js";
+export type { IntakeResult, ModelFile };
 import type { SpotifyAlbum } from "./services/spotify.js";
 
 /** Every handler answers with data or a message, never a thrown error. */
@@ -106,6 +108,30 @@ export interface IndexBridge {
      * Finding nothing is an empty list, never an error.
      */
     parse(uri: string, type: string): Promise<Result<{ name?: string; fields: Field[] }>>;
+  };
+  models: {
+    /** Directories to look for `.gguf` files in — a person's own model
+     * library. This app never fetches into it. */
+    locations: {
+      list(): Promise<Result<{ locations: string[] }>>;
+      /** The directory dialog; multi-select, same gesture as the watched
+       * folders list. */
+      add(): Promise<Result<{ locations: string[] }>>;
+      remove(dir: string): Promise<Result<{ locations: string[] }>>;
+    };
+    /** Every `.gguf` findable under the configured locations, plus which
+     * one is active per task. */
+    scan(): Promise<Result<{ models: ModelFile[]; active: Record<string, string> }>>;
+    setActive(task: string, path: string): Promise<Result<{ active: Record<string, string> }>>;
+  };
+  itemClassifier: {
+    /** A small-model guess at which of the user's own types a one-line
+     * description matches, using whichever model is active for
+     * "classification" in Settings → Models — null when none fit, no
+     * model is selected, or classification failed. Never a `type_source`
+     * of "user"; the caller decides whether and how the answer is used,
+     * same rule `ingest.classify` follows. */
+    classify(description: string): Promise<Result<{ type: string | null }>>;
   };
   resources: {
     /** Which of these uris currently 404 locally — drives the missing

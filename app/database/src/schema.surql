@@ -7,6 +7,7 @@
 DEFINE TABLE IF NOT EXISTS items SCHEMAFULL;
 DEFINE FIELD OVERWRITE name         ON items TYPE string DEFAULT "";
 DEFINE FIELD OVERWRITE display_name ON items TYPE option<string>;
+DEFINE FIELD OVERWRITE description  ON items TYPE option<string>;   -- what the user said this is, at intake
 DEFINE FIELD OVERWRITE date         ON items TYPE string;           -- YYYY-MM-DD
 DEFINE FIELD OVERWRITE created_at   ON items TYPE datetime DEFAULT time::now() READONLY;
 DEFINE FIELD OVERWRITE opens        ON items TYPE option<string>;   -- presentation override

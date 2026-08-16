@@ -25,6 +25,7 @@ export function itemFor(uri: string, overrides: ItemOptions = {}): Item {
     id: `items:${name}`,
     name,
     display_name: null,
+    description: null,
     date: "2026-08-13",
     created_at: "2026-08-13T00:00:00Z",
     opens: null,
