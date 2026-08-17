@@ -342,9 +342,12 @@ export function App() {
       void captureFromPaths(paths, capturePrompt.describe).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
+        // A captured item gets no arrow into a query-held set like `~`,
+        // so the stage showing it has to be told to reload.
+        if (created.length > 0) readMembers();
       });
     },
-    [goTo, capturePrompt.describe],
+    [goTo, capturePrompt.describe, readMembers],
   );
 
   /**
@@ -520,9 +523,11 @@ export function App() {
       void captureFromPaths(paths, capturePrompt.describe).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
+        // Same as `onDropAnywhere`: no arrow means no automatic reload.
+        if (created.length > 0) readMembers();
       });
     },
-    [overlayOpen, goTo, capturePrompt.describe],
+    [overlayOpen, goTo, capturePrompt.describe, readMembers],
   );
 
   // The selection's keys are live only while nothing is over the stage:

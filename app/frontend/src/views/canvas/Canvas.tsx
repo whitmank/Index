@@ -416,9 +416,14 @@ export function Canvas({
   const createHere = useCallback(() => {
     const item = changes.blankItem(date);
     void apply(changes.createItem(item)).then((ok) => {
-      if (ok) onGoTo(item, true);
+      if (!ok) return;
+      onGoTo(item, true);
+      // A query-held set (like `~`) gains no arrow for a new item, so
+      // nothing else notices this one belongs on the stage — without
+      // this, it only shows up after something else reloads the set.
+      onMembersChanged?.();
     });
-  }, [date, onGoTo]);
+  }, [date, onGoTo, onMembersChanged]);
 
   // OS file drop: one item per file, named from the basename, on this
   // page's date. Nothing is copied — intake records a pointer. Claiming
@@ -433,9 +438,12 @@ export function Canvas({
       void captureFromPaths(paths, describe, date).then((created) => {
         const last = created[created.length - 1];
         if (last) onGoTo(last, true);
+        // Same as `createHere`: a captured item gets no arrow into a
+        // query-held set, so the list showing it has to be told.
+        if (created.length > 0) onMembersChanged?.();
       });
     },
-    [date, onGoTo, describe],
+    [date, onGoTo, describe, onMembersChanged],
   );
 
   return (
