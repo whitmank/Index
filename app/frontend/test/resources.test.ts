@@ -37,6 +37,7 @@ const { attachResource, detachResource, dropIndexFor, moveResource } = await imp
 );
 const { changes } = await import("../src/changes/index.js");
 const { resolveLayout } = await import("../src/layouts/registry.tsx");
+const { knownFieldsFor } = await import("../src/lib/derive.js");
 
 function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
@@ -246,6 +247,40 @@ await check("falls back to the default layout when nothing is left to lay out", 
   // two-column shape to hold, so it resolves as an untyped item would.
   assert.equal(resolution.entry.fields, undefined);
   assert.equal(resolution.source, "default");
+});
+
+console.log("\nknownFieldsFor, the live path Focus.tsx actually calls");
+
+await check("draws every field but the one that names the item", () => {
+  const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("author"), declare("isbn")])]);
+  assert.deepEqual(fields.map((f) => f.name), ["author", "isbn"]);
+});
+
+await check("leaves out the ones marked hidden", () => {
+  const fields = knownFieldsFor("book", [
+    bookSchema([declare("title"), declare("author"), declare("isbn", true)]),
+  ]);
+  assert.deepEqual(fields.map((f) => f.name), ["author"]);
+});
+
+await check("finds its type's schema whatever case either was written in", () => {
+  const capitalised: Schema = {
+    id: "schemas:song",
+    name: "Song",
+    label: null,
+    fields: [declare("title"), declare("artist")],
+  };
+  const fields = knownFieldsFor("song", [capitalised]);
+  assert.deepEqual(fields.map((f) => f.name), ["artist"]);
+});
+
+await check("returns nothing when there is nothing left to lay out", () => {
+  const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("isbn", true)])]);
+  assert.deepEqual(fields, []);
+});
+
+await check("returns nothing for an untyped item", () => {
+  assert.deepEqual(knownFieldsFor(null, [bookSchema([declare("title"), declare("author")])]), []);
 });
 
 console.log("\nwhere a dragged row lands");

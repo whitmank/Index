@@ -1,8 +1,19 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// The focus view: an item opened up (PRODUCT-SPEC §3.4). Two independent
-// machines compose it — the renderer draws the content, chosen by format;
-// the layout arranges the screen, chosen by the presentation cascade. The
-// layout never overrides the renderer.
+// The focus view: an item opened up (PRODUCT-SPEC §3.4). This file owns
+// the whole screen — every category of content an item might have
+// (its known fields from a type's schema, its ordered children, its
+// loose connections, its resources) is derived here, unconditionally,
+// for every item; nothing branches on `item.type` to decide *whether*
+// to look. FocusLayout.tsx only arranges the resulting `content`/
+// `editor` bundles on screen and carries no logic of its own — the
+// renderer still draws the content itself, chosen by format,
+// independently of both.
+//
+// layouts/registry.tsx's old per-type cascade (a different Layout
+// Component, and different claimed fields/connections, per type or tag)
+// is retired from this path — every item renders through FocusLayout
+// regardless of type or tags — but stays in the tree, unimported here,
+// as reference for when type-specific arrangements come back.
 //
 // A brand-new item that is still empty when it falls off the trail is
 // discarded rather than kept: you opened something, looked at it, and
@@ -17,16 +28,17 @@ import { apply, changes } from "../../changes/index.js";
 import { ParseIcon } from "../../components/ParseIcon.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { isPublic } from "../../components/itemActions.ts";
-import { resolveLayout, type ClaimedConnection } from "../../layouts/registry.tsx";
+import { ChildrenList, type ChildRow } from "../../layouts/parts/ChildrenList.tsx";
 import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
-import { sameTypeName } from "../../lib/derive.js";
+import { useOrderedChildren } from "../../layouts/parts/useOrderedChildren.ts";
+import { knownFieldsFor, sameTypeName } from "../../lib/derive.js";
 import { parseItems } from "../../lib/parseItems.js";
 import { attachResource } from "../../lib/resources.js";
-import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
 import { ConnectionComposer, type Outbound } from "./ConnectionComposer.tsx";
 import { FieldsEditor } from "./FieldsEditor.tsx";
+import { FocusLayout } from "./FocusLayout.tsx";
 import { ResourceCarousel } from "./ResourceCarousel.tsx";
 import { ResourceContent } from "./ResourceContent.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
@@ -52,6 +64,15 @@ function awaitsConfirmation(item: Item): boolean {
   return Boolean(item.type) && item.type_source !== "user";
 }
 
+/** A child's trailing bit in its ordered-children row — a song's length
+ * today, whatever else a future child carries under this name tomorrow.
+ * Reads a field literally named "duration"; nothing here knows or cares
+ * that the parent happens to be an album. */
+function durationOf(child: Item): string {
+  const field = child.fields.find((candidate) => candidate.name.toLowerCase() === "duration");
+  return typeof field?.value === "string" ? field.value : "";
+}
+
 export interface FocusProps {
   itemId: string;
   /** True when this item was created by the gesture that opened it. */
@@ -66,9 +87,9 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
-  // Fetched eagerly, once per mount — the layout cascade now needs the
-  // full list to resolve a typed item's known fields, not just the type
-  // chip's dropdown, so this can no longer wait for that menu to open.
+  // Fetched eagerly, once per mount — knownFieldsFor needs the full list
+  // to resolve a typed item's known fields, not just the type chip's
+  // dropdown, so this can no longer wait for that menu to open.
   const [schemas, setSchemas] = useState<Schema[]>([]);
 
   useEffect(() => {
@@ -114,20 +135,41 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     void loadItem(itemId);
   }, [itemId]);
 
-  // The outbound statements, resolved to the items they point at.
+  // The outbound statements, resolved to the items they point at — every
+  // one except a connection marked `child`, which is a different shape
+  // (see `children` below) and shows there instead, not here too.
   const outbound = usePool<Outbound[]>(() =>
-    pool.outboundFrom(itemId).flatMap((connection) => {
-      const target = pool.getItem(connection.target);
-      if (!target) return [];
-      return [
-        {
-          connectionId: connection.id,
-          label: connection.label ? connection.label.replace(/^labels:/, "") : null,
-          targetId: target.id,
-          targetName: target.display_name ?? target.name,
-        },
-      ];
-    }),
+    pool
+      .outboundFrom(itemId)
+      .filter((connection) => !connection.child)
+      .flatMap((connection) => {
+        const target = pool.getItem(connection.target);
+        if (!target) return [];
+        return [
+          {
+            connectionId: connection.id,
+            label: connection.label ? connection.label.replace(/^labels:/, "") : null,
+            targetId: target.id,
+            targetName: target.display_name ?? target.name,
+          },
+        ];
+      }),
+  );
+
+  // A parent's ordered children — an album's tracks today, whatever else
+  // gets built as a `child: true` connection tomorrow. Not gated on
+  // `item.type`: any item with children shows them, the same way any
+  // item with fields or connections shows those.
+  const children = useOrderedChildren(itemId);
+  const childRows = useMemo<ChildRow[]>(
+    () =>
+      children.map(({ connection, item: child }, index) => ({
+        id: connection.id,
+        index: index + 1,
+        primary: child.display_name ?? (child.name || "untitled"),
+        trailing: durationOf(child),
+      })),
+    [children],
   );
 
   const shared = usePool(() => (item ? isPublic(item) : false));
@@ -157,45 +199,16 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onDismiss]);
 
-  // The tags, oldest first — the order the cascade reads them in.
-  const tags = usePool(() =>
-    pool
-      .outboundFrom(itemId)
-      .filter((connection) => connection.label === MEMBER_OF_LABEL_ID)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))
-      .flatMap((connection) => {
-        const target = pool.getItem(connection.target);
-        return target ? [{ name: target.display_name ?? target.name }] : [];
-      }),
+  // A type's own known fields — everything a schema declares beyond the
+  // identity field, minus anything it marks hidden. Not part of a
+  // cascade: an untyped item, or one whose type names no schema, simply
+  // gets none, and the generic FieldsEditor draws everything instead.
+  const knownFields = useMemo(
+    () => (item ? knownFieldsFor(item.type, schemas) : []),
+    [item, schemas],
   );
 
-  const resolution = useMemo(
-    () => (item ? resolveLayout(item, tags, schemas) : null),
-    [item, tags, schemas],
-  );
-
-  const claimedConnections = useMemo<ClaimedConnection[]>(() => {
-    const wantedLabels = resolution?.entry.labels ?? [];
-    return outbound
-      .filter((connection) => connection.label && wantedLabels.includes(connection.label))
-      .map((connection) => ({
-        label: connection.label ?? "",
-        targetId: connection.targetId,
-        targetName: connection.targetName,
-      }));
-  }, [outbound, resolution]);
-
-  // What a layout claims into its own dedicated slot — an album's
-  // tracks, a movie's author — is intrinsic to that slot, not a loose
-  // connection to also offer (and remove) from the generic composer.
-  const composerOutbound = useMemo(() => {
-    const wantedLabels = resolution?.entry.labels ?? [];
-    return outbound.filter(
-      (connection) => !(connection.label && wantedLabels.includes(connection.label)),
-    );
-  }, [outbound, resolution]);
-
-  if (!item || !resolution) return null;
+  if (!item) return null;
 
   /** A file dropped or pasted anywhere on the focused item, or a link
    * dragged/pasted in the same way, becomes a resource on *this* item —
@@ -235,26 +248,19 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     }
   };
 
-  const Layout = resolution.entry.Component;
-  const knownFields = resolution.entry.fields ?? [];
-
-  // Which resource the carousel opens on — a layout's own preference
-  // (MovieLayout's trailer, say) when it has one, else the primary
-  // resource, today's behavior.
-  const preferredResource = resolution.entry.preferredResource;
-  const startIndex = preferredResource ? Math.max(0, item.resources.findIndex(preferredResource)) : 0;
-
   const content =
     item.resources.length > 1 ? (
-      <ResourceCarousel initialIndex={startIndex} item={item} resources={item.resources} />
+      <ResourceCarousel initialIndex={0} item={item} resources={item.resources} />
     ) : (
       <ResourceContent item={item} resource={item.resources[0]} />
     );
 
-  // The layout's own known fields (title first, xyz-style — a big
-  // identity field rather than a bar input) sit above the generic list,
-  // which excludes them so nothing shows twice or gets clobbered on
-  // commit.
+  // A type's own known fields (title first, xyz-style — a big identity
+  // field rather than a bar input) sit above the generic list, which
+  // excludes them so nothing shows twice or gets clobbered on commit.
+  // Ordered children sit right below — as central to what the item *is*
+  // as its known fields — ahead of the generic misc fields, resources
+  // and loose connections.
   const editor = (
     <>
       <label className="field field-name">
@@ -268,13 +274,10 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
         />
       </label>
       <KnownFields fields={knownFields} item={item} />
+      <ChildrenList rows={childRows} />
       <FieldsEditor exclude={knownFields.map((field) => field.name)} item={item} />
       <ResourcesEditor item={item} />
-      <ConnectionComposer
-        item={item}
-        onNavigate={(id) => onGoTo({ id })}
-        outbound={composerOutbound}
-      />
+      <ConnectionComposer item={item} onNavigate={(id) => onGoTo({ id })} outbound={outbound} />
     </>
   );
 
@@ -475,7 +478,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           )}
         </div>
 
-        <Layout connections={claimedConnections} content={content} editor={editor} item={item} />
+        <FocusLayout content={content} editor={editor} />
       </div>
     </div>
   );
