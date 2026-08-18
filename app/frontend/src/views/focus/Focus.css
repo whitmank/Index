@@ -985,6 +985,26 @@
   padding: 0 2px 10px;
 }
 
+/* The description: what the user said this is, in their own words —
+   a quiet subtitle under the name, not a field among fields. */
+.field-description {
+  display: block;
+  margin-bottom: 20px;
+}
+
+.focus .field-description input:not([type="checkbox"]) {
+  width: 100%;
+  font-size: 14px;
+  color: var(--is-ink-dim);
+  border-bottom-color: transparent;
+  padding: 0 2px 6px;
+}
+
+.focus .field-description input:not([type="checkbox"]):hover,
+.focus .field-description input:not([type="checkbox"]):focus {
+  border-bottom-color: var(--is-line-strong);
+}
+
 .fields {
   display: flex;
   flex-direction: column;
@@ -1005,6 +1025,21 @@
 }
 
 .field-row.is-draft:focus-within {
+  opacity: 1;
+}
+
+/* A guessed value (prov: "auto") reads a touch quieter than one you
+   entered yourself — not an error state, the same non-judgemental
+   dimming `is-draft` uses. Editing it is what confirms it (the editor
+   forces `prov: "user"` on any commit), so there's no separate accept
+   gesture to draw — the class just stops applying next render. */
+.field-row.is-auto,
+.fields-row.is-auto {
+  opacity: 0.7;
+}
+
+.field-row.is-auto:focus-within,
+.fields-row.is-auto:focus-within {
   opacity: 1;
 }
 

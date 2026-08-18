@@ -256,7 +256,7 @@ await check("falls back to the default layout when nothing is left to lay out", 
   assert.equal(resolution.source, "default");
 });
 
-console.log("\nknownFieldsFor, the live path Focus.tsx actually calls");
+console.log("\nknownFieldsFor — not currently drawn by Focus.tsx (stripped to title/description/resources), but exported for when a richer editor comes back");
 
 await check("draws every field but the one that names the item", () => {
   const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("author"), declare("isbn")])]);

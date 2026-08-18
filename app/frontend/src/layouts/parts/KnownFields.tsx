@@ -40,10 +40,15 @@ export function KnownFields({ item, fields }: { item: Item; fields: KnownField[]
           (candidate) => candidate.attribute?.toLowerCase() === attribute.toLowerCase(),
         );
         const value = entry?.value ?? blankFieldValue(kind);
+        const isAuto = entry?.prov === "auto";
         const commit = (next: MetadataEntry["value"]) =>
           void apply(changes.setMetadata(item, upsertByName(item.metadata, attribute, next, kind)));
         return (
-          <li className="fields-row" key={attribute}>
+          <li
+            className={isAuto ? "fields-row is-auto" : "fields-row"}
+            key={attribute}
+            title={isAuto ? "guessed — edit to confirm" : undefined}
+          >
             <span className="known-fields-name">{attribute}</span>
             {kind === "list" ? (
               <ListValueInput

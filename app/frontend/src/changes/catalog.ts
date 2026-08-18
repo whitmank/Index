@@ -99,6 +99,18 @@ export function setDisplayName(item: Item, displayName: string): Change {
   );
 }
 
+/** What the user said this is, in their own words — usually captured
+ * once at intake, but not locked after that: nothing about the model
+ * marks it immutable, so this lets a later edit correct or clear it. */
+export function setDescription(item: Item, description: string): Change {
+  const next = description.trim() || null;
+  return swap(
+    item,
+    { ...item, description: next },
+    next ? `Describe ${describe(item)} as '${next}'` : `Clear ${describe(item)}'s description`,
+  );
+}
+
 export function setDateAdded(item: Item, dateAdded: string): Change {
   return swap(
     item,

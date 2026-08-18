@@ -62,7 +62,11 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
       <h3>fields</h3>
       <div className="fields">
         {misc.map((entry, index) => (
-          <div className="field-row" key={`${entry.attribute}-${index}`}>
+          <div
+            className={entry.prov === "auto" ? "field-row is-auto" : "field-row"}
+            key={`${entry.attribute}-${index}`}
+            title={entry.prov === "auto" ? "guessed — edit to confirm" : undefined}
+          >
             <SettleInput
               ariaLabel="field name"
               onCommit={(attribute) => update(index, { attribute })}

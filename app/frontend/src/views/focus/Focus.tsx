@@ -1,19 +1,18 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// The focus view: an item opened up (PRODUCT-SPEC §3.4). This file owns
-// the whole screen — every category of content an item might have
-// (its known fields from a type's schema, its ordered children, its
-// loose connections, its resources) is derived here, unconditionally,
-// for every item; nothing branches on `item.type` to decide *whether*
-// to look. FocusLayout.tsx only arranges the resulting `content`/
-// `editor` bundles on screen and carries no logic of its own — the
-// renderer still draws the content itself, chosen by format,
-// independently of both.
+// The focus view: an item opened up (PRODUCT-SPEC §3.4). Deliberately
+// minimal — title, description, and the resources that back the item —
+// not the full data-dump this used to be. Known fields, ordered
+// children, misc fields and connections all still exist on the item and
+// in the change catalog; they just aren't drawn here anymore. Their
+// components (KnownFields, ChildrenList, FieldsEditor, ConnectionComposer)
+// stay in the tree, unimported here, the same way layouts/registry.tsx's
+// retired cascade does — reference for when that richer surface comes
+// back, not dead weight to delete.
 //
-// layouts/registry.tsx's old per-type cascade (a different Layout
-// Component, and different claimed fields/connections, per type or tag)
-// is retired from this path — every item renders through FocusLayout
-// regardless of type or tags — but stays in the tree, unimported here,
-// as reference for when type-specific arrangements come back.
+// The top bar (type classification, public/parse/delete/close) lives in
+// FocusToolbar.tsx — pulled out because it's the one piece every future
+// per-type arrangement will still want unchanged, so it has to be
+// composable independently of whatever this file does with content/editor.
 //
 // A brand-new item that is still empty when it falls off the trail is
 // discarded rather than kept: you opened something, looked at it, and
@@ -22,54 +21,17 @@
 // `enter` elsewhere can drop this item from the trail without this
 // component's own dismiss ever firing, so it has to live where every
 // trail change is guaranteed to pass through.
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Item, Schema } from "@index/database/types";
+import { useEffect, useRef, useState } from "react";
 import { apply, changes } from "../../changes/index.js";
-import { ParseIcon } from "../../components/ParseIcon.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { isPublic } from "../../components/itemActions.ts";
-import { ChildrenList, type ChildRow } from "../../layouts/parts/ChildrenList.tsx";
-import { KnownFields } from "../../layouts/parts/KnownFields.tsx";
-import { useOrderedChildren } from "../../layouts/parts/useOrderedChildren.ts";
-import { knownFieldsFor, sameTypeName } from "../../lib/derive.js";
-import { parseItems } from "../../lib/parseItems.js";
 import { attachResource } from "../../lib/resources.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
-import { ConnectionComposer, type Outbound } from "./ConnectionComposer.tsx";
-import { FieldsEditor } from "./FieldsEditor.tsx";
 import { FocusLayout } from "./FocusLayout.tsx";
+import { FocusToolbar } from "./FocusToolbar.tsx";
 import { ResourceCarousel } from "./ResourceCarousel.tsx";
 import { ResourceContent } from "./ResourceContent.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
-
-/** The type chip's tooltip. It used to claim "you classified this" for
- * every typed item, including ones the classifier typed at intake and the
- * user never touched — `type.prov` is what lets it stop saying that,
- * and lets a guess point at the resource it came from. */
-function typeProvenance(item: Item): string {
-  if (!item.type) return "not yet classified";
-  if (item.type.prov === "user") return "you set this — click to change";
-  const primary = item.resources[0];
-  return primary
-    ? `guessed from ${primary.name} — click to change`
-    : "guessed — click to change";
-}
-
-/** Whether there is a guess standing unanswered. A type the user chose
- * needs no agreeing with — picking it from the menu already said so. */
-function awaitsConfirmation(item: Item): boolean {
-  return Boolean(item.type) && item.type?.prov !== "user";
-}
-
-/** A child's trailing bit in its ordered-children row — a song's length
- * today, whatever else a future child carries under this name tomorrow.
- * Reads a field literally named "duration"; nothing here knows or cares
- * that the parent happens to be an album. */
-function durationOf(child: Item): string {
-  const entry = child.metadata.find((candidate) => candidate.attribute?.toLowerCase() === "duration");
-  return typeof entry?.value === "string" ? entry.value : "";
-}
 
 export interface FocusProps {
   itemId: string;
@@ -82,24 +44,6 @@ export interface FocusProps {
 }
 
 export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
-  // Fetched eagerly, once per mount — knownFieldsFor needs the full list
-  // to resolve a typed item's known fields, not just the type chip's
-  // dropdown, so this can no longer wait for that menu to open.
-  const [schemas, setSchemas] = useState<Schema[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void window.index.schemas.list().then((answer) => {
-      if (!cancelled && "ok" in answer) setSchemas(answer.ok.schemas);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // The scrim fades in rather than snapping to full dark — two rAFs so
   // the hidden state paints first, or the transition has nothing to
   // animate from.
@@ -133,50 +77,6 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     void loadItem(itemId);
   }, [itemId]);
 
-  // The outbound statements, resolved to the items they point at — every
-  // one except a connection marked `child`, which is a different shape
-  // (see `children` below) and shows there instead, not here too.
-  const outbound = usePool<Outbound[]>(() =>
-    pool
-      .outboundFrom(itemId)
-      .filter((connection) => !connection.child)
-      .flatMap((connection) => {
-        const target = pool.getItem(connection.target);
-        if (!target) return [];
-        return [
-          {
-            connectionId: connection.id,
-            label: connection.label ? connection.label.replace(/^labels:/, "") : null,
-            targetId: target.id,
-            targetName: target.display_name ?? target.name,
-          },
-        ];
-      }),
-  );
-
-  // A parent's ordered children — an album's tracks today, whatever else
-  // gets built as a `child: true` connection tomorrow. Not gated on
-  // `item.type`: any item with children shows them, the same way any
-  // item with fields or connections shows those.
-  const children = useOrderedChildren(itemId);
-  const childRows = useMemo<ChildRow[]>(
-    () =>
-      children.map(({ connection, item: child }, index) => ({
-        id: connection.id,
-        index: index + 1,
-        primary: child.display_name ?? (child.name || "untitled"),
-        trailing: durationOf(child),
-      })),
-    [children],
-  );
-
-  const shared = usePool(() => (item ? isPublic(item) : false));
-
-  // Things you can look at; places you can also walk into. An item that
-  // has become a place — because you tagged something into it — offers
-  // the way in from here, rather than only from the home screen.
-  const isPlace = usePool(() => pool.isPlace(itemId));
-
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       // ← / A back out of the view the same way Escape does — the trail's
@@ -196,15 +96,6 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onDismiss]);
-
-  // A type's own known fields — everything a schema declares beyond the
-  // identity field, minus anything it marks hidden. Not part of a
-  // cascade: an untyped item, or one whose type names no schema, simply
-  // gets none, and the generic FieldsEditor draws everything instead.
-  const knownFields = useMemo(
-    () => (item ? knownFieldsFor(item.type?.value ?? null, schemas) : []),
-    [item, schemas],
-  );
 
   if (!item) return null;
 
@@ -253,12 +144,9 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       <ResourceContent item={item} resource={item.resources[0]} />
     );
 
-  // A type's own known fields (title first, xyz-style — a big identity
-  // field rather than a bar input) sit above the generic list, which
-  // excludes them so nothing shows twice or gets clobbered on commit.
-  // Ordered children sit right below — as central to what the item *is*
-  // as its known fields — ahead of the generic misc fields, resources
-  // and loose connections.
+  // Title, then description, then what backs the item. Everything else
+  // the full editor used to draw here (known fields, children, misc
+  // fields, connections) is deliberately absent — see this file's header.
   const editor = (
     <>
       <label className="field field-name">
@@ -271,11 +159,16 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           value={item.name}
         />
       </label>
-      <KnownFields fields={knownFields} item={item} />
-      <ChildrenList rows={childRows} />
-      <FieldsEditor exclude={knownFields.map((field) => field.attribute)} item={item} />
+      <label className="field field-description">
+        <span className="sr-only">description</span>
+        <SettleInput
+          ariaLabel="description"
+          onCommit={(description) => void apply(changes.setDescription(item, description))}
+          placeholder="add a description…"
+          value={item.description ?? ""}
+        />
+      </label>
       <ResourcesEditor item={item} />
-      <ConnectionComposer item={item} onNavigate={(id) => onGoTo({ id })} outbound={outbound} />
     </>
   );
 
@@ -320,161 +213,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       }}
     >
       <div className={visible ? "focus visible" : "focus"} ref={panelRef} role="dialog" tabIndex={-1}>
-        <div className="focus-toolbar">
-          <div className="type-trigger-wrap">
-            <button
-              className="type-trigger"
-              onClick={() => setTypeMenuOpen((open) => !open)}
-              title={typeProvenance(item)}
-              type="button"
-            >
-              <span className="type-trigger-label">{item.type?.value ?? "untyped"}</span>
-              <span className="type-trigger-caret" aria-hidden="true">
-                ⌄
-              </span>
-            </button>
-
-            {/* Present only while a guess is unanswered. Accepting it is
-                what makes it go away, so the control's absence is the
-                confirmed state — there is nothing left to ask. */}
-            {awaitsConfirmation(item) && (
-              <button
-                aria-label={`confirm this item is a ${item.type?.value}`}
-                className="type-confirm"
-                onClick={() => void apply(changes.confirmType(item))}
-                title="confirm this type, so changing resources won't revise it"
-                type="button"
-              >
-                <span aria-hidden="true">✓</span>
-              </button>
-            )}
-
-            {typeMenuOpen && (
-              <ul className="type-popover">
-                {schemas.length === 0 && (
-                  <li className="opens-as-empty">no types yet — add one from the types button</li>
-                )}
-                {schemas.map((schema) => (
-                  <li key={schema.id}>
-                    <button
-                      className={
-                        item.type && sameTypeName(schema.name, item.type.value)
-                          ? "type-option is-current"
-                          : "type-option"
-                      }
-                      onClick={() => {
-                        setTypeMenuOpen(false);
-                        if (!item.type || !sameTypeName(schema.name, item.type.value)) {
-                          void apply(changes.setType(item, schema.name));
-                        }
-                      }}
-                      type="button"
-                    >
-                      {schema.name}
-                    </button>
-                  </li>
-                ))}
-                {item.type && (
-                  <li>
-                    <button
-                      className="type-option"
-                      onClick={() => {
-                        setTypeMenuOpen(false);
-                        void apply(changes.setType(item, null));
-                      }}
-                      type="button"
-                    >
-                      clear
-                    </button>
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-
-          {confirmingDelete ? (
-            <div className="focus-confirm">
-              <span>Delete this item?</span>
-              <div className="focus-confirm-actions">
-                <button onClick={() => setConfirmingDelete(false)} type="button">
-                  cancel
-                </button>
-                <button
-                  className="danger"
-                  onClick={() => {
-                    const change = changes.deleteItem(item);
-                    if (change) void apply(change).then(onDismiss);
-                  }}
-                  type="button"
-                >
-                  confirm
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="focus-actions">
-              {isPlace && (
-                <button
-                  className="focus-enter"
-                  onClick={() => onGoTo({ id: itemId })}
-                  title="Show what is in here"
-                  type="button"
-                >
-                  go in →
-                </button>
-              )}
-
-              <label className="toggle">
-                <input
-                  checked={shared}
-                  onChange={(event) => {
-                    const change = changes.setPublic(item, event.target.checked);
-                    if (change) void apply(change);
-                  }}
-                  type="checkbox"
-                />
-                public
-              </label>
-
-              {/* Reads the file and fills in what this type declares.
-                  Available only once the item has a type, because the
-                  type is the question it answers against — and using it
-                  settles that type, the way choosing one by hand does. */}
-              <button
-                aria-label="parse"
-                className="item-screen-icon-button"
-                disabled={!item.type || parsing}
-                onClick={() => {
-                  setParsing(true);
-                  void parseItems([item]).finally(() => setParsing(false));
-                }}
-                title={
-                  item.type
-                    ? `read this file and fill in what a ${item.type.value} declares`
-                    : "give it a type first"
-                }
-                type="button"
-              >
-                <ParseIcon />
-              </button>
-
-              <button
-                aria-label="Delete"
-                className="item-screen-icon-button danger"
-                disabled={item.system}
-                onClick={() => setConfirmingDelete(true)}
-                title="Delete"
-                type="button"
-              >
-                🗑
-              </button>
-
-              <button aria-label="close" className="item-screen-icon-button" onClick={onDismiss} type="button">
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
+        <FocusToolbar item={item} onDismiss={onDismiss} onGoTo={onGoTo} />
 
         <FocusLayout content={content} editor={editor} />
       </div>
