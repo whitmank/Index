@@ -9,7 +9,7 @@
 // game. Parsing an item also settles its type, because asking for a
 // book's fields is saying it is a book.
 import assert from "node:assert/strict";
-import type { Change, Field, Item, Resource } from "@index/database/types";
+import type { Change, Item, MetadataEntry, Resource } from "@index/database/types";
 
 let passed = 0;
 
@@ -21,7 +21,7 @@ async function check(what: string, assertion: () => void | Promise<void>): Promi
 
 /** What the backend was asked, and what it will answer. */
 const asked: { uri: string; type: string }[] = [];
-let found: { name?: string; fields: Field[] } = { fields: [] };
+let found: { name?: string; metadata: MetadataEntry[] } = { metadata: [] };
 
 (globalThis as { window?: unknown }).window = {
   index: {
@@ -48,58 +48,66 @@ function item(overrides: Partial<Item> = {}): Item {
     id: "items:01TEST",
     name: FILENAME,
     display_name: null,
-    date: "2026-08-12",
-    created_at: "2026-08-12T00:00:00.000Z",
+    date_added: "2026-08-12T00:00:00.000Z",
+    date_created: null,
     opens: null,
     query: null,
     system: false,
     is_set: false,
-    type: "book",
-    type_source: "auto",
-    fields: [],
+    type: { value: "book", prov: "auto" },
+    metadata: [],
     resources: [resource()],
     deleted_at: null,
     ...overrides,
   };
 }
 
-const text = (name: string, value: string): Field => ({ name, value, kind: "string" });
+const text = (attribute: string, value: string): MetadataEntry => ({
+  attribute,
+  value,
+  kind: "string",
+  prov: "auto",
+});
 
 function outcome(change: Change | null): Item {
   assert.ok(change, "expected a change");
   return change.pairs[0]?.after as Item;
 }
 
-const valueOf = (fields: Field[], name: string) => fields.find((f) => f.name === name)?.value;
+const valueOf = (metadata: MetadataEntry[], name: string) =>
+  metadata.find((entry) => entry.attribute === name)?.value;
 
 console.log("\nwhat parsing may write");
 
 await check("fills a field the item does not have", () => {
   const after = outcome(
-    changes.parseItem(item(), { fields: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(item(), { metadata: [text("author", "R. John Williams")] }, FILENAME),
   );
-  assert.equal(valueOf(after.fields, "author"), "R. John Williams");
+  assert.equal(valueOf(after.metadata, "author"), "R. John Williams");
 });
 
 await check("fills the blank row a type's layout already drew", () => {
   // The schema's fields are drawn whether or not they carry anything, so
   // a found value has to land *in* the empty row rather than beside it.
-  const blank = item({ fields: [text("author", ""), text("publisher", "")] });
+  const blank = item({ metadata: [text("author", ""), text("publisher", "")] });
   const after = outcome(
-    changes.parseItem(blank, { fields: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(blank, { metadata: [text("author", "R. John Williams")] }, FILENAME),
   );
 
-  assert.equal(after.fields.length, 2);
-  assert.equal(valueOf(after.fields, "author"), "R. John Williams");
+  assert.equal(after.metadata.length, 2);
+  assert.equal(valueOf(after.metadata, "author"), "R. John Williams");
 });
 
 await check("never overwrites a value that is already there", () => {
   // Type already settled, so an overwrite is the only change left that
   // could happen — and it must not.
-  const mine = item({ type_source: "user", fields: [text("author", "Williams, R. J.")] });
+  const mine = item({
+    type: { value: "book", prov: "user" },
+    metadata: [text("author", "Williams, R. J.")],
+  });
   const change = changes.parseItem(
     mine,
-    { fields: [text("author", "R. John Williams")] },
+    { metadata: [text("author", "R. John Williams")] },
     FILENAME,
   );
 
@@ -109,9 +117,12 @@ await check("never overwrites a value that is already there", () => {
 });
 
 await check("matches an existing row whatever case it was typed in", () => {
-  const mine = item({ type_source: "user", fields: [text("Author", "Williams, R. J.")] });
+  const mine = item({
+    type: { value: "book", prov: "user" },
+    metadata: [text("Author", "Williams, R. J.")],
+  });
   assert.equal(
-    changes.parseItem(mine, { fields: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(mine, { metadata: [text("author", "R. John Williams")] }, FILENAME),
     null,
   );
 });
@@ -120,16 +131,16 @@ console.log("\nthe name is only taken when it was never yours");
 
 await check("replaces a name the item merely inherited from its file", () => {
   const after = outcome(
-    changes.parseItem(item(), { name: "The Buddha in the Machine", fields: [] }, FILENAME),
+    changes.parseItem(item(), { name: "The Buddha in the Machine", metadata: [] }, FILENAME),
   );
   assert.equal(after.name, "The Buddha in the Machine");
 });
 
 await check("leaves a name you chose alone", () => {
-  const renamed = item({ name: "Buddha (Williams)", type_source: "user" });
+  const renamed = item({ name: "Buddha (Williams)", type: { value: "book", prov: "user" } });
   const change = changes.parseItem(
     renamed,
-    { name: "The Buddha in the Machine", fields: [] },
+    { name: "The Buddha in the Machine", metadata: [] },
     FILENAME,
   );
 
@@ -140,7 +151,7 @@ await check("leaves a name you chose alone", () => {
 await check("says so in the description", () => {
   const change = changes.parseItem(
     item(),
-    { name: "The Buddha in the Machine", fields: [text("author", "R. John Williams")] },
+    { name: "The Buddha in the Machine", metadata: [text("author", "R. John Williams")] },
     FILENAME,
   );
   assert.match(change?.description ?? "", /filled name and author$/);
@@ -150,24 +161,27 @@ console.log("\nparsing settles the type");
 
 await check("takes ownership of a guess", () => {
   const after = outcome(
-    changes.parseItem(item(), { fields: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(item(), { metadata: [text("author", "R. John Williams")] }, FILENAME),
   );
 
   // Asking for a book's fields to be filled in is saying it is a book —
   // the same thing choosing a type by hand already says.
-  assert.equal(after.type_source, "user");
+  assert.equal(after.type?.prov, "user");
 });
 
 await check("confirms the type even when the file had nothing to add", () => {
-  const after = outcome(changes.parseItem(item(), { fields: [] }, FILENAME));
-  assert.equal(after.type_source, "user");
+  const after = outcome(changes.parseItem(item(), { metadata: [] }, FILENAME));
+  assert.equal(after.type?.prov, "user");
   assert.match(after.type ? "book" : "", /book/);
 });
 
 await check("has nothing to do once the type is yours and the fields are full", () => {
-  const settled = item({ type_source: "user", fields: [text("author", "R. John Williams")] });
+  const settled = item({
+    type: { value: "book", prov: "user" },
+    metadata: [text("author", "R. John Williams")],
+  });
   assert.equal(
-    changes.parseItem(settled, { fields: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(settled, { metadata: [text("author", "R. John Williams")] }, FILENAME),
     null,
   );
 });
@@ -178,7 +192,7 @@ const { parseItems } = await import("../src/lib/parseItems.js");
 
 await check("asks the backend for the primary resource, against the item's type", async () => {
   asked.length = 0;
-  found = { fields: [text("author", "R. John Williams")] };
+  found = { metadata: [text("author", "R. John Williams")] };
   const outcomes = await parseItems([item()]);
 
   assert.deepEqual(asked, [{ uri: `mbp:///Users/k/${FILENAME}`, type: "book" }]);
@@ -187,7 +201,7 @@ await check("asks the backend for the primary resource, against the item's type"
 
 await check("skips an untyped item rather than guessing at one", async () => {
   asked.length = 0;
-  const outcomes = await parseItems([item({ type: null, type_source: null })]);
+  const outcomes = await parseItems([item({ type: null })]);
 
   // The type is the question parsing answers against; without one there
   // is nothing to ask, and the command bar says so before you get here.
@@ -196,8 +210,8 @@ await check("skips an untyped item rather than guessing at one", async () => {
 });
 
 await check("reports an item it read and had nothing to add to", async () => {
-  found = { fields: [] };
-  const settled = item({ type_source: "user" });
+  found = { metadata: [] };
+  const settled = item({ type: { value: "book", prov: "user" } });
   assert.deepEqual(await parseItems([settled]), { filled: 0, unchanged: 1, skipped: 0 });
 });
 

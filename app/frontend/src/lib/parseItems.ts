@@ -49,7 +49,7 @@ export async function parseItems(items: Item[]): Promise<ParseOutcome> {
       continue;
     }
 
-    const answer = await window.index.ingest.parse(resource.uri, item.type);
+    const answer = await window.index.ingest.parse(resource.uri, item.type.value);
     if ("err" in answer) {
       outcome.skipped += 1;
       continue;

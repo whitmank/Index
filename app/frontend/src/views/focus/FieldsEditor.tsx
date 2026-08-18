@@ -2,85 +2,94 @@
 // The fields editor: name/value rows with a kind picker on the value
 // cell. Blank rows vanish on commit — an empty name and value is a row
 // the user abandoned, not a fact about anything. `list` is the one kind
-// whose value is several strings rather than one (lib/fields.ts spells
+// whose value is several strings rather than one (lib/metadata.ts spells
 // out the shape switch; ListValueInput is its chip editor).
+//
+// Everything written here carries `prov: "user"` — this editor is
+// name-driven and never produces a freeform (null-attribute) tag; the
+// data model supports one, but nothing in this UI does yet.
 import { useState } from "react";
-import type { Field, FieldKind, Item } from "@index/database/types";
+import type { AttributeKind, Item, MetadataEntry } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { blankFieldValue, coerceFieldValue, isBlankFieldValue } from "../../lib/fields.js";
+import { blankFieldValue, coerceFieldValue, isBlankFieldValue } from "../../lib/metadata.js";
 
-const KINDS: FieldKind[] = ["string", "number", "date", "list"];
+const KINDS: AttributeKind[] = ["string", "number", "date", "list"];
 
 export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: string[] }) {
-  const [draftRow, setDraftRow] = useState<Field>({ name: "", value: "", kind: "string" });
+  const [draftRow, setDraftRow] = useState<MetadataEntry>({
+    attribute: "",
+    value: "",
+    kind: "string",
+    prov: "user",
+  });
   // SettleInput only clears its own typed text when its `value` prop
   // changes, and the draft row's value is "" both before and after a
   // commit — remounting on a fresh key is what makes it forget.
   const [draftGeneration, setDraftGeneration] = useState(0);
 
   const excluded = new Set(exclude.map((name) => name.toLowerCase()));
-  const known = item.fields.filter((field) => excluded.has(field.name.toLowerCase()));
-  const misc = item.fields.filter((field) => !excluded.has(field.name.toLowerCase()));
+  const known = item.metadata.filter((entry) => entry.attribute && excluded.has(entry.attribute.toLowerCase()));
+  const misc = item.metadata.filter((entry) => !entry.attribute || !excluded.has(entry.attribute.toLowerCase()));
 
   // A layout's own known fields (KnownFields, in the registry) render
   // separately and stay untouched here — this list is everything else,
   // recombined with them before the write, so committing the generic
   // list never drops what the layout already claimed.
-  const commit = (fields: Field[]): void => {
-    void apply(changes.setFields(item, [...known, ...fields]));
+  const commit = (metadata: MetadataEntry[]): void => {
+    void apply(changes.setMetadata(item, [...known, ...metadata]));
   };
 
-  const update = (index: number, patch: Partial<Field>): void => {
-    const next = misc.map((field, at) => (at === index ? { ...field, ...patch } : field));
+  const update = (index: number, patch: Partial<MetadataEntry>): void => {
+    const next = misc.map((entry, at) => (at === index ? { ...entry, ...patch, prov: "user" as const } : entry));
     commit(next);
   };
 
-  const addDraft = (patch: Partial<Field>): void => {
+  const addDraft = (patch: Partial<MetadataEntry>): void => {
     const row = { ...draftRow, ...patch };
-    if (row.name.trim() === "" && isBlankFieldValue(row.value)) {
+    if ((row.attribute ?? "").trim() === "" && isBlankFieldValue(row.value)) {
       setDraftRow(row);
       return;
     }
-    setDraftRow({ name: "", value: "", kind: "string" });
+    setDraftRow({ attribute: "", value: "", kind: "string", prov: "user" });
     setDraftGeneration((generation) => generation + 1);
-    commit([...misc, row]);
+    commit([...misc, { ...row, prov: "user" }]);
   };
 
   return (
     <section className="editor-block">
       <h3>fields</h3>
       <div className="fields">
-        {misc.map((field, index) => (
-          <div className="field-row" key={`${field.name}-${index}`}>
+        {misc.map((entry, index) => (
+          <div className="field-row" key={`${entry.attribute}-${index}`}>
             <SettleInput
               ariaLabel="field name"
-              onCommit={(name) => update(index, { name })}
+              onCommit={(attribute) => update(index, { attribute })}
               placeholder="name"
-              value={field.name}
+              value={entry.attribute ?? ""}
             />
-            {field.kind === "list" ? (
+            {entry.kind === "list" ? (
               <ListValueInput
                 ariaLabel="field value"
                 onCommit={(value) => update(index, { value })}
-                value={Array.isArray(field.value) ? field.value : []}
+                value={Array.isArray(entry.value) ? entry.value : []}
               />
             ) : (
               <SettleInput
                 ariaLabel="field value"
                 onCommit={(value) => update(index, { value })}
                 placeholder="value"
-                value={typeof field.value === "string" ? field.value : ""}
+                value={typeof entry.value === "string" ? entry.value : ""}
               />
             )}
             <select
               aria-label="value kind"
               onChange={(event) => {
-                const kind = event.target.value as FieldKind;
-                update(index, { kind, value: coerceFieldValue(field.value, kind) });
+                const kind = event.target.value as AttributeKind;
+                update(index, { kind, value: coerceFieldValue(entry.value, kind) });
               }}
-              value={field.kind}
+              value={entry.kind}
             >
               {KINDS.map((kind) => (
                 <option key={kind} value={kind}>
@@ -89,7 +98,7 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
               ))}
             </select>
             <button
-              aria-label={`remove ${field.name}`}
+              aria-label={`remove ${entry.attribute}`}
               className="field-remove"
               onClick={() => commit(misc.filter((_, at) => at !== index))}
               type="button"
@@ -102,9 +111,9 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
         <div className="field-row is-draft" key={draftGeneration}>
           <SettleInput
             ariaLabel="new field name"
-            onCommit={(name) => addDraft({ name })}
+            onCommit={(attribute) => addDraft({ attribute })}
             placeholder="name"
-            value={draftRow.name}
+            value={draftRow.attribute ?? ""}
           />
           {draftRow.kind === "list" ? (
             <ListValueInput
@@ -123,7 +132,7 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
           <select
             aria-label="new value kind"
             onChange={(event) => {
-              const kind = event.target.value as FieldKind;
+              const kind = event.target.value as AttributeKind;
               setDraftRow({ ...draftRow, kind, value: blankFieldValue(kind) });
             }}
             value={draftRow.kind}

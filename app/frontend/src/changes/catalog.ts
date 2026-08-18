@@ -12,13 +12,13 @@
 import type {
   Change,
   Connection,
-  Field,
   Item,
+  MetadataEntry,
   Position,
   Resource,
 } from "@index/database/types";
 import { today } from "../lib/dates.js";
-import { isBlankFieldValue } from "../lib/fields.js";
+import { isBlankFieldValue } from "../lib/metadata.js";
 import { connectionId, itemId } from "../lib/ids.js";
 import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import * as pool from "../store/pool.js";
@@ -43,21 +43,20 @@ function swap(before: Item, after: Item, description: string): Change {
 
 // ── items ───────────────────────────────────────────────────────────────
 
-export function blankItem(date = today()): Item {
+export function blankItem(dateAdded = today()): Item {
   return {
     id: itemId(),
     name: "",
     display_name: null,
     description: null,
-    date,
-    created_at: now(),
+    date_added: dateAdded,
+    date_created: null,
     opens: null,
     query: null,
     system: false,
     is_set: false,
     type: null,
-    type_source: null,
-    fields: [],
+    metadata: [],
     resources: [],
     deleted_at: null,
   };
@@ -100,8 +99,25 @@ export function setDisplayName(item: Item, displayName: string): Change {
   );
 }
 
-export function setDate(item: Item, date: string): Change {
-  return swap(item, { ...item, date }, `Move ${describe(item)} to ${date}`);
+export function setDateAdded(item: Item, dateAdded: string): Change {
+  return swap(
+    item,
+    { ...item, date_added: dateAdded },
+    `Move ${describe(item)} to ${dateAdded}`,
+  );
+}
+
+/** The resource's own date — a photo's shot date, a book's publication
+ * date — distinct from `date_added`, which is when it entered the index.
+ * Passing null clears it back to unknown. */
+export function setDateCreated(item: Item, dateCreated: string | null): Change {
+  return swap(
+    item,
+    { ...item, date_created: dateCreated },
+    dateCreated
+      ? `Set ${describe(item)}'s date to ${dateCreated}`
+      : `Clear ${describe(item)}'s date`,
+  );
 }
 
 /** The presentation override — written only when the inference is wrong
@@ -119,17 +135,17 @@ export function setOpens(item: Item, opens: string | null): Change {
  * user correcting it. Passing null clears it, same as `setOpens`. */
 /**
  * Only the type picker reaches this, so every call is a decision the user
- * made — which is what `type_source` records, and what stops the
+ * made — which is what `type.prov` records, and what stops the
  * classifier ever arguing with it (lib/resources.ts).
  *
- * Clearing returns the source to null rather than pinning "user" on an
- * empty type: clearing withdraws an opinion instead of asserting one, so
- * a later primary resource is free to be guessed from again.
+ * Clearing sets `type` to null rather than pinning "user" on an empty
+ * type: clearing withdraws an opinion instead of asserting one, so a
+ * later primary resource is free to be guessed from again.
  */
 export function setType(item: Item, type: string | null): Change {
   return swap(
     item,
-    { ...item, type, type_source: type ? "user" : null },
+    { ...item, type: type ? { value: type, prov: "user" } : null },
     type ? `Classify ${describe(item)} as ${type}` : `Clear the type on ${describe(item)}`,
   );
 }
@@ -154,8 +170,8 @@ export function setType(item: Item, type: string | null): Change {
 export function confirmType(item: Item): Change {
   return swap(
     item,
-    { ...item, type_source: item.type ? "user" : null },
-    `Confirm ${describe(item)} is a ${item.type}`,
+    { ...item, type: item.type ? { ...item.type, prov: "user" } : null },
+    `Confirm ${describe(item)} is a ${item.type?.value}`,
   );
 }
 
@@ -186,43 +202,44 @@ export function confirmType(item: Item): Change {
  */
 export function parseItem(
   item: Item,
-  found: { name?: string; fields: Field[] },
+  found: { name?: string; metadata: MetadataEntry[] },
   derivedName: string,
 ): Change | null {
-  const existing = item.fields ?? [];
+  const existing = item.metadata ?? [];
+  const sameAttribute = (a: string | null, b: string | null) =>
+    a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
   const has = (name: string) =>
-    existing.some(
-      (field) => field.name.toLowerCase() === name.toLowerCase() && !isBlankFieldValue(field.value),
-    );
+    existing.some((entry) => sameAttribute(entry.attribute, name) && !isBlankFieldValue(entry.value));
 
-  const filled = found.fields.filter((field) => !has(field.name));
+  // Extraction-produced entries are never null-attribute.
+  const filled = found.metadata.filter((entry) => !has(entry.attribute as string));
   const takesName = Boolean(found.name) && nameOf(item) === derivedName;
-  const confirms = Boolean(item.type) && item.type_source !== "user";
+  const confirms = Boolean(item.type) && item.type?.prov !== "user";
   if (filled.length === 0 && !takesName && !confirms) return null;
 
-  // A found field replaces the blank row already standing for it, rather
-  // than landing beside it — the layout draws a type's declared fields
-  // whether or not they carry anything, so appending would show the name
-  // twice with one of them empty.
+  // A found entry replaces the blank row already standing for it, rather
+  // than landing beside it — the layout draws a type's declared
+  // attributes whether or not they carry anything, so appending would
+  // show the name twice with one of them empty.
   const written = existing.map(
-    (field) => filled.find((one) => one.name.toLowerCase() === field.name.toLowerCase()) ?? field,
+    (entry) => filled.find((one) => sameAttribute(one.attribute, entry.attribute)) ?? entry,
   );
   const added = filled.filter(
-    (one) => !existing.some((field) => field.name.toLowerCase() === one.name.toLowerCase()),
+    (one) => !existing.some((entry) => sameAttribute(entry.attribute, one.attribute)),
   );
 
-  const what = [...(takesName ? ["name"] : []), ...filled.map((field) => field.name)];
+  const what = [...(takesName ? ["name"] : []), ...filled.map((entry) => entry.attribute ?? "")];
   return swap(
     item,
     {
       ...item,
       ...(takesName ? { name: found.name as string } : {}),
-      ...(item.type ? { type_source: "user" as const } : {}),
-      fields: [...written, ...added],
+      ...(item.type ? { type: { ...item.type, prov: "user" as const } } : {}),
+      metadata: [...written, ...added],
     },
     what.length > 0
       ? `Parse ${describe(item)}: filled ${list(what)}`
-      : `Confirm ${describe(item)} is a ${item.type}`,
+      : `Confirm ${describe(item)} is a ${item.type?.value}`,
   );
 }
 
@@ -232,11 +249,12 @@ function list(words: string[]): string {
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1] as string}`;
 }
 
-/** Blank rows vanish on commit — an empty name and value is a row the
- * user abandoned, not a fact. */
-export function setFields(item: Item, fields: Field[]): Change {
-  const kept = fields.filter((field) => field.name.trim() !== "" || !isBlankFieldValue(field.value));
-  return swap(item, { ...item, fields: kept }, `Edit fields on ${describe(item)}`);
+/** Blank rows vanish on commit — an explicitly empty name and value is a
+ * row the user abandoned, not a fact. A null attribute is a freeform tag,
+ * a legitimate state on its own, not an abandoned row. */
+export function setMetadata(item: Item, metadata: MetadataEntry[]): Change {
+  const kept = metadata.filter((entry) => entry.attribute !== "" || !isBlankFieldValue(entry.value));
+  return swap(item, { ...item, metadata: kept }, `Edit fields on ${describe(item)}`);
 }
 
 export function addResource(item: Item, resource: Resource): Change {

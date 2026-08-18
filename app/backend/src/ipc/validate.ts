@@ -4,11 +4,11 @@
 // for a malformed change to fail loudly and locally instead of becoming a
 // confusing SurrealDB error three layers down.
 import type {
+  AttributeKind,
   Change,
   ChangePair,
-  FieldKind,
   MembersOptions,
-  SchemaField,
+  SchemaAttribute,
   StoredRecord,
 } from "@index/database/types";
 import type { SchemaInput } from "@index/database";
@@ -48,53 +48,45 @@ export function asMembersOptions(value: unknown): MembersOptions {
   return { partition: { date: asString((partition as { date: unknown }).date, "partition.date") } };
 }
 
-const FIELD_KINDS: FieldKind[] = ["string", "number", "date", "list"];
+const ATTRIBUTE_KINDS: AttributeKind[] = ["string", "number", "date", "list"];
 
-function asFieldKind(value: unknown, what: string): FieldKind {
-  if (typeof value !== "string" || !FIELD_KINDS.includes(value as FieldKind)) {
-    fail(`${what} must be one of ${FIELD_KINDS.join(", ")}`);
+function asAttributeKind(value: unknown, what: string): AttributeKind {
+  if (typeof value !== "string" || !ATTRIBUTE_KINDS.includes(value as AttributeKind)) {
+    fail(`${what} must be one of ${ATTRIBUTE_KINDS.join(", ")}`);
   }
-  return value as FieldKind;
+  return value as AttributeKind;
 }
 
-function asOptionalString(value: unknown, what: string): string | null {
-  if (value === undefined || value === null) return null;
-  return asString(value, what);
-}
-
-function asSchemaField(value: unknown, what: string): SchemaField {
+function asSchemaAttribute(value: unknown, what: string): SchemaAttribute {
   if (typeof value !== "object" || value === null) fail(`${what} must be an object`);
-  const { name, label, kind, hidden } = value as {
-    name?: unknown;
-    label?: unknown;
+  const { attribute, kind, display } = value as {
+    attribute?: unknown;
     kind?: unknown;
-    hidden?: unknown;
+    display?: unknown;
   };
-  if (hidden !== undefined && typeof hidden !== "boolean") {
-    fail(`${what}.hidden must be a boolean`);
+  if (display !== undefined && typeof display !== "boolean") {
+    fail(`${what}.display must be a boolean`);
   }
-  // Rebuilds the field rather than passing it through, so anything not
-  // named here is dropped on the way across the bridge. That is the
+  // Rebuilds the attribute rather than passing it through, so anything
+  // not named here is dropped on the way across the bridge. That is the
   // point, and it is also the trap: a new property has to be added here
   // too or it silently never arrives.
   return {
-    name: asString(name, `${what}.name`),
-    label: asOptionalString(label, `${what}.label`),
-    kind: asFieldKind(kind, `${what}.kind`),
-    hidden: hidden === true,
+    attribute: asString(attribute, `${what}.attribute`),
+    kind: asAttributeKind(kind, `${what}.kind`),
+    display: display !== false,
   };
 }
 
 export function asSchemaInput(value: unknown): SchemaInput {
   if (typeof value !== "object" || value === null) fail("schema must be an object");
-  const { name, label, fields } = value as { name?: unknown; label?: unknown; fields?: unknown };
+  const { name, attributes } = value as { name?: unknown; attributes?: unknown };
   if (asString(name, "schema.name").trim() === "") fail("schema.name must not be blank");
-  if (!Array.isArray(fields)) fail("schema.fields must be an array");
+  if (!Array.isArray(attributes)) fail("schema.attributes must be an array");
 
   return {
     name: asString(name, "schema.name"),
-    label: asOptionalString(label, "schema.label"),
-    fields: fields.map((field, index) => asSchemaField(field, `schema.fields[${index}]`)),
+    attributes: attributes.map((attribute, index) => asSchemaAttribute(attribute, `schema.attributes[${index}]`)),
   };
 }
 

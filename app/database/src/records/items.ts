@@ -30,11 +30,13 @@ const LIVE = "deleted_at IS NONE";
 export const TIMELINE_PARTITION_FIELD = "timeline_partition";
 export const TIMELINE_DIRECTION_FIELD = "timeline_direction";
 
-export type TimelinePartition = "date" | "created_at";
+export type TimelinePartition = "date_added" | "date_created" | "created_at";
 
 export function timelinePartitionOf(set: Item): TimelinePartition {
-  const field = set.fields.find((entry) => entry.name === TIMELINE_PARTITION_FIELD);
-  return field?.value === "created_at" ? "created_at" : "date";
+  const entry = set.metadata.find((entry) => entry.attribute === TIMELINE_PARTITION_FIELD);
+  if (entry?.value === "created_at") return "created_at";
+  if (entry?.value === "date_created") return "date_created";
+  return "date_added";
 }
 
 export async function getItem(id: string): Promise<Item | null> {
@@ -109,7 +111,7 @@ export async function listSets(): Promise<Item[]> {
     .query<[ItemRow[]]>(
       `SELECT * FROM items
        WHERE ${LIVE} AND ${PLAYS_SET_ROLE}
-       ORDER BY system DESC, created_at ASC`,
+       ORDER BY system DESC, date_added ASC`,
     )
     .collect();
   return rows.map(serializeItem);
@@ -198,6 +200,9 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
 
   const partition = options.partition?.date;
   const partitionBy = timelinePartitionOf(set);
+  // The two item-level dates share the same partitioning machinery;
+  // `created_at` is the one that instead partitions the arrow, below.
+  const itemDateField = partitionBy === "date_created" ? "date_created" : "date_added";
 
   const arrows = await listArrowsInto(setId, {
     createdOn: partition && partitionBy === "created_at" ? partition : undefined,
@@ -209,7 +214,11 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   }
 
   if (set.query) {
-    for (const item of await listByQuery(set, partitionBy === "date" ? partition : undefined)) {
+    for (const item of await listByQuery(
+      set,
+      partitionBy === "created_at" ? undefined : partition,
+      itemDateField,
+    )) {
       byId.set(item.id, item);
     }
   }
@@ -217,18 +226,22 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   let items = [...byId.values()];
 
   // An item admitted by an arrow still belongs to the page its own date
-  // puts it on, when the set partitions by date.
-  if (partition && partitionBy === "date") {
-    items = items.filter((item) => item.date === partition);
+  // puts it on, when the set partitions by an item-level date.
+  if (partition && partitionBy !== "created_at") {
+    items = items.filter((item) => item[itemDateField]?.slice(0, 10) === partition);
   }
 
-  items.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  items.sort((a, b) => a.date_added.localeCompare(b.date_added));
   const ids = items.map((item) => item.id);
   const [places, connections] = await Promise.all([listPlacesAmong(ids), listConnectionsAmong(ids)]);
   return { items, arrows, connections, places };
 }
 
-async function listByQuery(set: Item, partitionDate: string | undefined): Promise<Item[]> {
+async function listByQuery(
+  set: Item,
+  partitionDate: string | undefined,
+  dateField: "date_added" | "date_created",
+): Promise<Item[]> {
   if (!set.query) return [];
   const db = getDb();
   const compiled = compileQuery(set.query);
@@ -236,7 +249,7 @@ async function listByQuery(set: Item, partitionDate: string | undefined): Promis
   const clauses = [LIVE, "system = false", compiled.where];
   const bindings: Record<string, unknown> = { ...compiled.bindings };
   if (partitionDate !== undefined) {
-    clauses.push("date = $partitionDate");
+    clauses.push(`string::slice(<string> ${dateField}, 0, 10) = $partitionDate`);
     bindings.partitionDate = partitionDate;
   }
 
@@ -272,10 +285,19 @@ export async function listArrowsInto(
   return rows.map(serializeConnection);
 }
 
-/** The dates on which a set has members — the calendar popover's marks. */
+/** The dates on which a set has members — the calendar popover's marks.
+ * Read against whichever date the set itself pages by, so the marks
+ * always agree with the days `listMembers` will actually turn up. */
 export async function listMemberDates(setId: string): Promise<string[]> {
+  const set = await getItem(setId);
   const { items } = await listMembers(setId);
-  return [...new Set(items.map((item) => item.date))].sort();
+  const partitionBy = set ? timelinePartitionOf(set) : "date_added";
+
+  const dayOf = (item: Item): string | null =>
+    partitionBy === "date_created" ? (item.date_created?.slice(0, 10) ?? null) : item.date_added.slice(0, 10);
+
+  const dates = items.map(dayOf).filter((date): date is string => date !== null);
+  return [...new Set(dates)].sort();
 }
 
 /** One item with its connections, each resolved to the item at its far

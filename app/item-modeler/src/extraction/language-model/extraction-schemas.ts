@@ -14,7 +14,7 @@
 // this" is expressible, which is the difference between an honest blank
 // and an invention. With a grammar enforcing it at the token level, the
 // model cannot emit a field that is neither.
-import type { FieldKind, Schema, SchemaField } from "@index/database/types";
+import type { AttributeKind, Schema, SchemaAttribute } from "@index/database/types";
 import { hintFor } from "../../normalization/field-hints.js";
 
 export interface JsonSchema {
@@ -54,18 +54,17 @@ const GUIDANCE: Record<string, string> = {
 
 /** A hint for the shape the value should take, so a `date` field is not
  * answered with a sentence. */
-function kindHint(kind: FieldKind): string {
+function kindHint(kind: AttributeKind): string {
   if (kind === "date") return " Give a year (YYYY) or an ISO date.";
   if (kind === "number") return " Give digits only.";
   if (kind === "list") return " Comma-separated if there are several.";
   return "";
 }
 
-function describe(field: SchemaField): string {
-  const guidance = GUIDANCE[hintFor(field.name)];
+function describe(attribute: SchemaAttribute): string {
+  const guidance = GUIDANCE[hintFor(attribute.attribute)];
   if (guidance) return guidance;
-  const label = field.label ?? field.name;
-  return `The work's ${label}.${kindHint(field.kind)}`;
+  return `The work's ${attribute.attribute}.${kindHint(attribute.kind)}`;
 }
 
 /**
@@ -78,21 +77,21 @@ function describe(field: SchemaField): string {
  */
 export function schemaForExtraction(schema: Schema, already: string[] = []): JsonSchema | null {
   const settled = new Set(already.map((name) => name.toLowerCase()));
-  const wanted = (schema.fields ?? []).filter((field) => !settled.has(field.name.toLowerCase()));
+  const wanted = (schema.attributes ?? []).filter((attribute) => !settled.has(attribute.attribute.toLowerCase()));
   if (wanted.length === 0) return null;
 
   return {
     type: "object",
     properties: Object.fromEntries(
-      wanted.map((field) => [
-        field.name,
+      wanted.map((attribute) => [
+        attribute.attribute,
         {
           oneOf: [{ type: "string" }, { type: "null" }] as [{ type: "string" }, { type: "null" }],
-          description: describe(field),
+          description: describe(attribute),
         },
       ]),
     ),
-    required: wanted.map((field) => field.name),
+    required: wanted.map((attribute) => attribute.attribute),
     additionalProperties: false,
   };
 }

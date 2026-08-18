@@ -12,26 +12,26 @@
 // What remains of the old design is the part that was never about
 // arbitration: a value must still say where it came from, and must still
 // be checked before it is written.
-import type { FieldKind } from "@index/database/types";
+import type { AttributeKind } from "@index/database/types";
 import type { FieldProvenance } from "./provenance.js";
 
 export interface ResolvedValue {
   /** The schema field, in the schema's own words. */
   field: string;
   value: string | string[];
-  kind: FieldKind;
+  kind: AttributeKind;
   provenance: FieldProvenance;
 }
 
 /**
- * The item's name is the field the schema put first — `Schema.fields[0]`,
- * the way `resources[0]` is the primary resource, and reordering is the
- * same gesture in both places.
+ * The item's name is the field the schema put first —
+ * `Schema.attributes[0]`, the way `resources[0]` is the primary
+ * resource, and reordering is the same gesture in both places.
  *
  * Positional rather than flagged because the word is no guide: a `person`
  * type's `title` means Dr. or a job, not a name. What decides is where
  * the user put it.
  */
-export function isNamingField(field: string, schema: { fields: { name: string }[] }): boolean {
-  return schema.fields[0]?.name === field;
+export function isNamingField(field: string, schema: { attributes: { attribute: string }[] }): boolean {
+  return schema.attributes[0]?.attribute === field;
 }

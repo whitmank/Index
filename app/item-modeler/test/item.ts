@@ -9,34 +9,37 @@
 import path from "node:path";
 import type { Item } from "@index/database/types";
 
-export interface ItemOptions extends Partial<Item> {
+export interface ItemOptions extends Omit<Partial<Item>, "type"> {
+  /** A plain type name — this file wraps it into `{ value, prov: "user" }`
+   * so tests do not have to spell out the provenance every time. */
   type?: string | null;
 }
 
 /**
  * An item carrying one source and nothing else.
  *
- * Deliberately empty of fields: the evaluation must model from the source
- * alone, so nothing it produces can have leaked in from the answer key.
+ * Deliberately empty of metadata: the evaluation must model from the
+ * source alone, so nothing it produces can have leaked in from the
+ * answer key.
  */
 export function itemFor(uri: string, overrides: ItemOptions = {}): Item {
   const name = /^[a-z]+:\/\//i.test(uri) ? uri : path.basename(uri);
+  const { type, ...rest } = overrides;
   return {
     id: `items:${name}`,
     name,
     display_name: null,
     description: null,
-    date: "2026-08-13",
-    created_at: "2026-08-13T00:00:00Z",
+    date_added: "2026-08-13T00:00:00Z",
+    date_created: null,
     opens: null,
     query: null,
     system: false,
     is_set: false,
-    type: "book",
-    type_source: "user",
-    fields: [],
+    type: type === undefined ? { value: "book", prov: "user" } : type === null ? null : { value: type, prov: "user" },
+    metadata: [],
     resources: [{ uri, name }],
     deleted_at: null,
-    ...overrides,
+    ...rest,
   };
 }

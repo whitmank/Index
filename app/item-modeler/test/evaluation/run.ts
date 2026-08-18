@@ -33,7 +33,7 @@ import { itemFor } from "../item.js";
  * modeled from an item that carries only its source, so nothing the
  * module produces can have come from the answer key. */
 function blankItem(entry: CorpusEntry, source: string, corpus: Corpus): Item {
-  return itemFor(source, { type: entry.item.type ?? corpus.schema.name });
+  return itemFor(source, { type: entry.item.type?.value ?? corpus.schema.name });
 }
 
 async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string): Promise<EntryScore> {
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const fields = corpus.schema.fields.map((field) => field.name);
+  const fields = corpus.schema.attributes.map((attribute) => attribute.attribute);
   console.log(`\n${summary(entries)}\n`);
   console.log(`${fieldTable(entries, fields)}\n`);
   console.log(`${diffs(entries)}\n`);

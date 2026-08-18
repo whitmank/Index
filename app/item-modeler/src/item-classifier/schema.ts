@@ -8,7 +8,6 @@
 // member — no `oneOf` needed at all.
 export interface ItemType {
   name: string;
-  label: string | null;
 }
 
 export interface ItemTypeSchema {

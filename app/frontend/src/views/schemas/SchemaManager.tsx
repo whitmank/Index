@@ -1,18 +1,18 @@
 // Authored by Karter Whitman using Claude Sonnet 5
-// The schema manager: create a type, name its fields. A schema is data,
-// not code (database/types.ts) — this is the one place that data gets
-// written, the same relationship FieldsEditor has to an item's fields.
-// Schemas sit outside the Change model, like labels: there is nothing
-// about a type's shape to undo, only its current shape.
+// The schema manager: create a type, name its attributes. A schema is
+// data, not code (database/types.ts) — this is the one place that data
+// gets written, the same relationship FieldsEditor has to an item's
+// metadata. Schemas sit outside the Change model, like labels: there is
+// nothing about a type's shape to undo, only its current shape.
 //
 // `SchemaEditor` is the list-and-editor itself; `SchemaManager` is that
 // plus a standalone modal's backdrop and header — Settings' Types tab
 // wants the first without the second.
 import { useEffect, useRef, useState } from "react";
-import type { FieldKind, Schema, SchemaField } from "@index/database/types";
+import type { AttributeKind, Schema, SchemaAttribute } from "@index/database/types";
 import { SettleInput } from "../../components/SettleInput.tsx";
 
-const KINDS: FieldKind[] = ["string", "number", "date", "list"];
+const KINDS: AttributeKind[] = ["string", "number", "date", "list"];
 
 /** The password-reveal pair, in the app's own outline-glyph idiom
  * (DeviceIcon): plain currentColor strokes, so hover and quiet states
@@ -47,7 +47,7 @@ export interface SchemaManagerProps {
   onClose: () => void;
 }
 
-type Draft = Pick<Schema, "name" | "label" | "fields">;
+type Draft = Pick<Schema, "name" | "attributes">;
 
 /**
  * The list-and-editor body on its own, without a surface of its own to
@@ -84,7 +84,7 @@ export function SchemaEditor() {
     const name = newName.trim();
     if (!name) return;
     setNewName("");
-    save({ name, label: null, fields: [] });
+    save({ name, attributes: [] });
   };
 
   return (
@@ -101,7 +101,7 @@ export function SchemaEditor() {
             onClick={() => setSelectedName(schema.name)}
             type="button"
           >
-            {schema.label ?? schema.name}
+            {schema.name}
           </button>
         ))}
 
@@ -123,7 +123,7 @@ export function SchemaEditor() {
 
       <div className="schema-manager-editor">
         {!selected && <p className="renderer-quiet">Pick a type, or add one.</p>}
-        {selected && <FieldsList key={selected.id} onSave={save} schema={selected} />}
+        {selected && <AttributesList key={selected.id} onSave={save} schema={selected} />}
       </div>
     </div>
   );
@@ -163,11 +163,11 @@ export function SchemaManager({ onClose }: SchemaManagerProps) {
   );
 }
 
-/** The selected type's field list — one row per field, plus a standing
- * draft row, exactly FieldsEditor's shape one level up (defining fields
- * instead of filling them in). */
-function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) => void }) {
-  const [draftRow, setDraftRow] = useState<SchemaField>({ name: "", label: null, kind: "string" });
+/** The selected type's attribute list — one row per attribute, plus a
+ * standing draft row, exactly FieldsEditor's shape one level up (defining
+ * attributes instead of filling them in). */
+function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) => void }) {
+  const [draftRow, setDraftRow] = useState<SchemaAttribute>({ attribute: "", kind: "string", display: true });
   // SettleInput only clears its own typed text when its `value` prop
   // changes — and the draft row's value is "" both before typing and
   // after commit, so committing never actually changes it. Remounting
@@ -176,27 +176,27 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
   const [dragging, setDragging] = useState<number | null>(null);
   const fieldsRef = useRef<HTMLDivElement>(null);
 
-  const commitFields = (fields: SchemaField[]): void => {
-    onSave({ name: schema.name, label: schema.label, fields: fields.filter((f) => f.name.trim() !== "") });
+  const commitAttributes = (attributes: SchemaAttribute[]): void => {
+    onSave({ name: schema.name, attributes: attributes.filter((a) => a.attribute.trim() !== "") });
   };
 
-  const updateField = (index: number, patch: Partial<SchemaField>): void => {
-    const next = schema.fields.map((field, at) => (at === index ? { ...field, ...patch } : field));
-    commitFields(next);
+  const updateAttribute = (index: number, patch: Partial<SchemaAttribute>): void => {
+    const next = schema.attributes.map((attribute, at) => (at === index ? { ...attribute, ...patch } : attribute));
+    commitAttributes(next);
   };
 
-  const addDraft = (patch: Partial<SchemaField>): void => {
+  const addDraft = (patch: Partial<SchemaAttribute>): void => {
     const row = { ...draftRow, ...patch };
-    if (row.name.trim() === "") {
+    if (row.attribute.trim() === "") {
       setDraftRow(row);
       return;
     }
-    setDraftRow({ name: "", label: null, kind: "string" });
+    setDraftRow({ attribute: "", kind: "string", display: true });
     setDraftGeneration((generation) => generation + 1);
-    commitFields([...schema.fields, row]);
+    commitAttributes([...schema.attributes, row]);
   };
 
-  /** Which real field the pointer is over — the standing draft row at
+  /** Which real attribute the pointer is over — the standing draft row at
    * the end is never itself a drop target. */
   const indexAt = (clientY: number): number => {
     const rows = [
@@ -209,9 +209,9 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
     return rows.length;
   };
 
-  /** A field's order is the array's order — there is no arrow to move,
-   * so this writes the whole reordered list back in one save, the same
-   * as any other field edit. */
+  /** An attribute's order is the array's order — there is no arrow to
+   * move, so this writes the whole reordered list back in one save, the
+   * same as any other attribute edit. */
   const startReorder = (event: React.PointerEvent, from: number): void => {
     event.preventDefault();
     setDragging(from);
@@ -225,10 +225,10 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
       const target = indexAt(up.clientY);
       const to = target > from ? target - 1 : target;
       if (to === from) return;
-      const next = [...schema.fields];
+      const next = [...schema.attributes];
       const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved as SchemaField);
-      commitFields(next);
+      next.splice(to, 0, moved as SchemaAttribute);
+      commitAttributes(next);
     };
 
     window.addEventListener("pointermove", onMove, { passive: false });
@@ -240,10 +240,10 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
       <h3>{schema.name}</h3>
 
       <div className="schema-fields" ref={fieldsRef}>
-        {schema.fields.map((field, index) => (
+        {schema.attributes.map((attribute, index) => (
           <div
             className={dragging === index ? "schema-field-row is-dragging" : "schema-field-row"}
-            key={`${field.name}-${index}`}
+            key={`${attribute.attribute}-${index}`}
           >
             <button
               aria-label="reorder"
@@ -255,11 +255,11 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
             </button>
 
             {/* One fixed-width column, two jobs — whichever this row has.
-                The leading field is the item's name, so whether it shows
-                among the fields is not a question it has; every other row
-                answers it with the eye. Sharing the column keeps each
-                row's input starting at the same x, as the resources list
-                does with its primary star. */}
+                The leading attribute is the item's name, so whether it
+                shows among the attributes is not a question it has;
+                every other row answers it with the eye. Sharing the
+                column keeps each row's input starting at the same x, as
+                the resources list does with its primary star. */}
             {index === 0 ? (
               <span
                 className="schema-field-primary-indicator"
@@ -270,33 +270,33 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
             ) : (
               <button
                 aria-label={
-                  field.hidden
-                    ? `show ${field.name} on the item`
-                    : `hide ${field.name} from the top of the item`
+                  attribute.display
+                    ? `hide ${attribute.attribute} from the top of the item`
+                    : `show ${attribute.attribute} on the item`
                 }
-                aria-pressed={!field.hidden}
+                aria-pressed={attribute.display}
                 className="field-visibility"
-                onClick={() => updateField(index, { hidden: !field.hidden })}
+                onClick={() => updateAttribute(index, { display: !attribute.display })}
                 title={
-                  field.hidden
-                    ? "hidden from the top of the item — still kept, and still editable in its fields list"
-                    : "shown at the top of the item — click to keep it further down instead"
+                  attribute.display
+                    ? "shown at the top of the item — click to keep it further down instead"
+                    : "hidden from the top of the item — still kept, and still editable in its fields list"
                 }
                 type="button"
               >
-                <EyeIcon open={!field.hidden} />
+                <EyeIcon open={attribute.display} />
               </button>
             )}
             <SettleInput
               ariaLabel="field name"
-              onCommit={(name) => updateField(index, { name })}
+              onCommit={(attributeName) => updateAttribute(index, { attribute: attributeName })}
               placeholder="name"
-              value={field.name}
+              value={attribute.attribute}
             />
             <select
               aria-label="field kind"
-              onChange={(event) => updateField(index, { kind: event.target.value as FieldKind })}
-              value={field.kind}
+              onChange={(event) => updateAttribute(index, { kind: event.target.value as AttributeKind })}
+              value={attribute.kind}
             >
               {KINDS.map((kind) => (
                 <option key={kind} value={kind}>
@@ -305,9 +305,9 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
               ))}
             </select>
             <button
-              aria-label={`remove ${field.name}`}
+              aria-label={`remove ${attribute.attribute}`}
               className="field-remove"
-              onClick={() => commitFields(schema.fields.filter((_, at) => at !== index))}
+              onClick={() => commitAttributes(schema.attributes.filter((_, at) => at !== index))}
               type="button"
             >
               ✕
@@ -323,13 +323,13 @@ function FieldsList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) 
           <span />
           <SettleInput
             ariaLabel="new field name"
-            onCommit={(name) => addDraft({ name })}
+            onCommit={(attribute) => addDraft({ attribute })}
             placeholder="name"
-            value={draftRow.name}
+            value={draftRow.attribute}
           />
           <select
             aria-label="new field kind"
-            onChange={(event) => setDraftRow({ ...draftRow, kind: event.target.value as FieldKind })}
+            onChange={(event) => setDraftRow({ ...draftRow, kind: event.target.value as AttributeKind })}
             value={draftRow.kind}
           >
             {KINDS.map((kind) => (

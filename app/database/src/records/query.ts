@@ -49,9 +49,16 @@ function compareTerm(kind: string, left: string, operator: string, bound: string
 
 function compilePredicate(predicate: Predicate, bindings: Bindings, formats: Format[]): string | null {
   if ("date" in predicate) {
+    // The grammar's `date` key targets `date_added` — the day an item
+    // was indexed, same as it always has. Filtering a set by the
+    // intrinsic `date_created` is not part of the v1 grammar (PRODUCT-
+    // SPEC §1.5); nothing needs it yet. `date_added` is a `datetime`
+    // field; the grammar's bounds are day strings, so the field is
+    // sliced down to a day before comparing.
+    const day = "string::slice(<string> date_added, 0, 10)";
     const terms: string[] = [];
-    if (predicate.date.gte !== undefined) terms.push(`date >= ${bindings.add(predicate.date.gte)}`);
-    if (predicate.date.lte !== undefined) terms.push(`date <= ${bindings.add(predicate.date.lte)}`);
+    if (predicate.date.gte !== undefined) terms.push(`${day} >= ${bindings.add(predicate.date.gte)}`);
+    if (predicate.date.lte !== undefined) terms.push(`${day} <= ${bindings.add(predicate.date.lte)}`);
     return terms.length ? `(${terms.join(" AND ")})` : null;
   }
 
@@ -70,18 +77,21 @@ function compilePredicate(predicate: Predicate, bindings: Bindings, formats: For
     return `id IN (SELECT VALUE in FROM connections WHERE out = ${target} AND label = ${MEMBER_OF_LABEL_ID} AND deleted_at IS NONE)`;
   }
 
-  const { name, kind, gte, lte, eq } = predicate.field;
-  // A field's *name* is a key and is matched case-insensitively, the way
-  // every other name comparison in the app is: an item's fields arrive
-  // capitalised however their type declares them, however the Spotify
-  // import writes them, and however the user typed them into a row. The
-  // *value* is content and is compared as given. No index is lost —
-  // `fields` is an array scanned inside the row either way.
-  const terms = [`string::lowercase(name) = ${bindings.add(name.toLowerCase())}`];
+  const { attribute, kind, gte, lte, eq } = predicate.metadata;
+  // An attribute's *name* is a key and is matched case-insensitively, the
+  // way every other name comparison in the app is: an item's metadata
+  // arrives capitalised however their type declares it, however the
+  // Spotify import writes it, and however the user typed it into a row.
+  // The *value* is content and is compared as given. No index is lost —
+  // `metadata` is an array scanned inside the row either way.
+  const terms =
+    attribute !== undefined
+      ? [`string::lowercase(attribute) = ${bindings.add(attribute.toLowerCase())}`]
+      : [];
   if (eq !== undefined) terms.push(compareTerm(kind, "value", "=", bindings.add(eq)));
   if (gte !== undefined) terms.push(compareTerm(kind, "value", ">=", bindings.add(gte)));
   if (lte !== undefined) terms.push(compareTerm(kind, "value", "<=", bindings.add(lte)));
-  return `array::len(fields[WHERE ${terms.join(" AND ")}]) > 0`;
+  return terms.length ? `array::len(metadata[WHERE ${terms.join(" AND ")}]) > 0` : null;
 }
 
 export function compileQuery(query: SetQuery): CompiledQuery {

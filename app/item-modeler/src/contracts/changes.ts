@@ -6,7 +6,7 @@
 // approve it, turn it into an Index `Change` and apply it, or throw it
 // away. `modelItem` never persists, so this is the whole of what it has
 // to say about what it would have written.
-import type { Field } from "@index/database/types";
+import type { MetadataEntry } from "@index/database/types";
 import type { FieldProvenance } from "./provenance.js";
 
 /**
@@ -47,8 +47,8 @@ export interface FieldChange {
    * cannot be described as one. */
   target: "field" | "name";
   action: ChangeAction;
-  before?: Field["value"];
-  after?: Field["value"];
+  before?: MetadataEntry["value"];
+  after?: MetadataEntry["value"];
   /** Present whenever a value was written or confirmed — the answer to
    * "why does it say that". Absent on a `skipped` with no candidate. */
   provenance?: FieldProvenance;

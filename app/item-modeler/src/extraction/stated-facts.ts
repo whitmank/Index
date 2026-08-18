@@ -65,14 +65,14 @@ export function statedFacts(
 
   for (const [key, concept] of STATED) {
     const field = fieldForConcept(schema, concept);
-    if (!field || claimed.has(field.name)) continue;
+    if (!field || claimed.has(field.attribute)) continue;
 
     const entry = basket.entries.find((candidate) => candidate.key === key);
     if (!entry) continue;
 
-    claimed.add(field.name);
+    claimed.add(field.attribute);
     facts.push({
-      field: field.name,
+      field: field.attribute,
       value: entry.value,
       provenance: {
         origin: "deterministic",

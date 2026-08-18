@@ -93,11 +93,11 @@ function coverage(report: Report): { field: string; filled: number; total: numbe
       total,
     },
   ];
-  for (const field of report.schema.fields.slice(1)) {
+  for (const field of report.schema.attributes.slice(1)) {
     rows.push({
-      field: field.name,
+      field: field.attribute,
       filled: report.sources.filter((source) =>
-        source.fields.some((entry) => entry.name === field.name && entry.value !== null),
+        source.fields.some((entry) => entry.name === field.attribute && entry.value !== null),
       ).length,
       total,
     });

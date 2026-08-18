@@ -16,7 +16,7 @@
 // model" is returned to compete with it as the source of truth: the spec
 // is emphatic about this, and it is why the function takes an Item and
 // returns an Item rather than a bag of fields somebody else has to merge.
-import type { Field, Item, Schema } from "@index/database/types";
+import type { Item, MetadataEntry, Schema } from "@index/database/types";
 import type { ConflictPolicy } from "../contracts/modeling-options.js";
 import type { FieldChange } from "../contracts/changes.js";
 import type { ModelingConflict } from "../contracts/conflicts.js";
@@ -48,9 +48,11 @@ export interface Applied {
   conflicts: ModelingConflict[];
 }
 
-/** Rows are matched case-insensitively, like every other name in the app. */
-function sameField(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
+/** Rows are matched case-insensitively, like every other name in the
+ * app. A null attribute is a freeform tag, never a named target — it
+ * never matches and is left alone. */
+function sameField(a: string | null, b: string): boolean {
+  return a !== null && a.toLowerCase() === b.toLowerCase();
 }
 
 export function applyModelingResult(request: ApplyRequest): Applied {
@@ -59,7 +61,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
 
   const changes: FieldChange[] = [];
   const conflicts: ModelingConflict[] = [];
-  const writes = new Map<string, Field>();
+  const writes = new Map<string, MetadataEntry>();
   let name = item.name;
 
   for (const entry of resolved) {
@@ -79,7 +81,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
     const ownership = ownershipOf(entry.field, context);
 
     if (ownership === "empty") {
-      writes.set(entry.field, { name: entry.field, value: entry.value, kind: entry.kind });
+      writes.set(entry.field, { attribute: entry.field, value: entry.value, kind: entry.kind, prov: "auto" });
       changes.push({
         field: entry.field,
         target: "field",
@@ -107,7 +109,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
         });
         continue;
       }
-      writes.set(entry.field, { name: entry.field, value: entry.value, kind: entry.kind });
+      writes.set(entry.field, { attribute: entry.field, value: entry.value, kind: entry.kind, prov: "auto" });
       changes.push({
         field: entry.field,
         target: "field",
@@ -161,7 +163,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
       });
       continue;
     }
-    writes.set(entry.field, { name: entry.field, value: entry.value, kind: entry.kind });
+    writes.set(entry.field, { attribute: entry.field, value: entry.value, kind: entry.kind, prov: "auto" });
     changes.push({
       field: entry.field,
       target: "field",
@@ -213,24 +215,24 @@ function applyName(item: Item, entry: ResolvedValue, derivedName: string | null)
 
 /**
  * A found field replaces the row already standing for it rather than
- * landing beside it — the layout draws a type's declared fields whether
- * or not they carry anything, so appending would show the name twice with
- * one of them empty.
+ * landing beside it — the layout draws a type's declared attributes
+ * whether or not they carry anything, so appending would show the name
+ * twice with one of them empty.
  */
-function writeFields(item: Item, name: string, writes: Map<string, Field>): Item {
+function writeFields(item: Item, name: string, writes: Map<string, MetadataEntry>): Item {
   if (writes.size === 0 && name === item.name) return item;
 
-  const existing = item.fields ?? [];
-  const replaced = existing.map((field) => {
+  const existing = item.metadata ?? [];
+  const replaced = existing.map((entry) => {
     for (const [target, written] of writes) {
-      if (sameField(field.name, target)) return { ...written, name: field.name };
+      if (sameField(entry.attribute, target)) return { ...written, attribute: entry.attribute };
     }
-    return field;
+    return entry;
   });
 
   const added = [...writes.entries()]
-    .filter(([target]) => !existing.some((field) => sameField(field.name, target)))
+    .filter(([target]) => !existing.some((entry) => sameField(entry.attribute, target)))
     .map(([, written]) => written);
 
-  return { ...item, name, fields: [...replaced, ...added] };
+  return { ...item, name, metadata: [...replaced, ...added] };
 }

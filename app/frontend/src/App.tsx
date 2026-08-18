@@ -801,7 +801,7 @@ function isBlankDraft(item: Item): boolean {
     !item.display_name &&
     !item.type &&
     item.resources.length === 0 &&
-    item.fields.length === 0 &&
+    item.metadata.length === 0 &&
     pool.connectionsTouching(item.id).length === 0
   );
 }

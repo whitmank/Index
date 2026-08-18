@@ -18,17 +18,18 @@ import {
 
 const DEVICE = "local";
 
-function blank(name: string, date: string, resources: Item["resources"] = []): Item {
+function blank(name: string, dateAdded: string, resources: Item["resources"] = []): Item {
   return {
     id: itemId(),
     name,
     display_name: null,
-    date,
+    date_added: dateAdded,
+    date_created: null,
     created_at: new Date().toISOString(),
     opens: null,
     query: null,
     system: false,
-    fields: [],
+    metadata: [],
     resources,
     deleted_at: null,
   };

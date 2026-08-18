@@ -11,7 +11,7 @@
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
 import path from "node:path";
-import { listSchemas, schemaFor, type Field, type Resource, type Schema } from "@index/database";
+import { listSchemas, schemaFor, type MetadataEntry, type Resource, type Schema } from "@index/database";
 import { selfDevice } from "../config.js";
 import { deriveForResource } from "./derivations.js";
 import { classifyResource } from "./ingest/classify.js";
@@ -83,7 +83,7 @@ export interface IntakeResult {
   type: string | null;
   /** Best-effort extraction, keyed to `type`'s extractor; empty when
    * there is none for the guessed type, or it found nothing. */
-  fields: Field[];
+  metadata: MetadataEntry[];
   /** What the content says this should be called, when its format has a
    * name to offer — a book's title, where `resource.name` is only ever
    * the filename it happened to be saved under. Absent for everything
@@ -122,7 +122,7 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
 
       const type = await classifyResource(derived, probe);
-      const { name, fields } = await extract(
+      const { name, metadata } = await extract(
         type,
         probe,
         schemaFor(schemas, type),
@@ -131,7 +131,7 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       return {
         resource: await withIdentity(derived, probe),
         type,
-        fields,
+        metadata,
         ...(name ? { name } : {}),
       };
     }),

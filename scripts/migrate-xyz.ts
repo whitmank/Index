@@ -33,8 +33,8 @@ import {
   HOME_SET_ID,
   type Change,
   type Connection,
-  type Field,
   type Item,
+  type MetadataEntry,
   type Resource,
 } from "@index/database";
 
@@ -169,17 +169,18 @@ async function waitForHealth(port: number): Promise<void> {
 
 // ── build the change ─────────────────────────────────────────────────────
 
-function blankItem(id: string, name: string, date: string, createdAt: string): Item {
+function blankItem(id: string, name: string, dateAdded: string, createdAt: string): Item {
   return {
     id,
     name,
     display_name: null,
-    date,
+    date_added: dateAdded,
+    date_created: null,
     created_at: createdAt,
     opens: null,
     query: null,
     system: false,
-    fields: [],
+    metadata: [],
     resources: [],
     deleted_at: null,
   };
@@ -207,6 +208,8 @@ function build(items: XyzItem[], layout: XyzLayout[]): Change {
     for (const type of item.types ?? []) {
       const name = type.toLowerCase();
       const current = tagEarliest.get(name);
+      // `item` is a source XyzItem row here, with its own `date` field —
+      // not the target Item's `date_added`.
       if (!current || item.date < current) tagEarliest.set(name, item.date);
     }
   }
@@ -223,10 +226,11 @@ function build(items: XyzItem[], layout: XyzLayout[]): Change {
 
     const item = blankItem(itemId(raw), source.title, source.date, createdAt);
     item.resources = (source.sources ?? []).map(resourceOf);
-    item.fields = (source.fields ?? []).map<Field>((field) => ({
-      name: field.name,
+    item.metadata = (source.fields ?? []).map<MetadataEntry>((field) => ({
+      attribute: field.name,
       value: field.value,
       kind: "string",
+      prov: "auto",
     }));
     pairs.push({ before: null, after: item });
 

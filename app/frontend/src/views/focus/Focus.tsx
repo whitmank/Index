@@ -45,11 +45,11 @@ import { ResourcesEditor } from "./ResourcesEditor.tsx";
 
 /** The type chip's tooltip. It used to claim "you classified this" for
  * every typed item, including ones the classifier typed at intake and the
- * user never touched — `type_source` is what lets it stop saying that,
+ * user never touched — `type.prov` is what lets it stop saying that,
  * and lets a guess point at the resource it came from. */
 function typeProvenance(item: Item): string {
   if (!item.type) return "not yet classified";
-  if (item.type_source === "user") return "you set this — click to change";
+  if (item.type.prov === "user") return "you set this — click to change";
   const primary = item.resources[0];
   return primary
     ? `guessed from ${primary.name} — click to change`
@@ -57,11 +57,9 @@ function typeProvenance(item: Item): string {
 }
 
 /** Whether there is a guess standing unanswered. A type the user chose
- * needs no agreeing with — picking it from the menu already said so — and
- * a legacy row with no recorded source counts as unanswered, since
- * nothing on it says a person decided. */
+ * needs no agreeing with — picking it from the menu already said so. */
 function awaitsConfirmation(item: Item): boolean {
-  return Boolean(item.type) && item.type_source !== "user";
+  return Boolean(item.type) && item.type?.prov !== "user";
 }
 
 /** A child's trailing bit in its ordered-children row — a song's length
@@ -69,8 +67,8 @@ function awaitsConfirmation(item: Item): boolean {
  * Reads a field literally named "duration"; nothing here knows or cares
  * that the parent happens to be an album. */
 function durationOf(child: Item): string {
-  const field = child.fields.find((candidate) => candidate.name.toLowerCase() === "duration");
-  return typeof field?.value === "string" ? field.value : "";
+  const entry = child.metadata.find((candidate) => candidate.attribute?.toLowerCase() === "duration");
+  return typeof entry?.value === "string" ? entry.value : "";
 }
 
 export interface FocusProps {
@@ -204,7 +202,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
   // cascade: an untyped item, or one whose type names no schema, simply
   // gets none, and the generic FieldsEditor draws everything instead.
   const knownFields = useMemo(
-    () => (item ? knownFieldsFor(item.type, schemas) : []),
+    () => (item ? knownFieldsFor(item.type?.value ?? null, schemas) : []),
     [item, schemas],
   );
 
@@ -275,7 +273,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       </label>
       <KnownFields fields={knownFields} item={item} />
       <ChildrenList rows={childRows} />
-      <FieldsEditor exclude={knownFields.map((field) => field.name)} item={item} />
+      <FieldsEditor exclude={knownFields.map((field) => field.attribute)} item={item} />
       <ResourcesEditor item={item} />
       <ConnectionComposer item={item} onNavigate={(id) => onGoTo({ id })} outbound={outbound} />
     </>
@@ -330,7 +328,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
               title={typeProvenance(item)}
               type="button"
             >
-              <span className="type-trigger-label">{item.type ?? "untyped"}</span>
+              <span className="type-trigger-label">{item.type?.value ?? "untyped"}</span>
               <span className="type-trigger-caret" aria-hidden="true">
                 ⌄
               </span>
@@ -341,7 +339,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 confirmed state — there is nothing left to ask. */}
             {awaitsConfirmation(item) && (
               <button
-                aria-label={`confirm this item is a ${item.type}`}
+                aria-label={`confirm this item is a ${item.type?.value}`}
                 className="type-confirm"
                 onClick={() => void apply(changes.confirmType(item))}
                 title="confirm this type, so changing resources won't revise it"
@@ -360,19 +358,19 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                   <li key={schema.id}>
                     <button
                       className={
-                        item.type && sameTypeName(schema.name, item.type)
+                        item.type && sameTypeName(schema.name, item.type.value)
                           ? "type-option is-current"
                           : "type-option"
                       }
                       onClick={() => {
                         setTypeMenuOpen(false);
-                        if (!item.type || !sameTypeName(schema.name, item.type)) {
+                        if (!item.type || !sameTypeName(schema.name, item.type.value)) {
                           void apply(changes.setType(item, schema.name));
                         }
                       }}
                       type="button"
                     >
-                      {schema.label ?? schema.name}
+                      {schema.name}
                     </button>
                   </li>
                 ))}
@@ -452,7 +450,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
                 }}
                 title={
                   item.type
-                    ? `read this file and fill in what a ${item.type} declares`
+                    ? `read this file and fill in what a ${item.type.value} declares`
                     : "give it a type first"
                 }
                 type="button"

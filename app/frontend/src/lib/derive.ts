@@ -6,7 +6,7 @@
 // This mirrors app/database/src/derive.ts. If the ladder changes, both
 // change — the alternative was importing runtime code from the database
 // package into the renderer bundle, which the dependency rule forbids.
-import type { Connection, FieldKind, Format, Item, Resource, Schema } from "@index/database/types";
+import type { AttributeKind, Connection, Format, Item, Resource, Schema } from "@index/database/types";
 import { MEMBER_OF_LABEL_ID } from "./seeds.js";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic"]);
@@ -33,24 +33,25 @@ export function schemaFor<T extends { name: string }>(
   return schemas.find((schema) => sameTypeName(schema.name, type));
 }
 
-/** A type's own field: its name, and the kind its value editor should
- * present as — `list` gets chips (ListValueInput), everything else a
- * single line (SettleInput). */
+/** A type's own field: its attribute name, and the kind its value editor
+ * should present as — `list` gets chips (ListValueInput), everything
+ * else a single line (SettleInput). */
 export interface KnownField {
-  name: string;
-  kind: FieldKind;
+  attribute: string;
+  kind: AttributeKind;
 }
 
-/** The fields a type's schema pulls out of the generic list into their
- * own always-present, editable rows — everything but the identity field
- * (already drawn as the item's name, above these) and anything marked
- * `hidden`. An untyped item, one whose type names no schema, or one with
- * nothing left after both filters gets none: the generic FieldsEditor
- * (which excludes whatever this returns) draws everything instead. */
+/** The attributes a type's schema pulls out of the generic list into
+ * their own always-present, editable rows — everything but the identity
+ * attribute (already drawn as the item's name, above these) and anything
+ * marked `display: false`. An untyped item, one whose type names no
+ * schema, or one with nothing left after both filters gets none: the
+ * generic FieldsEditor (which excludes whatever this returns) draws
+ * everything instead. */
 export function knownFieldsFor(type: string | null, schemas: Schema[]): KnownField[] {
   const schema = schemaFor(schemas, type);
-  const declared = schema?.fields.slice(1).filter((field) => !field.hidden) ?? [];
-  return declared.map((field) => ({ name: field.name, kind: field.kind }));
+  const declared = schema?.attributes.slice(1).filter((attribute) => attribute.display) ?? [];
+  return declared.map((attribute) => ({ attribute: attribute.attribute, kind: attribute.kind }));
 }
 
 export function deviceOf(uri: string): string {

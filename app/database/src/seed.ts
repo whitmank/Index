@@ -20,12 +20,6 @@ import {
 import { recordId } from "./records/serialize.js";
 import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "./types.js";
 
-function today(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
-
 const SEEDS = [
   {
     id: HOME_SET_ID,
@@ -33,9 +27,9 @@ const SEEDS = [
     // Everything belongs to this set (its id is still `~`); it is the
     // application's home, titled "All" for the set list.
     query: { all: true },
-    fields: [
-      { name: TIMELINE_PARTITION_FIELD, value: "date", kind: "string" },
-      { name: TIMELINE_DIRECTION_FIELD, value: "forward", kind: "string" },
+    metadata: [
+      { attribute: TIMELINE_PARTITION_FIELD, value: "date_added", kind: "string", prov: "auto" },
+      { attribute: TIMELINE_DIRECTION_FIELD, value: "forward", kind: "string", prov: "auto" },
     ],
   },
   {
@@ -43,16 +37,15 @@ const SEEDS = [
     name: "public",
     // Explicit membership only: the make-public toggle writes the arrow.
     query: undefined,
-    fields: [
-      { name: TIMELINE_PARTITION_FIELD, value: "created_at", kind: "string" },
-      { name: TIMELINE_DIRECTION_FIELD, value: "backward", kind: "string" },
+    metadata: [
+      { attribute: TIMELINE_PARTITION_FIELD, value: "created_at", kind: "string", prov: "auto" },
+      { attribute: TIMELINE_DIRECTION_FIELD, value: "backward", kind: "string", prov: "auto" },
     ],
   },
 ] as const;
 
 export async function seed(): Promise<void> {
   const db = getDb();
-  const date = today();
 
   for (const record of SEEDS) {
     await db
@@ -61,20 +54,18 @@ export async function seed(): Promise<void> {
          IF array::len($existing) = 0 THEN
            (CREATE $id CONTENT {
              name: $name,
-             date: $date,
              is_set: true,
              system: true,
              query: $query,
-             fields: $fields,
+             metadata: $metadata,
              resources: []
            })
          END;`,
         {
           id: recordId(record.id),
           name: record.name,
-          date,
           query: record.query,
-          fields: record.fields,
+          metadata: record.metadata,
         },
       )
       .collect();

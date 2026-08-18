@@ -7,15 +7,21 @@
 // is what a SurrealDB relation calls its endpoints. The wire shape says
 // `source`/`target`, which is what the glossary calls them.
 
-export type FieldKind = "string" | "number" | "date" | "list";
+export type AttributeKind = "string" | "number" | "date" | "list";
+
+/** Who supplied a value: the classifier/extractor's own guess, or a
+ * choice the user made directly. */
+export type Provenance = "auto" | "user";
 
 /** A name/value statement on an item. `list` is the one kind whose
  * value is several strings rather than one — a cast, say — everything
- * else is scalar. */
-export interface Field {
-  name: string;
+ * else is scalar. `attribute` null means a freeform tag: a value with
+ * no name, just content. */
+export interface MetadataEntry {
+  attribute: string | null;
   value: string | string[];
-  kind: FieldKind;
+  kind: AttributeKind;
+  prov: Provenance;
 }
 
 /**
@@ -46,19 +52,24 @@ export interface Resource {
 /** Derived from the primary resource; selects the renderer. Never stored. */
 export type Format = "bare" | "image" | "markdown" | "book" | "video" | "link" | "file";
 
-/** The provenance of an item's `type`: the classifier's own guess, or a
- * choice the user made. Stored rather than inferred — nothing else in the
- * row records who decided, and the two are treated differently. */
-export type TypeSource = "auto" | "user" | null;
+/** A classification (e.g. "book"), naming a row in `schemas`, paired
+ * atomically with who decided it — one fact, not two fields that can
+ * drift apart. The classifier may replace its own `"auto"` guess when
+ * the primary resource changes, but never a `"user"` one. */
+export interface ItemType {
+  value: string;
+  prov: Provenance;
+}
 
 export interface DateRange {
   gte?: string;
   lte?: string;
 }
 
-export interface FieldPredicate {
-  name: string;
-  kind: FieldKind;
+export interface MetadataPredicate {
+  /** Absent matches any attribute — useful for a freeform-tag search. */
+  attribute?: string;
+  kind: AttributeKind;
   gte?: string;
   lte?: string;
   eq?: string;
@@ -70,7 +81,7 @@ export type Predicate =
   | { device: string }
   | { format: Format }
   | { arrowTo: string }
-  | { field: FieldPredicate };
+  | { metadata: MetadataPredicate };
 
 /** A stored query, on items playing the set role. */
 export type SetQuery = { all: true } | { and: Predicate[] };
@@ -83,9 +94,16 @@ export interface Item {
   /** What the user said this is, in their own words — captured once at
    * intake, optional, and freeform rather than derived. */
   description: string | null;
-  /** The intrinsic journal day, ISO `YYYY-MM-DD`. */
-  date: string;
-  created_at: string;
+  /** ISO datetime, immutable — when the item entered the index. Set
+   * once at creation (absorbs what used to be the separate `created_at`)
+   * and never changed after; drives the `~` timeline's default
+   * partition and default ordering. */
+  date_added: string;
+  /** ISO datetime, mutable, intrinsic to the resource itself — a
+   * photo's shot date, a book's publication date — not when it was
+   * indexed. Absent until a user sets it or a future extraction fills
+   * it in; nothing populates it automatically yet. */
+  date_created: string | null;
   /** Presentation override: a layout key (Focus's, not a view kind — how
    * you view a set's members is a global, application-level toggle now,
    * not remembered per set). */
@@ -98,53 +116,47 @@ export interface Item {
    * one deliberate exception, for the bootstrapping moment before either
    * exists yet. */
   is_set: boolean;
-  /** A classification (e.g. "book"), naming a row in `schemas`. Guessed
-   * at intake, user-overridable — the same shape as `opens`. Absence is
-   * not an error: an untyped item just has no schema fields to show. */
-  type: string | null;
-  /** Who decided `type`. The classifier may replace its own guess when
-   * the primary resource changes, but never a `"user"` one — so this is
-   * what keeps a hand-set type from being argued with. Null while
-   * untyped, and again after the type is cleared: clearing withdraws an
-   * opinion rather than asserting an empty one, which reopens guessing. */
-  type_source: TypeSource;
-  fields: Field[];
+  /** Guessed at intake, user-overridable — the same shape as `opens`.
+   * Null while untyped, and again after the type is cleared: clearing
+   * withdraws an opinion rather than asserting an empty one, which
+   * reopens guessing. Absence is not an error: an untyped item just has
+   * no schema fields to show. */
+  type: ItemType | null;
+  metadata: MetadataEntry[];
   /** Ordered; `resources[0]` is primary. */
   resources: Resource[];
   deleted_at: string | null;
 }
 
-/** One field a `type` is known to carry, and how to present it. */
-export interface SchemaField {
-  name: string;
-  /** Display label; falls back to `name` when absent. */
-  label: string | null;
-  kind: FieldKind;
+/** One attribute a `type` is known to carry, and how to present it. */
+export interface SchemaAttribute {
+  attribute: string;
+  kind: AttributeKind;
   /**
-   * Keep this field out of the laid-out block at the top of Focus.
+   * Show this attribute in the laid-out block at the top of Focus.
    *
-   * Not a secret and not a deletion: the value is still extracted, still
-   * stored, and still shown — it drops to the generic fields list below,
-   * which draws whatever the layout did not claim
+   * `false` is not a secret and not a deletion: the value is still
+   * extracted, still stored, and still shown — it drops to the generic
+   * metadata list below, which draws whatever the layout did not claim
    * (views/focus/FieldsEditor.tsx). An ISBN is worth having and rarely
    * worth looking at, and this is the difference.
    *
-   * A flag rather than a position, unlike the name: where a field sits
-   * says which matters most, which is a different question from whether
-   * it earns room up front.
+   * A flag rather than a position, unlike `attribute`, where an
+   * attribute sits says which matters most, which is a different
+   * question from whether it earns room up front. Defaults `true`.
    */
-  hidden?: boolean;
+  display: boolean;
 }
 
 /**
- * A type's field list, as data — not a code table (PRODUCT-SPEC-style
+ * A type's attribute list, as data — not a code table (PRODUCT-SPEC-style
  * "schema-free" extension applied one level up: adding a type is adding a
  * row, not shipping code).
  *
- * **`fields[0]` is the item's name**, the same way `resources[0]` is the
- * primary resource: ordered, and reordering is how the user says which
- * one it is. A book's title is what the book is called, so it leads —
- * the ingestor writes what it extracted there into `Item.name`
+ * **`attributes[0]` is the item's name**, the same way `resources[0]` is
+ * the primary resource: ordered, and reordering is how the user says
+ * which one it is. A book's title is what the book is called, so it
+ * leads — the ingestor writes what it extracted there into `Item.name`
  * (ingest/extract.ts) and the layout draws the rest (layouts/registry.tsx),
  * since the name is already on screen above them.
  *
@@ -160,8 +172,7 @@ export interface Schema {
   /** `schemas:book` — slugified from `name`. */
   id: string;
   name: string;
-  label: string | null;
-  fields: SchemaField[];
+  attributes: SchemaAttribute[];
 }
 
 export interface Position {

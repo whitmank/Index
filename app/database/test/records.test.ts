@@ -47,15 +47,14 @@ function blankItem(overrides: Partial<Item> = {}): Item {
     name: "",
     display_name: null,
     description: null,
-    date: "2026-07-20",
-    created_at: new Date().toISOString(),
+    date_added: new Date().toISOString(),
+    date_created: null,
     opens: null,
     query: null,
     system: false,
     is_set: false,
     type: null,
-    type_source: null,
-    fields: [],
+    metadata: [],
     resources: [],
     deleted_at: null,
     ...overrides,
@@ -129,7 +128,7 @@ async function main(): Promise<void> {
     const afterRename = await getItem(photo.id);
     check("rename landed", () => {
       assert.equal(afterRename?.name, "hallway, morning");
-      assert.equal(afterRename?.created_at, stored!.created_at);
+      assert.equal(afterRename?.date_added, stored!.date_added);
     });
 
     console.log("\ntag");
@@ -241,11 +240,11 @@ async function main(): Promise<void> {
     });
 
     console.log("\nquery predicates");
-    const dated = blankItem({ name: "old note", date: "2020-01-01" });
+    const dated = blankItem({ name: "old note", date_added: "2020-01-01" });
     const recent = blankItem({
       name: "new note",
-      date: "2026-07-20",
-      fields: [{ name: "year", value: "1999", kind: "number" }],
+      date_added: "2026-07-20",
+      metadata: [{ attribute: "year", value: "1999", kind: "number", prov: "auto" }],
       resources: [{ uri: "https://example.com/a", name: "example" }],
     });
     await applyChange({
@@ -264,7 +263,7 @@ async function main(): Promise<void> {
     const linkSet = blankItem({ name: "links", query: { and: [{ format: "link" }] } });
     const yearSet = blankItem({
       name: "released in the nineties",
-      query: { and: [{ field: { name: "year", kind: "number", gte: "1990", lte: "1999" } }] },
+      query: { and: [{ metadata: { attribute: "year", kind: "number", gte: "1990", lte: "1999" } }] },
     });
     await applyChange({
       description: "Seed query sets",
@@ -380,25 +379,26 @@ async function main(): Promise<void> {
       assert.equal(readBack?.child, true);
     });
 
-    console.log("\nqueries: a field name is a key, not content");
+    console.log("\nqueries: an attribute name is a key, not content");
 
-    // Fields arrive capitalised however a type declares them, however the
-    // Spotify import writes them, and however they were typed into a row —
-    // so a predicate naming one has to find it whichever case it wears.
+    // Attributes arrive capitalised however a type declares them, however
+    // the Spotify import writes them, and however they were typed into a
+    // row — so a predicate naming one has to find it whichever case it
+    // wears.
     const tome = blankItem({
       name: "Flatland",
-      fields: [
-        { name: "Author", value: "Edwin Abbott Abbott", kind: "string" },
-        { name: "published", value: "1884-01-01", kind: "date" },
+      metadata: [
+        { attribute: "Author", value: "Edwin Abbott Abbott", kind: "string", prov: "auto" },
+        { attribute: "published", value: "1884-01-01", kind: "date", prov: "auto" },
       ],
     });
     const shelfLower = blankItem({
       name: "by author",
-      query: { and: [{ field: { name: "author", kind: "string", eq: "Edwin Abbott Abbott" } }] },
+      query: { and: [{ metadata: { attribute: "author", kind: "string", eq: "Edwin Abbott Abbott" } }] },
     });
     const shelfUpper = blankItem({
       name: "by published",
-      query: { and: [{ field: { name: "PUBLISHED", kind: "date", gte: "1800-01-01" } }] },
+      query: { and: [{ metadata: { attribute: "PUBLISHED", kind: "date", gte: "1800-01-01" } }] },
     });
     await applyChange({
       description: "A book and two shelves that ask for it",
@@ -408,53 +408,50 @@ async function main(): Promise<void> {
     const lowerAsked = await listMembers(shelfLower.id);
     const upperAsked = await listMembers(shelfUpper.id);
 
-    check("a predicate finds a field whatever case either side wears", () => {
+    check("a predicate finds an attribute whatever case either side wears", () => {
       // `author` asked for by a set, stored on the item as `Author`.
       assert.ok(lowerAsked.items.some((found) => found.id === tome.id));
       // And the other direction: `PUBLISHED` asked for, `published` stored.
       assert.ok(upperAsked.items.some((found) => found.id === tome.id));
     });
 
-    console.log("\nschemas: field order is the naming order");
+    console.log("\nschemas: attribute order is the naming order");
 
-    // `fields[0]` is the item's name (types.ts), so the order a type is
-    // saved in is load-bearing and not merely cosmetic — this is the one
-    // place it round-trips through real storage.
+    // `attributes[0]` is the item's name (types.ts), so the order a type
+    // is saved in is load-bearing and not merely cosmetic — this is the
+    // one place it round-trips through real storage.
     const saved = await upsertSchema({
       name: "book",
-      label: null,
-      fields: [
-        { name: "title", label: null, kind: "string" },
-        { name: "author", label: null, kind: "string" },
+      attributes: [
+        { attribute: "title", kind: "string", display: true },
+        { attribute: "author", kind: "string", display: true },
       ],
     });
 
-    check("a type keeps the order its fields were written in", () => {
-      assert.deepEqual(saved.fields.map((field) => field.name), ["title", "author"]);
+    check("a type keeps the order its attributes were written in", () => {
+      assert.deepEqual(saved.attributes.map((attribute) => attribute.attribute), ["title", "author"]);
     });
 
     const reordered = await upsertSchema({
       name: "book",
-      label: null,
-      fields: [
-        { name: "author", label: null, kind: "string" },
-        { name: "title", label: null, kind: "string" },
+      attributes: [
+        { attribute: "author", kind: "string", display: true },
+        { attribute: "title", kind: "string", display: true },
       ],
     });
 
-    check("reordering it is what changes which field names the item", () => {
-      assert.deepEqual(reordered.fields.map((field) => field.name), ["author", "title"]);
+    check("reordering it is what changes which attribute names the item", () => {
+      assert.deepEqual(reordered.attributes.map((attribute) => attribute.attribute), ["author", "title"]);
     });
 
-    // `hidden` is the kind of property that gets dropped in transit and
+    // `display` is the kind of property that gets dropped in transit and
     // fails silently — it typechecks everywhere and simply never arrives.
     const withHidden = await upsertSchema({
       name: "book",
-      label: null,
-      fields: [
-        { name: "title", label: null, kind: "string" },
-        { name: "author", label: null, kind: "string" },
-        { name: "isbn", label: null, kind: "string", hidden: true },
+      attributes: [
+        { attribute: "title", kind: "string", display: true },
+        { attribute: "author", kind: "string", display: true },
+        { attribute: "isbn", kind: "string", display: false },
       ],
     });
 
@@ -462,8 +459,8 @@ async function main(): Promise<void> {
     // came back ahead of one created as `album` — and the renderer then
     // re-sorted with localeCompare after any save, so the list arrived in
     // one order and jumped to another the first time it was touched.
-    await upsertSchema({ name: "Song", label: null, fields: [] });
-    await upsertSchema({ name: "album", label: null, fields: [] });
+    await upsertSchema({ name: "Song", attributes: [] });
+    await upsertSchema({ name: "album", attributes: [] });
     const mixedCase = await listSchemas();
 
     check("a mixed-case list comes back in one alphabetical order", () => {
@@ -487,10 +484,10 @@ async function main(): Promise<void> {
       assert.equal(schemaFor(mixedCase, null), undefined);
     });
 
-    check("a hidden field round-trips as hidden, and its neighbours don't", () => {
+    check("a non-displayed attribute round-trips that way, and its neighbours don't", () => {
       assert.deepEqual(
-        withHidden.fields.map((field) => Boolean(field.hidden)),
-        [false, false, true],
+        withHidden.attributes.map((attribute) => attribute.display),
+        [true, true, false],
       );
     });
 

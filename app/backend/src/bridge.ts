@@ -4,12 +4,12 @@
 // of what the renderer can see: records and changes in, records out.
 import type {
   Change,
-  Field,
   Item,
   ItemDetail,
   Label,
   Members,
   MembersOptions,
+  MetadataEntry,
   Schema,
   StoredRecord,
 } from "@index/database/types";
@@ -94,20 +94,20 @@ export interface IndexBridge {
      * all, and when its answer may be used. */
     classify(uri: string, name: string): Promise<Result<{ type: string | null }>>;
     /**
-     * What this resource says about itself, joined to the fields `type`
-     * declares — the `parse` verb, asked for a resource already on an
-     * item whose type its user has settled on.
+     * What this resource says about itself, joined to the attributes
+     * `type` declares — the `parse` verb, asked for a resource already
+     * on an item whose type its user has settled on.
      *
-     * Only the type's own fields come back, unlike intake: someone
+     * Only the type's own attributes come back, unlike intake: someone
      * filling in a curated item asked for that type, and rows it has no
      * word for are noise there. `name` is present when the type's
-     * leading field matched; whether it may be used is the renderer's
-     * rule, since only it knows whether the current name was ever the
-     * user's (changes/catalog.ts).
+     * leading attribute matched; whether it may be used is the
+     * renderer's rule, since only it knows whether the current name was
+     * ever the user's (changes/catalog.ts).
      *
      * Finding nothing is an empty list, never an error.
      */
-    parse(uri: string, type: string): Promise<Result<{ name?: string; fields: Field[] }>>;
+    parse(uri: string, type: string): Promise<Result<{ name?: string; metadata: MetadataEntry[] }>>;
   };
   models: {
     /** Directories to look for `.gguf` files in — a person's own model
@@ -128,8 +128,8 @@ export interface IndexBridge {
     /** A small-model guess at which of the user's own types a one-line
      * description matches, using whichever model is active for
      * "classification" in Settings → Models — null when none fit, no
-     * model is selected, or classification failed. Never a `type_source`
-     * of "user"; the caller decides whether and how the answer is used,
+     * model is selected, or classification failed. Never a `prov` of
+     * "user"; the caller decides whether and how the answer is used,
      * same rule `ingest.classify` follows. */
     classify(description: string): Promise<Result<{ type: string | null }>>;
   };

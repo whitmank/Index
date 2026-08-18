@@ -34,7 +34,7 @@ import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
 import { PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection, useSelfDevice } from "../../store/index.js";
 
-type SortKey = "name" | "date" | "device";
+type SortKey = "name" | "date_added" | "device";
 
 export interface ListProps {
   setId: string;
@@ -71,7 +71,7 @@ interface VisibleRow extends Row {
 
 export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
-    key: "date",
+    key: "date_added",
     ascending: false,
   });
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Item } | null>(null);
@@ -98,7 +98,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         device: uri ? deviceOf(uri) : "—",
         kind: uri ? deviceKindOf(uri, selfDevice) : null,
         place: pool.isPlace(item.id),
-        type: item.type,
+        type: item.type?.value ?? null,
       };
     },
     [selfDevice],
@@ -141,7 +141,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         if (a.order !== null && b.order !== null) return a.order - b.order;
         if (a.order !== null) return -1;
         if (b.order !== null) return 1;
-        return a.item.created_at.localeCompare(b.item.created_at);
+        return a.item.date_added.localeCompare(b.item.date_added);
       });
       return copy;
     }
@@ -150,14 +150,10 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
     copy.sort((a, b) => {
       if (sort.key === "name") return captionOf(a.item).localeCompare(captionOf(b.item)) * direction;
       if (sort.key === "device") return a.device.localeCompare(b.device) * direction;
-      // `date` is the journal day (PRODUCT-SPEC §1.1) — several items
-      // land on the same one, and a plain stable sort would then leave
-      // them in whatever order they arrived from the backend, not the
-      // order they were made in. `created_at` breaks that tie, same as
-      // the manual-order branch above already does.
-      const day = a.item.date.localeCompare(b.item.date);
-      if (day !== 0) return day * direction;
-      return a.item.created_at.localeCompare(b.item.created_at) * direction;
+      // `date_added` is immutable and full-precision (it absorbed the old
+      // `created_at`), so it alone both pages the timeline and breaks
+      // same-day ties in the order items were actually made.
+      return a.item.date_added.localeCompare(b.item.date_added) * direction;
     });
     return copy;
   }, [rows, manual, sort]);
@@ -312,8 +308,8 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         <button className="col-name" onClick={() => toggleSort("name")} type="button">
           name{sortMark(sort, "name", manual)}
         </button>
-        <button className="col-date" onClick={() => toggleSort("date")} type="button">
-          date{sortMark(sort, "date", manual)}
+        <button className="col-date" onClick={() => toggleSort("date_added")} type="button">
+          added{sortMark(sort, "date_added", manual)}
         </button>
         <span className="col-type">type</span>
         <button className="col-device" onClick={() => toggleSort("device")} type="button">
@@ -409,7 +405,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
               )}
               <span className="col-name-text">{captionOf(row.item) || "unnamed"}</span>
             </span>
-            <span className="col-date">{row.item.date}</span>
+            <span className="col-date">{row.item.date_added.slice(0, 10)}</span>
             <span className="col-type">{row.type ?? "—"}</span>
             <span className="col-device">{row.kind ? <DeviceIcon kind={row.kind} /> : "—"}</span>
           </div>

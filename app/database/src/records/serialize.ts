@@ -7,16 +7,16 @@
 import { StringRecordId } from "surrealdb";
 import type {
   Connection,
-  Field,
   Item,
+  ItemType,
   Label,
+  MetadataEntry,
   Position,
   Resource,
   Schema,
-  SchemaField,
+  SchemaAttribute,
   SetQuery,
   StoredRecord,
-  TypeSource,
 } from "../types.js";
 import { isItem } from "../types.js";
 
@@ -25,15 +25,14 @@ export interface ItemRow {
   name: string;
   display_name?: string | null;
   description?: string | null;
-  date: string;
-  created_at: unknown;
+  date_added: unknown;
+  date_created?: unknown;
   opens?: string | null;
   query?: SetQuery | null;
   system?: boolean;
   is_set?: boolean;
-  type?: string | null;
-  type_source?: TypeSource;
-  fields?: Field[];
+  type?: ItemType | null;
+  metadata?: MetadataEntry[];
   resources?: Resource[];
   deleted_at?: unknown;
 }
@@ -41,8 +40,7 @@ export interface ItemRow {
 export interface SchemaRow {
   id: unknown;
   name: string;
-  label?: string | null;
-  fields?: SchemaField[];
+  attributes?: SchemaAttribute[];
 }
 
 export interface ConnectionRow {
@@ -84,15 +82,14 @@ export function serializeItem(row: ItemRow): Item {
     name: row.name ?? "",
     display_name: row.display_name ?? null,
     description: row.description ?? null,
-    date: row.date,
-    created_at: dateToString(row.created_at),
+    date_added: dateToString(row.date_added),
+    date_created: optionalDate(row.date_created),
     opens: row.opens ?? null,
     query: row.query ?? null,
     system: row.system ?? false,
     is_set: row.is_set ?? false,
     type: row.type ?? null,
-    type_source: row.type_source ?? null,
-    fields: row.fields ?? [],
+    metadata: row.metadata ?? [],
     resources: row.resources ?? [],
     deleted_at: optionalDate(row.deleted_at),
   };
@@ -102,8 +99,7 @@ export function serializeSchema(row: SchemaRow): Schema {
   return {
     id: idToString(row.id),
     name: row.name,
-    label: row.label ?? null,
-    fields: row.fields ?? [],
+    attributes: row.attributes ?? [],
   };
 }
 
@@ -133,7 +129,7 @@ function toDbDate(value: string | null): Date | undefined {
   return value === null ? undefined : new Date(value);
 }
 
-/** The content half of a write. `id` is passed separately; `created_at`
+/** The content half of a write. `id` is passed separately; `date_added`
  * is READONLY in the schema, so it is only sent on creation — SurrealDB
  * rejects an attempt to change it. */
 export function itemContent(item: Item, includeCreatedAt: boolean): Record<string, unknown> {
@@ -141,18 +137,20 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
     name: item.name,
     display_name: item.display_name ?? undefined,
     description: item.description ?? undefined,
-    date: item.date,
-    ...(includeCreatedAt ? { created_at: new Date(item.created_at) } : {}),
+    ...(includeCreatedAt ? { date_added: new Date(item.date_added) } : {}),
+    date_created: toDbDate(item.date_created),
     opens: item.opens ?? undefined,
     query: item.query ?? undefined,
     system: item.system,
     is_set: item.is_set,
-    type: item.type ?? undefined,
-    type_source: item.type_source ?? undefined,
-    fields: item.fields.map((field) => ({
-      name: field.name,
-      value: field.value,
-      kind: field.kind,
+    type: item.type
+      ? { value: item.type.value, prov: item.type.prov }
+      : undefined,
+    metadata: item.metadata.map((entry) => ({
+      attribute: entry.attribute ?? undefined,
+      value: entry.value,
+      kind: entry.kind,
+      prov: entry.prov,
     })),
     resources: item.resources.map((resource) => ({
       uri: resource.uri,
@@ -167,16 +165,14 @@ export function itemContent(item: Item, includeCreatedAt: boolean): Record<strin
 
 /** The content half of a schema write. Schemas sit outside the change
  * model — like labels, there is nothing about one to undo — so this has
- * no `includeCreatedAt`-style split; a schema has no `created_at`. */
-export function schemaContent(schema: Pick<Schema, "name" | "label" | "fields">): Record<string, unknown> {
+ * no `includeCreatedAt`-style split; a schema has no immutable field. */
+export function schemaContent(schema: Pick<Schema, "name" | "attributes">): Record<string, unknown> {
   return {
     name: schema.name,
-    label: schema.label ?? undefined,
-    fields: schema.fields.map((field) => ({
-      name: field.name,
-      label: field.label ?? undefined,
-      kind: field.kind,
-      hidden: field.hidden ?? false,
+    attributes: schema.attributes.map((attribute) => ({
+      attribute: attribute.attribute,
+      kind: attribute.kind,
+      display: attribute.display,
     })),
   };
 }

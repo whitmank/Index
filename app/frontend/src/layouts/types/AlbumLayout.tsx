@@ -34,8 +34,8 @@ import { useOrderedChildren } from "../parts/useOrderedChildren.ts";
 const ALBUM_TRACK_LABEL = "labels:track";
 
 function durationOf(song: Item): string {
-  const field = song.fields.find((candidate) => candidate.name.toLowerCase() === "duration");
-  return typeof field?.value === "string" ? field.value : "";
+  const entry = song.metadata.find((candidate) => candidate.attribute?.toLowerCase() === "duration");
+  return typeof entry?.value === "string" ? entry.value : "";
 }
 
 export function AlbumLayout({ item, content, editor }: LayoutProps) {

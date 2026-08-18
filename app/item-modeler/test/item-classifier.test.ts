@@ -44,10 +44,7 @@ function clientFor(stub: Stub): ModelClient {
   };
 }
 
-const TYPES = [
-  { name: "book", label: null },
-  { name: "receipt", label: "Receipt" },
-];
+const TYPES = [{ name: "book" }, { name: "receipt" }];
 
 async function run(): Promise<void> {
   console.log("\na valid answer");

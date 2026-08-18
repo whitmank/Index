@@ -12,7 +12,7 @@
 //
 //   1. A change to `resources[0]` re-runs classification and records the
 //      answer as "auto".
-//   2. Unless `type_source` is "user" — a type someone chose is never
+//   2. Unless `type.prov` is "user" — a type someone chose is never
 //      argued with, only replaced by them.
 //   3. A null guess never clears a type. The classifier having no opinion
 //      is not the same as the item having no type.
@@ -46,7 +46,7 @@ function outcomeOf(change: Change): Item | null {
  * has to unwind separately.
  */
 async function withReclassification(before: Item, change: Change): Promise<Change> {
-  if (before.type_source === "user") return change;
+  if (before.type?.prov === "user") return change;
 
   const after = outcomeOf(change);
   const promoted = after?.resources[0];
@@ -54,14 +54,14 @@ async function withReclassification(before: Item, change: Change): Promise<Chang
 
   const answer = await window.index.ingest.classify(promoted.uri, promoted.name);
   const type = "err" in answer ? null : answer.ok.type;
-  if (!type || type === before.type) return change;
+  if (!type || type === before.type?.value) return change;
 
   const pair = change.pairs[0];
   if (!pair) return change;
 
   return {
     description: `${change.description}, reclassified as ${type}`,
-    pairs: [{ ...pair, after: { ...after, type, type_source: "auto" } }, ...change.pairs.slice(1)],
+    pairs: [{ ...pair, after: { ...after, type: { value: type, prov: "auto" } } }, ...change.pairs.slice(1)],
   };
 }
 

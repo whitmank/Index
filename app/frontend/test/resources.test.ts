@@ -5,7 +5,7 @@
 // which resource counts as the subject, which guesses are allowed to
 // overwrite what, and which are refused.
 import assert from "node:assert/strict";
-import type { Item, Resource, Schema, SchemaField } from "@index/database/types";
+import type { Item, ItemType, Resource, Schema, SchemaAttribute } from "@index/database/types";
 
 let passed = 0;
 
@@ -43,20 +43,23 @@ function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
 }
 
+function itemType(value: string, prov: ItemType["prov"]): ItemType {
+  return { value, prov };
+}
+
 function item(overrides: Partial<Item> = {}): Item {
   return {
     id: "items:01TEST",
     name: "Dune",
     display_name: null,
-    date: "2026-08-12",
-    created_at: "2026-08-12T00:00:00.000Z",
+    date_added: "2026-08-12T00:00:00.000Z",
+    date_created: null,
     opens: null,
     query: null,
     system: false,
     is_set: false,
     type: null,
-    type_source: null,
-    fields: [],
+    metadata: [],
     resources: [],
     deleted_at: null,
     ...overrides,
@@ -80,37 +83,37 @@ await check("classifies the resource that becomes an untyped item's primary", as
   const after = outcome(await attachResource(item(), resource("dune.epub")));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.epub"]);
-  assert.equal(after.type, "book");
-  assert.equal(after.type_source, "auto");
+  assert.equal(after.type?.value, "book");
+  assert.equal(after.type?.prov, "auto");
 });
 
 await check("never classifies a resource appended behind the primary", async () => {
   reset("book");
-  const film = item({ type: "movie", type_source: "auto", resources: [resource("dune.mp4")] });
+  const film = item({ type: itemType("movie", "auto"), resources: [resource("dune.mp4")] });
   const after = outcome(await attachResource(film, resource("dune.epub")));
 
   // The IMDb-page case: a supplementary source says nothing about what
   // the item fundamentally is, so it is never asked about.
   assert.deepEqual(asked, []);
-  assert.equal(after.type, "movie");
+  assert.equal(after.type?.value, "movie");
   assert.equal(after.resources.length, 2);
 });
 
 await check("classifies again when a different resource is promoted to primary", async () => {
   reset("movie");
-  const page = item({ type: "link", type_source: "auto" });
+  const page = item({ type: itemType("link", "auto") });
   page.resources = [resource("dune-imdb.html"), resource("dune.mp4")];
   const after = outcome(await moveResource(page, 1, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.mp4"]);
-  assert.equal(after.type, "movie");
-  assert.equal(after.type_source, "auto");
+  assert.equal(after.type?.value, "movie");
+  assert.equal(after.type?.prov, "auto");
   assert.equal(after.resources[0]?.name, "dune.mp4");
 });
 
 await check("does not classify a reorder that leaves the primary alone", async () => {
   reset("movie");
-  const film = item({ type: "movie", type_source: "auto" });
+  const film = item({ type: itemType("movie", "auto") });
   film.resources = [resource("dune.mp4"), resource("a.html"), resource("b.html")];
   await moveResource(film, 2, 1);
 
@@ -119,25 +122,25 @@ await check("does not classify a reorder that leaves the primary alone", async (
 
 await check("classifies whatever a removed primary was standing in front of", async () => {
   reset("book");
-  const film = item({ type: "movie", type_source: "auto" });
+  const film = item({ type: itemType("movie", "auto") });
   film.resources = [resource("dune.mp4"), resource("dune.epub")];
   const after = outcome(await detachResource(film, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.epub"]);
-  assert.equal(after.type, "book");
+  assert.equal(after.type?.value, "book");
 });
 
 console.log("\na type the user set is never argued with");
 
 await check("refuses to reclassify over a hand-set type", async () => {
   reset("book");
-  const textbook = item({ type: "textbook", type_source: "user" });
+  const textbook = item({ type: itemType("textbook", "user") });
   textbook.resources = [resource("cover.png"), resource("dune.epub")];
   const after = outcome(await moveResource(textbook, 1, 0));
 
   assert.deepEqual(asked, []);
-  assert.equal(after.type, "textbook");
-  assert.equal(after.type_source, "user");
+  assert.equal(after.type?.value, "textbook");
+  assert.equal(after.type?.prov, "user");
   assert.equal(after.resources[0]?.name, "dune.epub", "the reorder itself still happens");
 });
 
@@ -145,13 +148,13 @@ console.log("\nno opinion is not the same as no type");
 
 await check("keeps an existing type when the classifier has nothing to say", async () => {
   reset(null);
-  const film = item({ type: "movie", type_source: "auto" });
+  const film = item({ type: itemType("movie", "auto") });
   film.resources = [resource("dune.mp4"), resource("notes.txt")];
   const after = outcome(await moveResource(film, 1, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/notes.txt"]);
-  assert.equal(after.type, "movie");
-  assert.equal(after.type_source, "auto");
+  assert.equal(after.type?.value, "movie");
+  assert.equal(after.type?.prov, "auto");
 });
 
 await check("leaves an untyped item untyped when nothing matches", async () => {
@@ -159,27 +162,26 @@ await check("leaves an untyped item untyped when nothing matches", async () => {
   const after = outcome(await attachResource(item(), resource("notes.txt")));
 
   assert.equal(after.type, null);
-  assert.equal(after.type_source, null);
 });
 
 console.log("\none gesture, one undo");
 
 await check("carries the new type in the same pair as the new order", async () => {
   reset("book");
-  const film = item({ type: "movie", type_source: "auto" });
+  const film = item({ type: itemType("movie", "auto") });
   film.resources = [resource("dune.mp4"), resource("dune.epub")];
   const change = await moveResource(film, 1, 0);
 
   // Two pairs would mean two undos, and a user who pressed undo once
   // would be left holding the old order with the new type.
   assert.equal(change.pairs.length, 1);
-  assert.equal((change.pairs[0]?.before as Item).type, "movie");
-  assert.equal(outcome(change).type, "book");
+  assert.equal((change.pairs[0]?.before as Item).type?.value, "movie");
+  assert.equal(outcome(change).type?.value, "book");
 });
 
 await check("says in the description that the type moved too", async () => {
   reset("book");
-  const film = item({ type: "movie", type_source: "auto" });
+  const film = item({ type: itemType("movie", "auto") });
   film.resources = [resource("dune.mp4"), resource("dune.epub")];
   const change = await moveResource(film, 1, 0);
 
@@ -188,7 +190,7 @@ await check("says in the description that the type moved too", async () => {
 
 await check("stays quiet when the guess is the type it already had", async () => {
   reset("book");
-  const book = item({ type: "book", type_source: "auto" });
+  const book = item({ type: itemType("book", "auto") });
   book.resources = [resource("a.epub"), resource("b.epub")];
   const change = await moveResource(book, 1, 0);
 
@@ -197,17 +199,21 @@ await check("stays quiet when the guess is the type it already had", async () =>
 
 console.log("\nwhat a type puts at the top of an item");
 
-const bookSchema = (fields: SchemaField[]): Schema => ({
+const bookSchema = (attributes: SchemaAttribute[]): Schema => ({
   id: "schemas:book",
   name: "book",
-  label: null,
-  fields,
+  attributes,
 });
-const declare = (name: string, hidden = false): SchemaField =>
-  ({ name, label: null, kind: "string", hidden });
+const declare = (attribute: string, hidden = false): SchemaAttribute => ({
+  attribute,
+  kind: "string",
+  display: !hidden,
+});
 
-const laidOut = (fields: SchemaField[]) =>
-  resolveLayout(item({ type: "book" }), [], [bookSchema(fields)]).entry.fields?.map((f) => f.name);
+const laidOut = (attributes: SchemaAttribute[]) =>
+  resolveLayout(item({ type: itemType("book", "auto") }), [bookSchema(attributes)]).entry.fields?.map(
+    (f) => f.attribute,
+  );
 
 await check("draws every field but the one that names the item", () => {
   assert.deepEqual(laidOut([declare("title"), declare("author"), declare("isbn")]), [
@@ -225,21 +231,22 @@ await check("leaves out the ones marked hidden", () => {
 });
 
 await check("finds its type's schema whatever case either was written in", () => {
-  const capitalised: Schema = { id: "schemas:song", name: "Song", label: null, fields: [
-    declare("title"), declare("artist"),
-  ] };
+  const capitalised: Schema = {
+    id: "schemas:song",
+    name: "Song",
+    attributes: [declare("title"), declare("artist")],
+  };
 
   // The Spotify import writes `type: "song"`; a schema created by typing
   // "Song" into the type manager keeps the capital. An exact match found
   // neither, so every imported song lost its fields.
-  const drawn = resolveLayout(item({ type: "song" }), [], [capitalised]).entry.fields;
-  assert.deepEqual(drawn?.map((field) => field.name), ["artist"]);
+  const drawn = resolveLayout(item({ type: itemType("song", "auto") }), [capitalised]).entry.fields;
+  assert.deepEqual(drawn?.map((field) => field.attribute), ["artist"]);
 });
 
 await check("falls back to the default layout when nothing is left to lay out", () => {
   const resolution = resolveLayout(
-    item({ type: "book" }),
-    [],
+    item({ type: itemType("book", "auto") }),
     [bookSchema([declare("title"), declare("isbn", true)])],
   );
 
@@ -253,25 +260,24 @@ console.log("\nknownFieldsFor, the live path Focus.tsx actually calls");
 
 await check("draws every field but the one that names the item", () => {
   const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("author"), declare("isbn")])]);
-  assert.deepEqual(fields.map((f) => f.name), ["author", "isbn"]);
+  assert.deepEqual(fields.map((f) => f.attribute), ["author", "isbn"]);
 });
 
 await check("leaves out the ones marked hidden", () => {
   const fields = knownFieldsFor("book", [
     bookSchema([declare("title"), declare("author"), declare("isbn", true)]),
   ]);
-  assert.deepEqual(fields.map((f) => f.name), ["author"]);
+  assert.deepEqual(fields.map((f) => f.attribute), ["author"]);
 });
 
 await check("finds its type's schema whatever case either was written in", () => {
   const capitalised: Schema = {
     id: "schemas:song",
     name: "Song",
-    label: null,
-    fields: [declare("title"), declare("artist")],
+    attributes: [declare("title"), declare("artist")],
   };
   const fields = knownFieldsFor("song", [capitalised]);
-  assert.deepEqual(fields.map((f) => f.name), ["artist"]);
+  assert.deepEqual(fields.map((f) => f.attribute), ["artist"]);
 });
 
 await check("returns nothing when there is nothing left to lay out", () => {
@@ -313,43 +319,42 @@ await check("dragging the last row to the very top makes it primary", () => {
 console.log("\nconfirming a guess locks it");
 
 await check("confirming keeps the type and takes ownership of it", async () => {
-  const guessed = item({ type: "book", type_source: "auto" });
+  const guessed = item({ type: itemType("book", "auto") });
   const after = outcome(changes.confirmType(guessed));
 
-  assert.equal(after.type, "book", "confirming changes who decided, not what");
-  assert.equal(after.type_source, "user");
+  assert.equal(after.type?.value, "book", "confirming changes who decided, not what");
+  assert.equal(after.type?.prov, "user");
 });
 
 await check("a confirmed guess then survives a new primary resource", async () => {
   reset("movie");
-  const confirmed = outcome(changes.confirmType(item({ type: "book", type_source: "auto" })));
+  const confirmed = outcome(changes.confirmType(item({ type: itemType("book", "auto") })));
   confirmed.resources = [resource("dune.epub"), resource("dune.mp4")];
   const after = outcome(await moveResource(confirmed, 1, 0));
 
   assert.deepEqual(asked, [], "a confirmed type is not even asked about");
-  assert.equal(after.type, "book");
+  assert.equal(after.type?.value, "book");
 });
 
 await check("choosing a type by hand confirms it in the same gesture", async () => {
   reset("movie");
   // Nothing to agree with afterwards: picking from the menu already said
   // a person decided, which is the only thing confirming would add.
-  const picked = outcome(changes.setType(item({ type: "book", type_source: "auto" }), "textbook"));
-  assert.equal(picked.type_source, "user");
+  const picked = outcome(changes.setType(item({ type: itemType("book", "auto") }), "textbook"));
+  assert.equal(picked.type?.prov, "user");
 
   picked.resources = [resource("dune.epub"), resource("dune.mp4")];
   assert.deepEqual(asked, []);
-  assert.equal(outcome(await moveResource(picked, 1, 0)).type, "textbook");
+  assert.equal(outcome(await moveResource(picked, 1, 0)).type?.value, "textbook");
 });
 
 await check("clearing is the way back to guessing", async () => {
   reset("movie");
-  const cleared = outcome(changes.setType(item({ type: "book", type_source: "user" }), null));
+  const cleared = outcome(changes.setType(item({ type: itemType("book", "user") }), null));
   assert.equal(cleared.type, null);
-  assert.equal(cleared.type_source, null);
 
   cleared.resources = [resource("dune.epub"), resource("dune.mp4")];
-  assert.equal(outcome(await moveResource(cleared, 1, 0)).type, "movie");
+  assert.equal(outcome(await moveResource(cleared, 1, 0)).type?.value, "movie");
 });
 
 await check("records no provenance for an item with no type", async () => {
@@ -358,11 +363,10 @@ await check("records no provenance for an item with no type", async () => {
   // A type and its source are present or absent together; nothing can be
   // confirmed about a classification that was never made.
   assert.equal(after.type, null);
-  assert.equal(after.type_source, null);
 });
 
 await check("names what was agreed to in the description", async () => {
-  const guessed = item({ type: "book", type_source: "auto" });
+  const guessed = item({ type: itemType("book", "auto") });
   assert.match(changes.confirmType(guessed).description, /^Confirm 'Dune' is a book$/);
 });
 

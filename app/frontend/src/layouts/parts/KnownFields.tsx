@@ -1,18 +1,25 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// A layout's own field: its name, and the kind its value editor should
-// present as — `list` gets chips (ListValueInput), everything else a
-// single line (SettleInput).
-import type { Field, FieldKind, Item } from "@index/database/types";
+// A layout's own field: its attribute name, and the kind its value
+// editor should present as — `list` gets chips (ListValueInput),
+// everything else a single line (SettleInput).
+import type { AttributeKind, Item, MetadataEntry } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { blankFieldValue } from "../../lib/fields.js";
+import { blankFieldValue } from "../../lib/metadata.js";
 import type { KnownField } from "../registry.tsx";
 
-function upsertByName(fields: Field[], name: string, value: Field["value"], kind: FieldKind): Field[] {
-  const at = fields.findIndex((field) => field.name.toLowerCase() === name.toLowerCase());
-  if (at === -1) return [...fields, { name, value, kind }];
-  return fields.map((field, index) => (index === at ? { ...field, value, kind } : field));
+function upsertByName(
+  metadata: MetadataEntry[],
+  attribute: string,
+  value: MetadataEntry["value"],
+  kind: AttributeKind,
+): MetadataEntry[] {
+  const at = metadata.findIndex(
+    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === attribute.toLowerCase(),
+  );
+  if (at === -1) return [...metadata, { attribute, value, kind, prov: "user" }];
+  return metadata.map((entry, index) => (index === at ? { ...entry, value, kind, prov: "user" } : entry));
 }
 
 /**
@@ -28,24 +35,26 @@ export function KnownFields({ item, fields }: { item: Item; fields: KnownField[]
   if (fields.length === 0) return null;
   return (
     <ul className="fields-list fields-list-unlabeled">
-      {fields.map(({ name, kind }) => {
-        const field = item.fields.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
-        const value = field?.value ?? blankFieldValue(kind);
-        const commit = (next: Field["value"]) =>
-          void apply(changes.setFields(item, upsertByName(item.fields, name, next, kind)));
+      {fields.map(({ attribute, kind }) => {
+        const entry = item.metadata.find(
+          (candidate) => candidate.attribute?.toLowerCase() === attribute.toLowerCase(),
+        );
+        const value = entry?.value ?? blankFieldValue(kind);
+        const commit = (next: MetadataEntry["value"]) =>
+          void apply(changes.setMetadata(item, upsertByName(item.metadata, attribute, next, kind)));
         return (
-          <li className="fields-row" key={name}>
-            <span className="known-fields-name">{name}</span>
+          <li className="fields-row" key={attribute}>
+            <span className="known-fields-name">{attribute}</span>
             {kind === "list" ? (
               <ListValueInput
-                ariaLabel={name}
+                ariaLabel={attribute}
                 className="fields-value-input"
                 onCommit={commit}
                 value={Array.isArray(value) ? value : []}
               />
             ) : (
               <SettleInput
-                ariaLabel={name}
+                ariaLabel={attribute}
                 className="fields-value-input"
                 onCommit={commit}
                 placeholder="value"

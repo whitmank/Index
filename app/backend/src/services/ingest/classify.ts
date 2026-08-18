@@ -4,7 +4,7 @@
 // is, because the user can overrule it and a derivation would argue back.
 //
 // It re-runs only when the primary resource changes, and never over a
-// `type_source` of "user" (lib/resources.ts holds that rule, since it is
+// `type.prov` of "user" (lib/resources.ts holds that rule, since it is
 // the layer that knows which resource became primary). A null answer here
 // means "no opinion", not "untyped": callers keep whatever type they had.
 import { formatOfResource } from "@index/database";

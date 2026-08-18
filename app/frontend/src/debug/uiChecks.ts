@@ -1456,14 +1456,13 @@ export async function checkList(
 export async function checkParsing(checks: Checks, filepath: string): Promise<void> {
   const type = await window.index.schemas.upsert({
     name: "book",
-    label: null,
-    fields: [
-      { name: "title", label: null, kind: "string" },
-      { name: "author", label: null, kind: "string" },
-      { name: "published", label: null, kind: "date" },
-      { name: "publisher", label: null, kind: "string" },
-      { name: "isbn", label: null, kind: "string" },
-      { name: "pages", label: null, kind: "number" },
+    attributes: [
+      { attribute: "title", kind: "string", display: true },
+      { attribute: "author", kind: "string", display: true },
+      { attribute: "published", kind: "date", display: true },
+      { attribute: "publisher", kind: "string", display: true },
+      { attribute: "isbn", kind: "string", display: true },
+      { attribute: "pages", kind: "number", display: true },
     ],
   });
   if ("err" in type) {
@@ -1477,7 +1476,7 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
     checks.say(false, `parse — nothing was created from ${filepath}`);
     return;
   }
-  checks.say(item.type === "book", `a 366-page pdf arrives typed "${item.type}"`);
+  checks.say(item.type?.value === "book", `a 366-page pdf arrives typed "${item.type?.value}"`);
 
   // Stripped back to what an item added before this feature existed looks
   // like: named after its file, typed but unconfirmed, no fields. That is
@@ -1491,14 +1490,14 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
   const bare: Item = {
     ...item,
     name: stub,
-    type_source: "auto",
-    fields: [],
+    type: item.type ? { value: item.type.value, prov: "auto" } : null,
+    metadata: [],
     resources: item.resources.map((one, at) => (at === 0 ? { ...one, name: stub } : one)),
   };
   await applyUntracked({ description: "strip", pairs: [{ before: item, after: bare }] });
   await sleep(300);
   checks.say(
-    (pool.getItem(item.id)?.fields ?? []).length === 0,
+    (pool.getItem(item.id)?.metadata ?? []).length === 0,
     "starting from an item with nothing filled in",
   );
 
@@ -1542,7 +1541,7 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
 
   const parsed = await itemFromDatabase(item.id);
   const value = (name: string) =>
-    (parsed?.fields ?? []).find((f) => f.name === name)?.value ?? "";
+    (parsed?.metadata ?? []).find((entry) => entry.attribute === name)?.value ?? "";
 
   checks.say(
     parsed?.name === "The Buddha in the Machine: Art, Technology, and the Meeting of East and West",
@@ -1556,13 +1555,13 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
   checks.say(value("publisher") === "Yale University Press", `publisher = "${value("publisher")}"`);
   checks.say(value("isbn") === "9780300206579", `isbn = "${value("isbn")}"`);
   checks.say(value("pages") === "366", `pages = "${value("pages")}" — read from the file itself`);
-  checks.say(parsed?.type_source === "user", "parsing settled the type as yours");
+  checks.say(parsed?.type?.prov === "user", "parsing settled the type as yours");
 
   await undo();
   await sleep(500);
   const reverted = await itemFromDatabase(item.id);
   checks.say(
-    reverted?.name === before && (reverted?.fields ?? []).length <= 2,
+    reverted?.name === before && (reverted?.metadata ?? []).length <= 2,
     "one undo takes the whole parsing back",
   );
 

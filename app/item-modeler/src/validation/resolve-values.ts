@@ -19,7 +19,7 @@
 // `isbn: "10.1234/9781"` and `isbn: "10.1234/9780128154321"`, DOI-shaped
 // strings that appear in no evidence anywhere. Both are caught here —
 // once by the checksum, and again by grounding.
-import type { FieldKind, Schema } from "@index/database/types";
+import type { AttributeKind, Schema } from "@index/database/types";
 import type { ResolvedValue } from "../contracts/resolved-value.js";
 import type { ModelingWarning } from "../contracts/warnings.js";
 import { hintFor } from "../normalization/field-hints.js";
@@ -73,14 +73,14 @@ function flatten(value: string | string[]): string {
  * that field.
  *
  * Only *synthesised* values are dropped, and only against a field the
- * schema declares earlier. Schema order is meaningful — `fields[0]` is
- * the item's name and users order by what matters — so the duplicate is
+ * schema declares earlier. Schema order is meaningful — `attributes[0]`
+ * is the item's name and users order by what matters — so the duplicate is
  * removed from the less important place. A transcribed fact is never
  * dropped: if a package document states a publisher that happens to
  * equal the author, that is a self-published book saying so.
  */
 function dropEchoes(values: ResolvedValue[], schema: Schema): [ResolvedValue[], string[]] {
-  const order = new Map((schema.fields ?? []).map((field, at) => [field.name.toLowerCase(), at]));
+  const order = new Map((schema.attributes ?? []).map((attribute, at) => [attribute.attribute.toLowerCase(), at]));
   const rank = (field: string) => order.get(field.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
 
   const dropped: string[] = [];
@@ -108,9 +108,9 @@ function dropEchoes(values: ResolvedValue[], schema: Schema): [ResolvedValue[], 
   return [kept, dropped];
 }
 
-function kindOf(schema: Schema, field: string): FieldKind {
+function kindOf(schema: Schema, field: string): AttributeKind {
   return (
-    (schema.fields ?? []).find((entry) => entry.name.toLowerCase() === field.toLowerCase())?.kind ??
+    (schema.attributes ?? []).find((entry) => entry.attribute.toLowerCase() === field.toLowerCase())?.kind ??
     "string"
   );
 }

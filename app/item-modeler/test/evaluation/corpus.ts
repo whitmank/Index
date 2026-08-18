@@ -19,8 +19,8 @@ export interface CorpusEntry {
   /** An absolute path, or any uri the configured gateway can reach. */
   source: string;
   /** What the item *should* look like once modeled. Only `name` and
-   * `fields` are read; everything else may be omitted. */
-  item: Pick<Item, "name"> & Partial<Item> & { fields: Item["fields"] };
+   * `metadata` are read; everything else may be omitted. */
+  item: Pick<Item, "name"> & Partial<Item> & { metadata: Item["metadata"] };
   /** Optional note for the report — why this book is in the corpus, what
    * it is meant to be hard about. */
   note?: string;
@@ -48,20 +48,20 @@ export function corpusPath(): string {
  * manifest's own schema is — but a sensible starting point that matches
  * what the readers know how to speak about.
  *
- * `fields[0]` is the item's name, the way `resources[0]` is the primary
- * resource. A book's title is what the book is called, so it leads.
+ * `attributes[0]` is the item's name, the way `resources[0]` is the
+ * primary resource. A book's title is what the book is called, so it
+ * leads.
  */
 export const TEMPLATE_SCHEMA: Schema = {
   id: "schemas:book",
   name: "book",
-  label: null,
-  fields: [
-    { name: "title", label: null, kind: "string" },
-    { name: "author", label: null, kind: "string" },
-    { name: "published", label: null, kind: "date" },
-    { name: "publisher", label: null, kind: "string" },
-    { name: "isbn", label: null, kind: "string", hidden: true },
-    { name: "subject", label: null, kind: "list" },
+  attributes: [
+    { attribute: "title", kind: "string", display: true },
+    { attribute: "author", kind: "string", display: true },
+    { attribute: "published", kind: "date", display: true },
+    { attribute: "publisher", kind: "string", display: true },
+    { attribute: "isbn", kind: "string", display: false },
+    { attribute: "subject", kind: "list", display: true },
   ],
 };
 
@@ -99,8 +99,8 @@ export function loadCorpus(from = corpusPath()): Corpus {
   const corpus = parsed as Partial<Corpus>;
 
   const schema = corpus.schema;
-  if (!schema || !Array.isArray(schema.fields) || schema.fields.length === 0) {
-    fail(`${from} needs a \`schema\` with at least one field`);
+  if (!schema || !Array.isArray(schema.attributes) || schema.attributes.length === 0) {
+    fail(`${from} needs a \`schema\` with at least one attribute`);
   }
   if (!Array.isArray(corpus.entries) || corpus.entries.length === 0) {
     fail(`${from} needs a non-empty \`entries\` array`);
@@ -108,14 +108,14 @@ export function loadCorpus(from = corpusPath()): Corpus {
 
   corpus.entries.forEach((entry, at) => {
     if (!entry?.source) fail(`entry ${at} has no \`source\``);
-    if (!entry.item || !Array.isArray(entry.item.fields)) {
-      fail(`entry ${at} (${entry.source}) needs an \`item\` with a \`fields\` array`);
+    if (!entry.item || !Array.isArray(entry.item.metadata)) {
+      fail(`entry ${at} (${entry.source}) needs an \`item\` with a \`metadata\` array`);
     }
-    const declared = new Set(schema.fields.map((field) => field.name.toLowerCase()));
-    for (const field of entry.item.fields) {
-      if (!declared.has(field.name.toLowerCase())) {
+    const declared = new Set(schema.attributes.map((attribute) => attribute.attribute.toLowerCase()));
+    for (const entryMetadata of entry.item.metadata) {
+      if (entryMetadata.attribute !== null && !declared.has(entryMetadata.attribute.toLowerCase())) {
         fail(
-          `entry ${at} (${entry.source}) asserts '${field.name}', which the schema does not declare`,
+          `entry ${at} (${entry.source}) asserts '${entryMetadata.attribute}', which the schema does not declare`,
         );
       }
     }
@@ -141,9 +141,14 @@ export function template(sources: string[]): string {
         note: "",
         item: {
           name: "",
-          fields: TEMPLATE_SCHEMA.fields
+          metadata: TEMPLATE_SCHEMA.attributes
             .slice(1)
-            .map((field) => ({ name: field.name, value: field.kind === "list" ? [] : "", kind: field.kind })),
+            .map((attribute) => ({
+              attribute: attribute.attribute,
+              value: attribute.kind === "list" ? [] : "",
+              kind: attribute.kind,
+              prov: "user" as const,
+            })),
         },
       })),
     },

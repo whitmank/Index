@@ -114,7 +114,7 @@ function fingerprintOf(evidence: string, schema: Schema, options: ResolvedOption
     .update(MODELER_VERSION)
     .update(PROMPT_VERSION)
     .update(evidence)
-    .update(JSON.stringify(schema.fields ?? []))
+    .update(JSON.stringify(schema.attributes ?? []))
     .update(
       JSON.stringify([
         options.overwriteModeledValues,
@@ -158,7 +158,7 @@ export async function modelItem(
       emptyMeta(elapsed()),
     );
   }
-  if (!item.type || !schema || !Array.isArray(schema.fields) || schema.fields.length === 0) {
+  if (!item.type || !schema || !Array.isArray(schema.attributes) || schema.attributes.length === 0) {
     return failed(
       "no-type",
       "an item must have a type with declared fields before it can be modeled",
@@ -237,7 +237,7 @@ async function runPipeline(
   let modelAnswer: Record<string, unknown> | undefined;
   const settledFields = stated.map((fact) => fact.field);
   const wantsModel =
-    settings.languageModelMode !== "never" && settledFields.length < schema.fields.length;
+    settings.languageModelMode !== "never" && settledFields.length < schema.attributes.length;
 
   if (wantsModel) {
     const client = settings.model ?? (await openModelSafely(warnings));
@@ -278,12 +278,12 @@ async function runPipeline(
 
   // A field nothing spoke to is not an error — evidence was absent, which
   // the spec says to prefer over invention.
-  for (const field of schema.fields) {
-    if (resolution.values.some((value) => value.field === field.name)) continue;
+  for (const attribute of schema.attributes) {
+    if (resolution.values.some((value) => value.field === attribute.attribute)) continue;
     warnings.push({
       code: "field-unsupported",
-      field: field.name,
-      message: `nothing in the evidence established '${field.name}'`,
+      field: attribute.attribute,
+      message: `nothing in the evidence established '${attribute.attribute}'`,
     });
   }
 

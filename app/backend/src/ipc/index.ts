@@ -189,7 +189,7 @@ export function registerHandlers(): void {
     const schemas = await listSchemas().catch(() => [] as Schema[]);
     const result = await classifyItemType({
       description: asString(description, "description"),
-      types: schemas.map((schema) => ({ name: schema.name, label: schema.label })),
+      types: schemas.map((schema) => ({ name: schema.name })),
       modelPath: getActiveModel("classification") ?? undefined,
     });
     return { type: result.type };

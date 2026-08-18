@@ -22,16 +22,15 @@ interface Draft {
 // title is what the thing is called, where the filename is only where
 // it happened to be saved. Nothing to overwrite at this point — the
 // item is being minted, so the derived name has never been seen.
-function draftFrom({ resource, type, fields, name }: IntakeResult, date?: string): Draft {
+function draftFrom({ resource, type, metadata, name }: IntakeResult, date?: string): Draft {
   return {
     resource,
     item: {
       ...changes.blankItem(date),
       name: name ?? resource.name,
       resources: [resource],
-      type,
-      type_source: type ? "auto" : null,
-      fields,
+      type: type ? { value: type, prov: "auto" } : null,
+      metadata,
     } as Item,
   };
 }
@@ -101,8 +100,8 @@ export async function captureFromPaths(
   if (description === null) return [];
 
   // `draftFrom` already carries the deterministic classifier's guess
-  // (classifyResource, run inside pathsToResources) in `type`/`type_source`.
-  // The description is the primary signal when there is one: ask the item
+  // (classifyResource, run inside pathsToResources) in `type`. The
+  // description is the primary signal when there is one: ask the item
   // classifier first, and only a real (non-null) answer overwrites the
   // deterministic guess. A blank description, or an inconclusive answer,
   // leaves the deterministic guess exactly as `draftFrom` set it. Never
@@ -114,7 +113,7 @@ export async function captureFromPaths(
     draft.item = { ...draft.item, description };
     const guess = await window.index.itemClassifier.classify(trimmed);
     if ("ok" in guess && guess.ok.type) {
-      draft.item = { ...draft.item, type: guess.ok.type, type_source: "auto" };
+      draft.item = { ...draft.item, type: { value: guess.ok.type, prov: "auto" } };
     }
   }
   return commitDrafts([draft]);

@@ -9,7 +9,7 @@
 // They are kept in one file because every claim needs both and in that
 // order, and split into two functions because only the first is safe to
 // use when comparing two claims for equality.
-import type { FieldKind } from "@index/database/types";
+import type { AttributeKind } from "@index/database/types";
 import { collapseWhitespace, splitPeople } from "./normalize-names.js";
 import { normalizeDate } from "./normalize-dates.js";
 import { normalizeIsbn } from "./normalize-identifiers.js";
@@ -117,7 +117,7 @@ export function normalizeValue(
  * So a reader that found two subjects hands a `list` to a `string` field
  * as `a, b` rather than the field quietly becoming a list.
  */
-export function coerceToKind(value: string | string[], kind: FieldKind): string | string[] {
+export function coerceToKind(value: string | string[], kind: AttributeKind): string | string[] {
   if (kind === "list") {
     if (Array.isArray(value)) return value;
     return value.trim() === "" ? [] : [value];

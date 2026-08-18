@@ -4,7 +4,7 @@
 // there is nothing about one to undo, only the current shape of a type.
 import { getDb } from "../db.js";
 import { schemaId } from "../ids.js";
-import type { Schema, SchemaField } from "../types.js";
+import type { Schema, SchemaAttribute } from "../types.js";
 import { recordId, schemaContent, serializeSchema, type SchemaRow } from "./serialize.js";
 
 /**
@@ -23,8 +23,7 @@ export async function listSchemas(): Promise<Schema[]> {
 
 export interface SchemaInput {
   name: string;
-  label: string | null;
-  fields: SchemaField[];
+  attributes: SchemaAttribute[];
 }
 
 /**

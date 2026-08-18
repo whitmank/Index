@@ -6,20 +6,13 @@
 //   user-entered > explicitly approved > high-confidence modeled
 //                > lower-confidence modeled > missing
 //
-// The complication is that **the Item cannot say who entered a field**.
-// `@index/database/types` records `type_source` for the type and nothing
-// equivalent for a field, so ownership has no stored answer yet — and
-// this pass does not change the schema.
-//
-// So the policy is: believe the caller when it knows (`options.userFields`),
-// and otherwise treat *any non-blank field as the user's*. That is
-// conservative in the direction that matters — it can only cause a field
-// to be left alone that might have been safely filled, never the reverse —
-// and it is exactly what the shipped `parse` verb already does, so
-// behaviour does not change under anyone as a side effect of this module
-// arriving. When provenance is eventually persisted, this is the one
-// function that has to learn about it.
-import type { Item } from "@index/database/types";
+// `@index/database/types` now records `prov` on every metadata entry, so
+// ownership has a stored answer: `options.userFields`/`modeledFields`
+// remain valid overrides — a caller may know something the item's own
+// `prov` does not capture, like a field the current run just modeled but
+// has not written yet — but the fallback below no longer has to guess
+// conservatively. It reads `prov` directly.
+import type { Item, MetadataEntry } from "@index/database/types";
 import { isBlank } from "../normalization/normalize-value.js";
 
 export type Ownership =
@@ -35,34 +28,37 @@ export type Ownership =
 export interface OwnershipContext {
   item: Item;
   userFields: string[];
-  /** Fields a previous run is known to have modeled. Empty today —
-   * nothing persists provenance yet — which is precisely why the
-   * fallback below has to be the safe one. */
+  /** Fields a previous run is known to have modeled, beyond what the
+   * item's own `prov` already says — an override for the current run,
+   * not the general case. */
   modeledFields?: string[];
 }
 
-function valueOf(item: Item, field: string): string | string[] | undefined {
-  const found = (item.fields ?? []).find(
-    (entry) => entry.name.toLowerCase() === field.toLowerCase(),
+/** A null attribute is a freeform tag, never a named target — it never
+ * matches a field lookup. */
+function entryFor(item: Item, field: string): MetadataEntry | undefined {
+  return (item.metadata ?? []).find(
+    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === field.toLowerCase(),
   );
-  return found?.value;
+}
+
+function valueOf(item: Item, field: string): string | string[] | undefined {
+  return entryFor(item, field)?.value;
 }
 
 export function ownershipOf(field: string, context: OwnershipContext): Ownership {
-  const value = valueOf(context.item, field);
-  if (isBlank(value)) return "empty";
+  const entry = entryFor(context.item, field);
+  if (isBlank(entry?.value)) return "empty";
 
-  const named = context.userFields.some((entry) => entry.toLowerCase() === field.toLowerCase());
+  const named = context.userFields.some((name) => name.toLowerCase() === field.toLowerCase());
   if (named) return "user";
 
   const modeled = (context.modeledFields ?? []).some(
-    (entry) => entry.toLowerCase() === field.toLowerCase(),
+    (name) => name.toLowerCase() === field.toLowerCase(),
   );
   if (modeled) return "modeled";
 
-  // Carrying a value and nothing saying otherwise. Treated as the user's:
-  // undo makes an overwrite recoverable rather than acceptable.
-  return "user";
+  return entry?.prov === "auto" ? "modeled" : "user";
 }
 
 export function currentValue(item: Item, field: string): string | string[] | undefined {

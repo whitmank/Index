@@ -3,26 +3,26 @@
 // declares. Where those observations come from is sources.ts's business;
 // this file is only about what they end up called.
 //
-// Sources return *observations*, not fields: a key in whatever
+// Sources return *observations*, not metadata: a key in whatever
 // vocabulary the thing itself uses (an epub's OPF says "creator"; the
 // v1 book reader calls it "author"), which is a different thing from
-// the field name a user's schema happens to declare. `toFields` is the
-// join between the two, and the only thing that has to change when the
-// matching gets smarter — no source knows a schema exists.
+// the attribute name a user's schema happens to declare. `toMetadata` is
+// the join between the two, and the only thing that has to change when
+// the matching gets smarter — no source knows a schema exists.
 //
 // Before the join, a `book` schema declaring `writer` got an empty
 // `writer` row from the layout and an orphan `author` row underneath it:
 // two rows for one fact, one of them blank, in the panel opened to see
 // what was extracted.
-import type { Field, FieldKind, Schema, SchemaField } from "@index/database/types";
+import type { AttributeKind, MetadataEntry, Schema, SchemaAttribute } from "@index/database/types";
 import type { Probe } from "./probe.js";
 import { observeAll } from "./sources.js";
 
 /** One thing a resource declared about itself, in its own words. */
 export interface Observation {
   key: string;
-  value: Field["value"];
-  kind: FieldKind;
+  value: MetadataEntry["value"];
+  kind: AttributeKind;
   /** Which source said it, when anything cares to explain itself — the
    * change `index` writes names where each value came from, since a
    * filename beating a file's own metadata is surprising enough to be
@@ -37,7 +37,7 @@ export type Extractor = (probe: Probe) => Promise<Observation[]>;
  * — what the item should be called.
  *
  * The name is the schema's decision, not a reader's. A book's title is
- * the item's name and an author is a field, but a `person` type's
+ * the item's name and an author is metadata, but a `person` type's
  * `title` means Dr. or a job, and no amount of looking at the word tells
  * the two apart. So the type says which by putting it first — the way
  * `resources[0]` is the primary resource — and readers go on reporting
@@ -45,7 +45,7 @@ export type Extractor = (probe: Probe) => Promise<Observation[]>;
  */
 export interface Extracted {
   name?: string;
-  fields: Field[];
+  metadata: MetadataEntry[];
 }
 
 /**
@@ -81,28 +81,31 @@ function namesFor(key: string): string[] {
 }
 
 /**
- * Tried in order, and the order is the point: a schema field named
- * exactly what the observation is called wins over one whose *label*
- * happens to, and both win over a synonym. Without the ordering, a
- * schema declaring both `author` and `writer` could hand the author to
- * whichever came first in the list.
+ * Tried in order, and the order is the point: a schema attribute named
+ * exactly what the observation is called wins over a synonym. Without
+ * the ordering, a schema declaring both `author` and `writer` could hand
+ * the author to whichever came first in the list.
+ *
+ * There used to be two more rules here, matching against a field's
+ * `label` — retired along with `label` itself (attributes have no
+ * display-label distinct from their name now). What's genuinely lost: a
+ * schema attribute named one thing (`code`) matching an observation
+ * called something unrelated (`ISBN`) purely via a manually-set label.
+ * Under the current model, you'd just name the attribute `ISBN`
+ * directly.
  */
-const RULES: ((observation: Observation, field: SchemaField) => boolean)[] = [
-  (observation, field) => normalize(field.name) === normalize(observation.key),
-  (observation, field) =>
-    Boolean(field.label) && normalize(field.label ?? "") === normalize(observation.key),
-  (observation, field) => namesFor(observation.key).includes(normalize(field.name)),
-  (observation, field) =>
-    Boolean(field.label) && namesFor(observation.key).includes(normalize(field.label ?? "")),
+const RULES: ((observation: Observation, attribute: SchemaAttribute) => boolean)[] = [
+  (observation, attribute) => normalize(attribute.attribute) === normalize(observation.key),
+  (observation, attribute) => namesFor(observation.key).includes(normalize(attribute.attribute)),
 ];
 
 /**
- * Reshape a value for the kind its field actually declares. Mirrors the
- * renderer's `coerceFieldValue` (frontend/src/lib/fields.ts), which the
- * dependency rule keeps out of reach from here — the same trade the
+ * Reshape a value for the kind its attribute actually declares. Mirrors
+ * the renderer's `coerceFieldValue` (frontend/src/lib/fields.ts), which
+ * the dependency rule keeps out of reach from here — the same trade the
  * derivation ladder already makes, and for the same reason.
  */
-function coerce(value: Field["value"], kind: FieldKind): Field["value"] {
+function coerce(value: MetadataEntry["value"], kind: AttributeKind): MetadataEntry["value"] {
   if (kind === "list") {
     if (Array.isArray(value)) return value;
     return value.trim() === "" ? [] : [value];
@@ -110,12 +113,12 @@ function coerce(value: Field["value"], kind: FieldKind): Field["value"] {
   return Array.isArray(value) ? value.join(", ") : value;
 }
 
-function asField(observation: Observation): Field {
-  return { name: observation.key, value: observation.value, kind: observation.kind };
+function asEntry(observation: Observation): MetadataEntry {
+  return { attribute: observation.key, value: observation.value, kind: observation.kind, prov: "auto" };
 }
 
 /** A name is one line, whatever shape the observation arrived in. */
-function asText(value: Field["value"]): string {
+function asText(value: MetadataEntry["value"]): string {
   return Array.isArray(value) ? value.join(", ") : value;
 }
 
@@ -127,78 +130,85 @@ function asText(value: Field["value"]): string {
  *
  * - **The schema's kind wins.** A schema is the declaration of what a
  *   type carries; an observation only knows what the file said. So the
- *   field takes the declared kind and the value is reshaped to fit.
+ *   entry takes the declared kind and the value is reshaped to fit.
  * - **Unmatched observations are kept**, as rows of their own, rather
  *   than dropped. The file really did say them, and a visible row the
  *   user can delete beats data that silently never arrived. `index`
  *   turns this off (`keepUnmatched: false`): a person filling in a type
- *   on an item they already curated asked for that type's fields, and
- *   loose rows they never asked for are noise there rather than rescue.
- * - **Unmatched schema fields are not emitted.** The layout already
- *   draws a type's declared fields from the schema itself
+ *   on an item they already curated asked for that type's attributes,
+ *   and loose rows they never asked for are noise there rather than
+ *   rescue.
+ * - **Unmatched schema attributes are not emitted.** The layout already
+ *   draws a type's declared attributes from the schema itself
  *   (layouts/registry.tsx), so writing empty rows here would put the
  *   same blanks on the item twice.
  *
- * The type's **first** field takes its match as the item's name and
+ * The type's **first** attribute takes its match as the item's name and
  * writes no row — `resources[0]` is the primary resource for the same
  * reason, and reordering is the same gesture in both places. The name is
  * one fact, and the input at the top of Focus is already the control for
  * editing it.
  *
- * With no schema — an untyped item, or a type nobody has defined fields
- * for — every key passes through verbatim, which is what shipped before
- * this join existed.
+ * With no schema — an untyped item, or a type nobody has defined
+ * attributes for — every key passes through verbatim, which is what
+ * shipped before this join existed. Everything this file produces is
+ * machine-derived, so every entry carries `prov: "auto"`.
  */
-export function toFields(
+export function toMetadata(
   observations: Observation[],
   schema?: Schema,
   options: { keepUnmatched?: boolean } = {},
 ): Extracted {
   const keepUnmatched = options.keepUnmatched ?? true;
-  const fields = schema?.fields ?? [];
-  if (fields.length === 0) return { fields: keepUnmatched ? observations.map(asField) : [] };
+  const attributes = schema?.attributes ?? [];
+  if (attributes.length === 0) return { metadata: keepUnmatched ? observations.map(asEntry) : [] };
 
-  const pairs = new Map<SchemaField, Observation>();
+  const pairs = new Map<SchemaAttribute, Observation>();
   const claimed = new Set<Observation>();
 
   for (const rule of RULES) {
-    for (const field of fields) {
-      if (pairs.has(field)) continue;
+    for (const attribute of attributes) {
+      if (pairs.has(attribute)) continue;
       const match = observations.find(
-        (observation) => !claimed.has(observation) && rule(observation, field),
+        (observation) => !claimed.has(observation) && rule(observation, attribute),
       );
       if (!match) continue;
-      pairs.set(field, match);
+      pairs.set(attribute, match);
       claimed.add(match);
     }
   }
 
-  const [naming, ...rest] = fields;
+  const [naming, ...rest] = attributes;
   const named = naming ? pairs.get(naming) : undefined;
 
   // Matched rows in the order the type declares them, so an item reads
   // the way its schema does; whatever the file said that the schema has
   // no word for follows, in the order it was read.
   const matched = rest
-    .filter((field) => pairs.has(field))
-    .map((field) => {
-      const observation = pairs.get(field) as Observation;
-      return { name: field.name, value: coerce(observation.value, field.kind), kind: field.kind };
+    .filter((attribute) => pairs.has(attribute))
+    .map((attribute) => {
+      const observation = pairs.get(attribute) as Observation;
+      return {
+        attribute: attribute.attribute,
+        value: coerce(observation.value, attribute.kind),
+        kind: attribute.kind,
+        prov: "auto" as const,
+      };
     });
 
   const unmatched = keepUnmatched
-    ? observations.filter((observation) => !claimed.has(observation)).map(asField)
+    ? observations.filter((observation) => !claimed.has(observation)).map(asEntry)
     : [];
 
   return {
     ...(named ? { name: asText(named.value) } : {}),
-    fields: [...matched, ...unmatched],
+    metadata: [...matched, ...unmatched],
   };
 }
 
 /**
  * Best-effort, like every derivation: no type, nothing to read it with,
- * or no probe means no fields — never an error. An item whose metadata
+ * or no probe means no metadata — never an error. An item whose metadata
  * is unreadable still gets created and still gets classified, just with
  * nothing pre-filled.
  *
@@ -214,10 +224,10 @@ export async function extract(
   schema?: Schema,
   options?: { keepUnmatched?: boolean },
 ): Promise<Extracted> {
-  if (!type || !probe) return { fields: [] };
+  if (!type || !probe) return { metadata: [] };
   try {
-    return toFields(await observeAll(probe), schema, options);
+    return toMetadata(await observeAll(probe), schema, options);
   } catch {
-    return { fields: [] };
+    return { metadata: [] };
   }
 }

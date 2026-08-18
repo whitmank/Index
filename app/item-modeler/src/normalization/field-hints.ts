@@ -12,7 +12,7 @@
 // job a language model does natively. The model now maps vocabularies;
 // what remains here is only the handful of *concepts* the deterministic
 // half has type-specific rules for.
-import type { Schema, SchemaField } from "@index/database/types";
+import type { Schema, SchemaAttribute } from "@index/database/types";
 
 /** The concepts this module can normalise or validate differently. */
 export type FieldHint =
@@ -58,17 +58,18 @@ export function hintFor(field: string): FieldHint {
  * output is keyed by the schema's own field names, because the JSON
  * schema it fills is generated from them.
  */
-export function fieldForConcept(schema: Schema, concept: FieldHint): SchemaField | null {
+export function fieldForConcept(schema: Schema, concept: FieldHint): SchemaAttribute | null {
   const names = concept === "generic" ? [] : CONCEPTS[concept];
-  for (const field of schema.fields ?? []) {
-    const candidates = [field.name, field.label ?? ""].map(normalize);
-    if (names.some((name) => candidates.includes(normalize(name)))) return field;
+  for (const attribute of schema.attributes ?? []) {
+    const candidate = normalize(attribute.attribute);
+    if (names.some((name) => candidate === normalize(name))) return attribute;
   }
   return null;
 }
 
-/** `fields[0]` is the item's name, the way `resources[0]` is the primary
- * resource — ordered, and reordering is how the user says which it is. */
-export function namingField(schema: Schema): SchemaField | undefined {
-  return schema.fields?.[0];
+/** `attributes[0]` is the item's name, the way `resources[0]` is the
+ * primary resource — ordered, and reordering is how the user says which
+ * it is. */
+export function namingField(schema: Schema): SchemaAttribute | undefined {
+  return schema.attributes?.[0];
 }

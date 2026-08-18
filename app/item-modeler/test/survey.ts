@@ -22,18 +22,17 @@ import { itemFor } from "./item.js";
 import { renderReport, type SourceReport } from "./report-html.js";
 
 /** The type every source is modeled against. A plausible `book`: the
- * title leads, because `fields[0]` is the item's name. */
+ * title leads, because `attributes[0]` is the item's name. */
 const BOOK: Schema = {
   id: "schemas:book",
   name: "book",
-  label: null,
-  fields: [
-    { name: "title", label: null, kind: "string" },
-    { name: "author", label: null, kind: "string" },
-    { name: "published", label: null, kind: "date" },
-    { name: "publisher", label: null, kind: "string" },
-    { name: "isbn", label: null, kind: "string" },
-    { name: "subject", label: null, kind: "list" },
+  attributes: [
+    { attribute: "title", kind: "string", display: true },
+    { attribute: "author", kind: "string", display: true },
+    { attribute: "published", kind: "date", display: true },
+    { attribute: "publisher", kind: "string", display: true },
+    { attribute: "isbn", kind: "string", display: true },
+    { attribute: "subject", kind: "list", display: true },
   ],
 };
 
@@ -51,7 +50,9 @@ function walk(from: string): string[] {
 }
 
 function valueOf(item: Item, name: string): string | string[] | undefined {
-  return item.fields.find((field) => field.name.toLowerCase() === name.toLowerCase())?.value;
+  return item.metadata.find(
+    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === name.toLowerCase(),
+  )?.value;
 }
 
 /**
@@ -110,11 +111,11 @@ async function survey(filepath: string): Promise<SourceReport> {
     // shelf when it read none of them.
     name: wroteName ? result.item.name : null,
     nameProvenance: nameChange?.provenance ?? null,
-    fields: BOOK.fields.slice(1).map((field) => {
-      const change = result.changes.find((entry) => entry.field === field.name);
+    fields: BOOK.attributes.slice(1).map((attribute) => {
+      const change = result.changes.find((entry) => entry.field === attribute.attribute);
       return {
-        name: field.name,
-        value: valueOf(result.item, field.name) ?? null,
+        name: attribute.attribute,
+        value: valueOf(result.item, attribute.attribute) ?? null,
         action: (change?.action ?? null) as FieldChange["action"] | null,
         provenance: change?.provenance ?? null,
       };

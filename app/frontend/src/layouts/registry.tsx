@@ -1,15 +1,17 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The layout registry and the presentation cascade (DESIGN-CONCEPT §5,
-// PRODUCT-SPEC §3.6), extended with a third inference source: a type's
-// schema (database/records/schemas.ts). A layout arranges the screen —
-// its shape, which fields and labelled arrows it claims into dedicated
-// slots, whether the editing surface shows. It never picks the renderer
-// — that is always the format's job.
+// PRODUCT-SPEC §3.6), driven by a type's schema (database/records/
+// schemas.ts). A layout arranges the screen — its shape, which fields
+// and labelled arrows it claims into dedicated slots, whether the
+// editing surface shows. It never picks the renderer — that is always
+// the format's job.
 //
-// Tagging something "movie" *is* the user experience of choosing its
-// layout: one action, and inference does the rest. Classifying something
-// "book" now does the same, through data (a schemas row) instead of a
-// code file per type.
+// Classifying something "book" *is* the user experience of choosing its
+// layout: one action, and inference does the rest, through data (a
+// schemas row) instead of a code file per type. Tag-based inference —
+// the layout this cascade used to pick from an item's connected tags —
+// is retired: `item.type` does that job now, and does it without a
+// hardcoded name-to-layout lookup.
 //
 // This file is deliberately thin: the types below, the cascade, and the
 // registry map. Every layout's own arrangement lives in its own file
@@ -17,7 +19,7 @@
 // that needs a bespoke composition (AlbumLayout) has somewhere to write
 // it; one that doesn't (Default, Note, Video, Movie, Photo) is a couple
 // of lines.
-import type { FieldKind, Item, Resource, Schema } from "@index/database/types";
+import type { AttributeKind, Item, Resource, Schema } from "@index/database/types";
 import type { ReactNode } from "react";
 import { youtubeId } from "../components/VideoEmbed.tsx";
 import { schemaFor } from "../lib/derive.js";
@@ -46,12 +48,12 @@ export interface LayoutProps {
   connections: ClaimedConnection[];
 }
 
-/** A layout's own field: its name, and the kind its value editor should
- * present as — `list` gets chips (ListValueInput), everything else a
- * single line (SettleInput). */
+/** A layout's own field: its attribute name, and the kind its value
+ * editor should present as — `list` gets chips (ListValueInput),
+ * everything else a single line (SettleInput). */
 export interface KnownField {
-  name: string;
-  kind: FieldKind;
+  attribute: string;
+  kind: AttributeKind;
 }
 
 export interface LayoutEntry {
@@ -72,7 +74,7 @@ export interface LayoutEntry {
 export const layouts: Record<string, LayoutEntry> = {
   default: { Component: DefaultLayout },
   movie: {
-    fields: [{ name: "year", kind: "string" }],
+    fields: [{ attribute: "year", kind: "string" }],
     labels: ["author", "director"],
     // A movie's primary resource is often its IMDb or Wikipedia page —
     // the definitive record, not the thing to play — so the carousel
@@ -80,7 +82,7 @@ export const layouts: Record<string, LayoutEntry> = {
     preferredResource: (resource) => Boolean(youtubeId(resource.uri)),
     Component: MovieLayout,
   },
-  photo: { fields: [{ name: "exif", kind: "string" }], Component: PhotoLayout },
+  photo: { fields: [{ attribute: "exif", kind: "string" }], Component: PhotoLayout },
   note: { Component: NoteLayout },
   video: { Component: VideoLayout },
   album: { labels: ["track"], Component: AlbumLayout },
@@ -90,64 +92,51 @@ export interface Resolution {
   key: string;
   entry: LayoutEntry;
   /** Where the choice came from — the opens-as chip says which. */
-  source: "override" | "tag" | "type" | "default";
-  /** The tag that would be chosen if there were no override. */
-  inferred: string | null;
+  source: "override" | "type" | "default";
 }
 
 /**
- * The cascade: an explicit `opens` wins; else the first tag (by the
- * arrow's `created_at`) whose name names a code layout; else — new —
- * the item's classified `type`, if it names a schema with fields, gets
- * that schema's field list, in a code layout of the same name if one is
- * registered (album), or the generic two-column shape otherwise; else
- * `default`.
+ * The cascade: an explicit `opens` wins; else the item's classified
+ * `type`, if it names a schema with fields, gets that schema's field
+ * list, in a code layout of the same name if one is registered (album),
+ * or the generic two-column shape otherwise; else `default`.
  *
  * The schema's own field list — when `item.type` names one — always
  * wins over whatever a code layout statically declares, regardless of
  * which branch above picked the *Component*. A field's presence is only
  * ever user-editable in one place (the type manager in Settings), so
  * KnownFields has to read the same list no matter how the arrangement
- * got chosen — an item resolved by an old `opens` value or a tag still
- * gets its type's real fields, not the empty list a code layout like
- * `album` declares for itself.
- *
- * `tags` must arrive oldest-first — the order the arrows were made.
+ * got chosen — an item resolved by an old `opens` value still gets its
+ * type's real fields, not the empty list a code layout like `album`
+ * declares for itself.
  */
-export function resolveLayout(item: Item, tags: { name: string }[], schemas: Schema[]): Resolution {
-  const inferred = tags.find((tag) => tag.name in layouts)?.name ?? null;
-
-  const schema = schemaFor(schemas, item.type);
-  // A type's first field is drawn already — as the item's name, at the
-  // top of the panel — so drawing it again here would be two controls
-  // editing one fact. `hidden` drops the rest a type would rather not
-  // lead with; their values still reach the generic list below, which
-  // takes whatever this block does not claim. Both filtered before the
-  // length check, so a type with nothing left to lay out resolves the
-  // same as one with no fields at all.
-  const declared = schema?.fields.slice(1).filter((field) => !field.hidden) ?? [];
+export function resolveLayout(item: Item, schemas: Schema[]): Resolution {
+  const schema = schemaFor(schemas, item.type?.value ?? null);
+  // A type's first attribute is drawn already — as the item's name, at
+  // the top of the panel — so drawing it again here would be two
+  // controls editing one fact. `display: false` drops the rest a type
+  // would rather not lead with; their values still reach the generic
+  // list below, which takes whatever this block does not claim. Both
+  // filtered before the length check, so a type with nothing left to lay
+  // out resolves the same as one with no attributes at all.
+  const declared = schema?.attributes.slice(1).filter((attribute) => attribute.display) ?? [];
   const schemaFields: KnownField[] | undefined =
     declared.length > 0
-      ? declared.map((field) => ({ name: field.name, kind: field.kind }))
+      ? declared.map((attribute) => ({ attribute: attribute.attribute, kind: attribute.kind }))
       : undefined;
 
   if (item.opens && item.opens in layouts) {
     const entry = layouts[item.opens];
-    if (entry) return { key: item.opens, entry: withFields(entry, schemaFields), source: "override", inferred };
-  }
-
-  if (inferred) {
-    const entry = layouts[inferred];
-    if (entry) return { key: inferred, entry: withFields(entry, schemaFields), source: "tag", inferred };
+    if (entry) return { key: item.opens, entry: withFields(entry, schemaFields), source: "override" };
   }
 
   if (item.type && schemaFields) {
     // A type can also name a real code layout — "album" pulls its own
     // tracklist Component the same way "movie" does, rather than
     // settling for the generic two-column shape every other type gets.
-    const named = layouts[item.type];
+    const named = layouts[item.type.value];
     return {
-      key: item.type,
+      key: item.type.value,
       entry: {
         fields: schemaFields,
         labels: named?.labels,
@@ -155,11 +144,10 @@ export function resolveLayout(item: Item, tags: { name: string }[], schemas: Sch
         Component: named?.Component ?? TwoColumn,
       },
       source: "type",
-      inferred,
     };
   }
 
-  return { key: "default", entry: layouts.default as LayoutEntry, source: "default", inferred };
+  return { key: "default", entry: layouts.default as LayoutEntry, source: "default" };
 }
 
 function withFields(entry: LayoutEntry, fields: KnownField[] | undefined): LayoutEntry {
