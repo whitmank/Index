@@ -77,13 +77,14 @@ function compilePredicate(predicate: Predicate, bindings: Bindings, formats: For
     return `id IN (SELECT VALUE in FROM connections WHERE out = ${target} AND label = ${MEMBER_OF_LABEL_ID} AND deleted_at IS NONE)`;
   }
 
-  const { attribute, kind, gte, lte, eq } = predicate.metadata;
+  const { attribute, kind, gte, lte, eq } = predicate.data;
   // An attribute's *name* is a key and is matched case-insensitively, the
-  // way every other name comparison in the app is: an item's metadata
-  // arrives capitalised however their type declares it, however the
-  // Spotify import writes it, and however the user typed it into a row.
-  // The *value* is content and is compared as given. No index is lost —
-  // `metadata` is an array scanned inside the row either way.
+  // way every other name comparison in the app is: an item's data arrives
+  // capitalised however their type declares it, however the Spotify
+  // import writes it, and however the user typed it into a row. The
+  // *value* is content and is compared as given. `data` is an object, not
+  // an array, so `object::values()` turns it into one to scan the same
+  // way `metadata[WHERE ...]` used to.
   const terms =
     attribute !== undefined
       ? [`string::lowercase(attribute) = ${bindings.add(attribute.toLowerCase())}`]
@@ -91,7 +92,9 @@ function compilePredicate(predicate: Predicate, bindings: Bindings, formats: For
   if (eq !== undefined) terms.push(compareTerm(kind, "value", "=", bindings.add(eq)));
   if (gte !== undefined) terms.push(compareTerm(kind, "value", ">=", bindings.add(gte)));
   if (lte !== undefined) terms.push(compareTerm(kind, "value", "<=", bindings.add(lte)));
-  return terms.length ? `array::len(metadata[WHERE ${terms.join(" AND ")}]) > 0` : null;
+  return terms.length
+    ? `array::len(object::values(data)[WHERE ${terms.join(" AND ")}]) > 0`
+    : null;
 }
 
 export function compileQuery(query: SetQuery): CompiledQuery {

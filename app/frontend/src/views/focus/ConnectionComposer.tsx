@@ -18,6 +18,10 @@ export interface Outbound {
   targetName: string;
 }
 
+function nameOf(item: Item): string {
+  return (item.data.display_name?.value as string | undefined) ?? (item.data.name.value as string);
+}
+
 export function ConnectionComposer({
   item,
   outbound,
@@ -72,10 +76,16 @@ export function ConnectionComposer({
     const trimmed = term.trim();
     if (!trimmed) return;
     const exact = matches.find(
-      (match) => (match.display_name ?? match.name).toLowerCase() === trimmed.toLowerCase(),
+      (match) => nameOf(match).toLowerCase() === trimmed.toLowerCase(),
     );
     if (exact) void connectTo(exact, false);
-    else void connectTo({ ...changes.blankItem(), name: trimmed }, true);
+    else {
+      const blank = changes.blankItem();
+      void connectTo(
+        { ...blank, data: { ...blank.data, name: { attribute: "name", value: trimmed, kind: "string", prov: "user" } } },
+        true,
+      );
+    }
   };
 
   return (
@@ -132,7 +142,7 @@ export function ConnectionComposer({
           {matches.map((match) => (
             <li key={match.id}>
               <button onClick={() => void connectTo(match, false)} type="button">
-                {match.display_name ?? (match.name || "unnamed")}
+                {nameOf(match) || "unnamed"}
               </button>
             </li>
           ))}

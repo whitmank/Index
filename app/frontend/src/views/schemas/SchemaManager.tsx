@@ -1,8 +1,8 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The schema manager: create a type, name its attributes. A schema is
 // data, not code (database/types.ts) — this is the one place that data
-// gets written, the same relationship FieldsEditor has to an item's
-// metadata. Schemas sit outside the Change model, like labels: there is
+// gets written, the same relationship FieldsEditor has to an item's own
+// data. Schemas sit outside the Change model, like labels: there is
 // nothing about a type's shape to undo, only its current shape.
 //
 // `SchemaEditor` is the list-and-editor itself; `SchemaManager` is that

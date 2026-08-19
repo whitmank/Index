@@ -2,23 +2,24 @@
 // The fields editor: name/value rows with a kind picker on the value
 // cell. Blank rows vanish on commit — an empty name and value is a row
 // the user abandoned, not a fact about anything. `list` is the one kind
-// whose value is several strings rather than one (lib/metadata.ts spells
+// whose value is several strings rather than one (lib/data.ts spells
 // out the shape switch; ListValueInput is its chip editor).
 //
 // Everything written here carries `prov: "user"` — this editor is
 // name-driven and never produces a freeform (null-attribute) tag; the
 // data model supports one, but nothing in this UI does yet.
 import { useState } from "react";
-import type { AttributeKind, Item, MetadataEntry } from "@index/database/types";
+import type { AttributeKind, DataEntry, Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { blankFieldValue, coerceFieldValue, isBlankFieldValue } from "../../lib/metadata.js";
+import { blankFieldValue, coerceFieldValue, isBlankFieldValue } from "../../lib/data.js";
 
 const KINDS: AttributeKind[] = ["string", "number", "date", "list"];
+const RESERVED = new Set<string>(changes.RESERVED_DATA_KEYS);
 
 export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: string[] }) {
-  const [draftRow, setDraftRow] = useState<MetadataEntry>({
+  const [draftRow, setDraftRow] = useState<DataEntry>({
     attribute: "",
     value: "",
     kind: "string",
@@ -30,23 +31,31 @@ export function FieldsEditor({ item, exclude = [] }: { item: Item; exclude?: str
   const [draftGeneration, setDraftGeneration] = useState(0);
 
   const excluded = new Set(exclude.map((name) => name.toLowerCase()));
-  const known = item.metadata.filter((entry) => entry.attribute && excluded.has(entry.attribute.toLowerCase()));
-  const misc = item.metadata.filter((entry) => !entry.attribute || !excluded.has(entry.attribute.toLowerCase()));
+  // `data`'s reserved keys (name, description, ...) never show up here —
+  // `setData` preserves them on its own. What's left splits the same way
+  // it always has: a layout's own claimed attributes, and everything else.
+  const entries = Object.entries(item.data).filter(([key]) => !RESERVED.has(key));
+  const known = entries
+    .filter(([, entry]) => entry.attribute && excluded.has(entry.attribute.toLowerCase()))
+    .map(([, entry]) => entry);
+  const misc = entries
+    .filter(([, entry]) => !entry.attribute || !excluded.has(entry.attribute.toLowerCase()))
+    .map(([, entry]) => entry);
 
   // A layout's own known fields (KnownFields, in the registry) render
   // separately and stay untouched here — this list is everything else,
   // recombined with them before the write, so committing the generic
   // list never drops what the layout already claimed.
-  const commit = (metadata: MetadataEntry[]): void => {
-    void apply(changes.setMetadata(item, [...known, ...metadata]));
+  const commit = (rows: DataEntry[]): void => {
+    void apply(changes.setData(item, [...known, ...rows]));
   };
 
-  const update = (index: number, patch: Partial<MetadataEntry>): void => {
+  const update = (index: number, patch: Partial<DataEntry>): void => {
     const next = misc.map((entry, at) => (at === index ? { ...entry, ...patch, prov: "user" as const } : entry));
     commit(next);
   };
 
-  const addDraft = (patch: Partial<MetadataEntry>): void => {
+  const addDraft = (patch: Partial<DataEntry>): void => {
     const row = { ...draftRow, ...patch };
     if ((row.attribute ?? "").trim() === "" && isBlankFieldValue(row.value)) {
       setDraftRow(row);

@@ -75,11 +75,12 @@ export function BookRenderer({ item, resource }: RendererProps) {
   }
 
   if (state === "cover") {
+    const name = item.data.name.value as string;
     return cover ? (
-      <CoverArt actionLabel="read" alt={item.name} onClick={startReading} shape="portrait" src={cover} />
+      <CoverArt actionLabel="read" alt={name} onClick={startReading} shape="portrait" src={cover} />
     ) : (
       <button className="book-cover-fallback" onClick={startReading} type="button">
-        {item.name || resource.name}
+        {name || resource.name}
       </button>
     );
   }

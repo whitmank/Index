@@ -16,12 +16,36 @@ export type Provenance = "auto" | "user";
 /** A name/value statement on an item. `list` is the one kind whose
  * value is several strings rather than one — a cast, say — everything
  * else is scalar. `attribute` null means a freeform tag: a value with
- * no name, just content. */
-export interface MetadataEntry {
+ * no name, just content — stored under a generated key (see `Data`)
+ * rather than its own value, so it can never collide with a real
+ * attribute name and two identical tags don't silently merge. */
+export interface DataEntry {
   attribute: string | null;
   value: string | string[];
   kind: AttributeKind;
   prov: Provenance;
+}
+
+/**
+ * Everything about an item that's resource-descriptive and
+ * app-displayed: name, description, classification, extracted
+ * attributes, freeform tags. Keyed by `attribute.toLowerCase()` for a
+ * named entry (matching is case-insensitive everywhere else in this
+ * codebase; the key has to pick one canonical case, the entry's own
+ * `attribute` field keeps the original for display) or a generated id
+ * for a freeform tag.
+ *
+ * `name` is the one key guaranteed to exist — enforced here at compile
+ * time (an explicit property alongside the index signature), and
+ * backstopped by a database ASSERT (schema.surql) against anything that
+ * bypasses TypeScript. `readonly` blocks both reassignment and deletion
+ * of the key by name; a dynamic-key `delete data[someVariable]` still
+ * needs its own runtime guard, which is the one case static typing
+ * can't reach.
+ */
+export interface Data {
+  readonly name: DataEntry;
+  [key: string]: DataEntry;
 }
 
 /**
@@ -52,21 +76,12 @@ export interface Resource {
 /** Derived from the primary resource; selects the renderer. Never stored. */
 export type Format = "bare" | "image" | "markdown" | "book" | "video" | "link" | "file";
 
-/** A classification (e.g. "book"), naming a row in `schemas`, paired
- * atomically with who decided it — one fact, not two fields that can
- * drift apart. The classifier may replace its own `"auto"` guess when
- * the primary resource changes, but never a `"user"` one. */
-export interface ItemType {
-  value: string;
-  prov: Provenance;
-}
-
 export interface DateRange {
   gte?: string;
   lte?: string;
 }
 
-export interface MetadataPredicate {
+export interface DataPredicate {
   /** Absent matches any attribute — useful for a freeform-tag search. */
   attribute?: string;
   kind: AttributeKind;
@@ -81,48 +96,37 @@ export type Predicate =
   | { device: string }
   | { format: Format }
   | { arrowTo: string }
-  | { metadata: MetadataPredicate };
+  | { data: DataPredicate };
 
 /** A stored query, on items playing the set role. */
 export type SetQuery = { all: true } | { and: Predicate[] };
 
+/** An item's set-related state, in one field. `true` = deliberately
+ * created as a set, no filter defined yet (the bootstrapping window
+ * before it has one) — a `SetQuery` = it has a real filter. Both are
+ * "this item is a set" states; only `false` means it isn't (though it
+ * may still play the set role via a live `member of` arrow — that's
+ * computed elsewhere, never stored, same as before). */
+export type SetState = true | SetQuery;
+
 export interface Item {
   /** `items:01J…` — ULID, except the two seeds. */
   id: string;
-  name: string;
-  display_name: string | null;
-  /** What the user said this is, in their own words — captured once at
-   * intake, optional, and freeform rather than derived. */
-  description: string | null;
   /** ISO datetime, immutable — when the item entered the index. Set
    * once at creation (absorbs what used to be the separate `created_at`)
    * and never changed after; drives the `~` timeline's default
    * partition and default ordering. */
   date_added: string;
-  /** ISO datetime, mutable, intrinsic to the resource itself — a
-   * photo's shot date, a book's publication date — not when it was
-   * indexed. Absent until a user sets it or a future extraction fills
-   * it in; nothing populates it automatically yet. */
-  date_created: string | null;
   /** Presentation override: a layout key (Focus's, not a view kind — how
    * you view a set's members is a global, application-level toggle now,
-   * not remembered per set). */
-  opens: string | null;
-  query: SetQuery | null;
-  system: boolean;
-  /** Set at creation by `blankSet`: marks a deliberately-made set so it
-   * stays visible on the home screen before it has a query or any
-   * members. Set-role is otherwise computed, never stored — this is the
-   * one deliberate exception, for the bootstrapping moment before either
-   * exists yet. */
-  is_set: boolean;
-  /** Guessed at intake, user-overridable — the same shape as `opens`.
-   * Null while untyped, and again after the type is cleared: clearing
-   * withdraws an opinion rather than asserting an empty one, which
-   * reopens guessing. Absence is not an error: an untyped item just has
-   * no schema fields to show. */
-  type: ItemType | null;
-  metadata: MetadataEntry[];
+   * not remembered per set). `"default"` means "use the type's own
+   * layout" — never absent, so a raw record is self-explanatory without
+   * knowing what null would have meant. */
+  layout: string;
+  set: SetState | false;
+  /** Everything resource-descriptive and app-displayed: name,
+   * description, classification, extracted attributes, freeform tags. */
+  data: Data;
   /** Ordered; `resources[0]` is primary. */
   resources: Resource[];
   deleted_at: string | null;
@@ -137,7 +141,7 @@ export interface SchemaAttribute {
    *
    * `false` is not a secret and not a deletion: the value is still
    * extracted, still stored, and still shown — it drops to the generic
-   * metadata list below, which draws whatever the layout did not claim
+   * data list below, which draws whatever the layout did not claim
    * (views/focus/FieldsEditor.tsx). An ISBN is worth having and rarely
    * worth looking at, and this is the difference.
    *
@@ -156,7 +160,7 @@ export interface SchemaAttribute {
  * **`attributes[0]` is the item's name**, the same way `resources[0]` is
  * the primary resource: ordered, and reordering is how the user says
  * which one it is. A book's title is what the book is called, so it
- * leads — the ingestor writes what it extracted there into `Item.name`
+ * leads — the ingestor writes what it extracted there into `Item.data.name`
  * (ingest/extract.ts) and the layout draws the rest (layouts/registry.tsx),
  * since the name is already on screen above them.
  *
@@ -257,6 +261,9 @@ export interface ConnectionWithEndpoint {
   endpoint: EndpointSummary;
 }
 
+/** A cheap projection of the far item, not the item itself — built from
+ * `item.data.name`/`.display_name` (records/items.ts) so the focus view
+ * can draw connection chips without a second round trip. */
 export interface EndpointSummary {
   id: string;
   name: string;
@@ -280,11 +287,11 @@ export const PUBLIC_SET_ID = "items:public";
 
 /**
  * The one reserved, structural label. `member of` is the sole label-based
- * trigger for the set role (alongside `query`/`is_set`, which were always
- * explicit) — every other connection, labelled or not, is a plain
- * relationship and never promotes its target into something you can walk
- * into. Seeded once (seed.ts) with this well-known id, the same way `~`
- * and `public` are, so nothing has to mint it on first use.
+ * trigger for the set role (alongside `set`, which is always explicit) —
+ * every other connection, labelled or not, is a plain relationship and
+ * never promotes its target into something you can walk into. Seeded
+ * once (seed.ts) with this well-known id, the same way `~` and `public`
+ * are, so nothing has to mint it on first use.
  */
 export const MEMBER_OF_LABEL_ID = "labels:member_of";
 
@@ -295,4 +302,14 @@ export function isItem(record: StoredRecord): record is Item {
 
 export function isConnection(record: StoredRecord): record is Connection {
   return record.id.startsWith(`${CONNECTIONS_TABLE}:`);
+}
+
+/** Whether an item is one of the two fixed, built-in seeds — `~` and
+ * `public` — rather than something the user made. Computed from `id`,
+ * not stored: both ids are known constants, so there's no bootstrapping
+ * gap like `set`'s `true` state exists to cover, and storing this
+ * redundantly on every row would drift from the one thing that actually
+ * decides it. */
+export function isSystemId(id: string): boolean {
+  return id === HOME_SET_ID || id === PUBLIC_SET_ID;
 }

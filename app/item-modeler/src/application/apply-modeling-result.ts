@@ -16,7 +16,7 @@
 // model" is returned to compete with it as the source of truth: the spec
 // is emphatic about this, and it is why the function takes an Item and
 // returns an Item rather than a bag of fields somebody else has to merge.
-import type { Item, MetadataEntry, Schema } from "@index/database/types";
+import type { Data, DataEntry, Item, Schema } from "@index/database/types";
 import type { ConflictPolicy } from "../contracts/modeling-options.js";
 import type { FieldChange } from "../contracts/changes.js";
 import type { ModelingConflict } from "../contracts/conflicts.js";
@@ -48,21 +48,14 @@ export interface Applied {
   conflicts: ModelingConflict[];
 }
 
-/** Rows are matched case-insensitively, like every other name in the
- * app. A null attribute is a freeform tag, never a named target — it
- * never matches and is left alone. */
-function sameField(a: string | null, b: string): boolean {
-  return a !== null && a.toLowerCase() === b.toLowerCase();
-}
-
 export function applyModelingResult(request: ApplyRequest): Applied {
   const { item, schema, resolved, conflictPolicy } = request;
   const context: OwnershipContext = { item, userFields: request.userFields };
 
   const changes: FieldChange[] = [];
   const conflicts: ModelingConflict[] = [];
-  const writes = new Map<string, MetadataEntry>();
-  let name = item.name;
+  const writes = new Map<string, DataEntry>();
+  let name = item.data.name.value as string;
 
   for (const entry of resolved) {
     const naming = isNamingField(entry.field, schema);
@@ -179,7 +172,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
 
 function applyName(item: Item, entry: ResolvedValue, derivedName: string | null): FieldChange {
   const found = Array.isArray(entry.value) ? entry.value.join(", ") : entry.value;
-  const current = item.name ?? "";
+  const current = (item.data.name.value as string) ?? "";
 
   if (current.trim() === found.trim()) {
     return {
@@ -214,25 +207,17 @@ function applyName(item: Item, entry: ResolvedValue, derivedName: string | null)
 }
 
 /**
- * A found field replaces the row already standing for it rather than
- * landing beside it — the layout draws a type's declared attributes
- * whether or not they carry anything, so appending would show the name
- * twice with one of them empty.
+ * Writes upsert by key — a found field replaces the entry already
+ * standing for it rather than landing beside it, the same reason as
+ * before, but now a plain object assignment: a freeform tag's key is
+ * always a generated id, never a lowercased attribute name, so it can
+ * never collide with a named write here.
  */
-function writeFields(item: Item, name: string, writes: Map<string, MetadataEntry>): Item {
-  if (writes.size === 0 && name === item.name) return item;
+function writeFields(item: Item, name: string, writes: Map<string, DataEntry>): Item {
+  if (writes.size === 0 && name === item.data.name.value) return item;
 
-  const existing = item.metadata ?? [];
-  const replaced = existing.map((entry) => {
-    for (const [target, written] of writes) {
-      if (sameField(entry.attribute, target)) return { ...written, attribute: entry.attribute };
-    }
-    return entry;
-  });
+  const data: Data = { ...item.data, name: { ...item.data.name, value: name } };
+  for (const [attribute, entry] of writes) data[attribute.toLowerCase()] = entry;
 
-  const added = [...writes.entries()]
-    .filter(([target]) => !existing.some((entry) => sameField(entry.attribute, target)))
-    .map(([, written]) => written);
-
-  return { ...item, name, metadata: [...replaced, ...added] };
+  return { ...item, data };
 }

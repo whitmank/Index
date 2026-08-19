@@ -91,27 +91,29 @@ export const layouts: Record<string, LayoutEntry> = {
 export interface Resolution {
   key: string;
   entry: LayoutEntry;
-  /** Where the choice came from — the opens-as chip says which. */
+  /** Where the choice came from: an explicit `layout` override, the
+   * item's classified type, or neither. */
   source: "override" | "type" | "default";
 }
 
 /**
- * The cascade: an explicit `opens` wins; else the item's classified
+ * The cascade: an explicit `layout` wins; else the item's classified
  * `type`, if it names a schema with fields, gets that schema's field
  * list, in a code layout of the same name if one is registered (album),
  * or the generic two-column shape otherwise; else `default`.
  *
- * The schema's own field list — when `item.type` names one — always
+ * The schema's own field list — when the item's `type` names one — always
  * wins over whatever a code layout statically declares, regardless of
  * which branch above picked the *Component*. A field's presence is only
  * ever user-editable in one place (the type manager in Settings), so
  * KnownFields has to read the same list no matter how the arrangement
- * got chosen — an item resolved by an old `opens` value still gets its
- * type's real fields, not the empty list a code layout like `album`
+ * got chosen — an item resolved by an old `layout` override still gets
+ * its type's real fields, not the empty list a code layout like `album`
  * declares for itself.
  */
 export function resolveLayout(item: Item, schemas: Schema[]): Resolution {
-  const schema = schemaFor(schemas, item.type?.value ?? null);
+  const type = item.data.type?.value as string | undefined;
+  const schema = schemaFor(schemas, type ?? null);
   // A type's first attribute is drawn already — as the item's name, at
   // the top of the panel — so drawing it again here would be two
   // controls editing one fact. `display: false` drops the rest a type
@@ -125,18 +127,18 @@ export function resolveLayout(item: Item, schemas: Schema[]): Resolution {
       ? declared.map((attribute) => ({ attribute: attribute.attribute, kind: attribute.kind }))
       : undefined;
 
-  if (item.opens && item.opens in layouts) {
-    const entry = layouts[item.opens];
-    if (entry) return { key: item.opens, entry: withFields(entry, schemaFields), source: "override" };
+  if (item.layout !== "default" && item.layout in layouts) {
+    const entry = layouts[item.layout];
+    if (entry) return { key: item.layout, entry: withFields(entry, schemaFields), source: "override" };
   }
 
-  if (item.type && schemaFields) {
+  if (type && schemaFields) {
     // A type can also name a real code layout — "album" pulls its own
     // tracklist Component the same way "movie" does, rather than
     // settling for the generic two-column shape every other type gets.
-    const named = layouts[item.type.value];
+    const named = layouts[type];
     return {
-      key: item.type.value,
+      key: type,
       entry: {
         fields: schemaFields,
         labels: named?.labels,

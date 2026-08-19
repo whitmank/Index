@@ -86,7 +86,7 @@ export function commandsFor({ picked, handlers }: CommandContext): Command[] {
 
 /** Why parsing can't run over this selection, when it can't. */
 function nothingTyped(picked: Item[]): string | undefined {
-  if (picked.some((item) => item.type)) return undefined;
+  if (picked.some((item) => item.data.type)) return undefined;
   return picked.length === 1 ? "give it a type first" : "none of these have a type";
 }
 

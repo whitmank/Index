@@ -5,8 +5,9 @@
 // view. Shared by every drop target so each is a one-line call rather
 // than its own copy of the loop.
 import type { IntakeResult } from "@index/backend/bridge";
-import type { Item, Resource } from "@index/database/types";
+import type { Data, Item, Resource } from "@index/database/types";
 import { apply, changes } from "../changes/index.js";
+import { ulid } from "./ids.js";
 import { expandSpotifyAlbum } from "./spotify.js";
 
 interface Draft {
@@ -22,17 +23,16 @@ interface Draft {
 // title is what the thing is called, where the filename is only where
 // it happened to be saved. Nothing to overwrite at this point — the
 // item is being minted, so the derived name has never been seen.
-function draftFrom({ resource, type, metadata, name }: IntakeResult, date?: string): Draft {
-  return {
-    resource,
-    item: {
-      ...changes.blankItem(date),
-      name: name ?? resource.name,
-      resources: [resource],
-      type: type ? { value: type, prov: "auto" } : null,
-      metadata,
-    } as Item,
+function draftFrom({ resource, type, entries, name }: IntakeResult, date?: string): Draft {
+  const blank = changes.blankItem(date);
+  const data: Data = {
+    ...blank.data,
+    name: { attribute: "name", value: name ?? resource.name, kind: "string", prov: "auto" },
   };
+  if (type) data.type = { attribute: "type", value: type, kind: "string", prov: "auto" };
+  for (const entry of entries) data[entry.attribute ? entry.attribute.toLowerCase() : ulid()] = entry;
+
+  return { resource, item: { ...blank, resources: [resource], data } };
 }
 
 /**
@@ -48,7 +48,14 @@ async function commitDrafts(drafts: Draft[]): Promise<Item[]> {
       const expansion = await expandSpotifyAlbum(item, resource);
       if (!expansion) return { item, ok: await apply(changes.createItem(item)) };
 
-      const named = { ...item, name: expansion.albumName, ...expansion.itemPatch };
+      const named: Item = {
+        ...item,
+        data: {
+          ...item.data,
+          ...expansion.itemPatch.data,
+          name: { attribute: "name", value: expansion.albumName, kind: "string", prov: "auto" },
+        },
+      };
       const change = {
         description: `Create '${expansion.albumName}' as an album`,
         pairs: [{ before: null, after: named }, ...expansion.extraPairs],
@@ -110,10 +117,16 @@ export async function captureFromPaths(
   const draft = draftFrom(result, date);
   const trimmed = description.trim();
   if (trimmed) {
-    draft.item = { ...draft.item, description };
+    draft.item = {
+      ...draft.item,
+      data: { ...draft.item.data, description: { attribute: "description", value: description, kind: "string", prov: "user" } },
+    };
     const guess = await window.index.itemClassifier.classify(trimmed);
     if ("ok" in guess && guess.ok.type) {
-      draft.item = { ...draft.item, type: { value: guess.ok.type, prov: "auto" } };
+      draft.item = {
+        ...draft.item,
+        data: { ...draft.item.data, type: { attribute: "type", value: guess.ok.type, kind: "string", prov: "auto" } },
+      };
     }
   }
   return commitDrafts([draft]);

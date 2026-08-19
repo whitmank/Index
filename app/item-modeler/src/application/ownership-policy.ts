@@ -6,13 +6,13 @@
 //   user-entered > explicitly approved > high-confidence modeled
 //                > lower-confidence modeled > missing
 //
-// `@index/database/types` now records `prov` on every metadata entry, so
+// `@index/database/types` now records `prov` on every data entry, so
 // ownership has a stored answer: `options.userFields`/`modeledFields`
 // remain valid overrides — a caller may know something the item's own
 // `prov` does not capture, like a field the current run just modeled but
 // has not written yet — but the fallback below no longer has to guess
 // conservatively. It reads `prov` directly.
-import type { Item, MetadataEntry } from "@index/database/types";
+import type { Item } from "@index/database/types";
 import { isBlank } from "../normalization/normalize-value.js";
 
 export type Ownership =
@@ -34,12 +34,10 @@ export interface OwnershipContext {
   modeledFields?: string[];
 }
 
-/** A null attribute is a freeform tag, never a named target — it never
- * matches a field lookup. */
-function entryFor(item: Item, field: string): MetadataEntry | undefined {
-  return (item.metadata ?? []).find(
-    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === field.toLowerCase(),
-  );
+/** A freeform tag is keyed by a generated id, never a lowercased
+ * attribute name, so a named lookup can never land on one. */
+function entryFor(item: Item, field: string) {
+  return item.data[field.toLowerCase()];
 }
 
 function valueOf(item: Item, field: string): string | string[] | undefined {
@@ -79,5 +77,5 @@ export function currentValue(item: Item, field: string): string | string[] | und
  */
 export function mayRename(item: Item, derivedName: string | null): boolean {
   if (derivedName === null) return false;
-  return (item.name ?? "").trim() === derivedName.trim();
+  return (item.data.name.value as string).trim() === derivedName.trim();
 }

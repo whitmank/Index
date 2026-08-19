@@ -4,12 +4,12 @@
 // of what the renderer can see: records and changes in, records out.
 import type {
   Change,
+  DataEntry,
   Item,
   ItemDetail,
   Label,
   Members,
   MembersOptions,
-  MetadataEntry,
   Schema,
   StoredRecord,
 } from "@index/database/types";
@@ -107,7 +107,7 @@ export interface IndexBridge {
      *
      * Finding nothing is an empty list, never an error.
      */
-    parse(uri: string, type: string): Promise<Result<{ name?: string; metadata: MetadataEntry[] }>>;
+    parse(uri: string, type: string): Promise<Result<{ name?: string; entries: DataEntry[] }>>;
   };
   models: {
     /** Directories to look for `.gguf` files in — a person's own model

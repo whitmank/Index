@@ -293,11 +293,8 @@
   color: var(--is-accent);
 }
 
-/* Also the type-popover's own "no types yet" empty state — the name
-   predates this file's opens-as chip (removed; presentation is derived
-   from the item's type now, never chosen by hand) and was never
-   renamed. */
-.opens-as-empty {
+/* The type-popover's own "no types yet" empty state. */
+.type-option-empty {
   padding: 7px 8px;
   color: var(--is-ink-dim);
   font-size: 12px;
@@ -382,7 +379,7 @@
 
 /* Nothing in this column compresses to fit — it scrolls (overflow-y
    above) rather than squeezing any section smaller than it needs,
-   whatever that section is (a video, a photo, a stack of metadata
+   whatever that section is (a video, a photo, a stack of data
    rows). */
 .layout-single > * {
   flex-shrink: 0;
@@ -504,7 +501,7 @@
 /* `flex: none` — the content pane is sized by what it's showing (an
    aspect-ratio video, a book cover, a photo at its own size), never
    stretched to fill whatever vertical space happens to be left over
-   after the metadata below it. That's what keeps a movie's trailer at
+   after the data below it. That's what keeps a movie's trailer at
    its own 16:9 shape instead of fighting the flex algorithm for space. */
 .layout-single .layout-content {
   flex: none;
@@ -695,7 +692,7 @@
 }
 
 /* In SingleColumn (Default/Note/Video/Movie), content sits *above* a
-   scrolling stack of metadata rather than beside a same-height editor
+   scrolling stack of data rather than beside a same-height editor
    column, so there's no meaningful "100%" for `.content-slot` to fill —
    `height: auto` lets each fit size itself from its own width instead:
    an aspect-ratio box (video, book cover) computes its height from
@@ -1003,6 +1000,24 @@
 .focus .field-description input:not([type="checkbox"]):hover,
 .focus .field-description input:not([type="checkbox"]):focus {
   border-bottom-color: var(--is-line-strong);
+}
+
+/* TEMPORARY — raw item dump for debugging while the focus view is being
+   redesigned. Remove along with its call site in Focus.tsx. */
+.debug-attributes {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--is-ink-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--is-line);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .fields {

@@ -13,14 +13,18 @@
 // mental model of the schema.
 import fs from "node:fs";
 import path from "node:path";
-import type { Item, Schema } from "@index/database/types";
+import type { Data, Item, Schema } from "@index/database/types";
+
+/** Keys inside `data` that describe the item itself rather than a
+ * schema-declared attribute — never checked against `schema.attributes`. */
+const RESERVED_KEYS = new Set(["name", "display_name", "description", "date_created", "type"]);
 
 export interface CorpusEntry {
   /** An absolute path, or any uri the configured gateway can reach. */
   source: string;
-  /** What the item *should* look like once modeled. Only `name` and
-   * `metadata` are read; everything else may be omitted. */
-  item: Pick<Item, "name"> & Partial<Item> & { metadata: Item["metadata"] };
+  /** What the item *should* look like once modeled. Only `data` is
+   * read (and it must carry a `name`); everything else may be omitted. */
+  item: Partial<Item> & { data: Data };
   /** Optional note for the report — why this book is in the corpus, what
    * it is meant to be hard about. */
   note?: string;
@@ -108,14 +112,18 @@ export function loadCorpus(from = corpusPath()): Corpus {
 
   corpus.entries.forEach((entry, at) => {
     if (!entry?.source) fail(`entry ${at} has no \`source\``);
-    if (!entry.item || !Array.isArray(entry.item.metadata)) {
-      fail(`entry ${at} (${entry.source}) needs an \`item\` with a \`metadata\` array`);
+    if (!entry.item || !entry.item.data || typeof entry.item.data !== "object") {
+      fail(`entry ${at} (${entry.source}) needs an \`item\` with a \`data\` object`);
+    }
+    if (!entry.item.data.name) {
+      fail(`entry ${at} (${entry.source}) needs \`item.data.name\``);
     }
     const declared = new Set(schema.attributes.map((attribute) => attribute.attribute.toLowerCase()));
-    for (const entryMetadata of entry.item.metadata) {
-      if (entryMetadata.attribute !== null && !declared.has(entryMetadata.attribute.toLowerCase())) {
+    for (const [key, dataEntry] of Object.entries(entry.item.data)) {
+      if (RESERVED_KEYS.has(key)) continue;
+      if (dataEntry.attribute !== null && !declared.has(dataEntry.attribute.toLowerCase())) {
         fail(
-          `entry ${at} (${entry.source}) asserts '${entryMetadata.attribute}', which the schema does not declare`,
+          `entry ${at} (${entry.source}) asserts '${dataEntry.attribute}', which the schema does not declare`,
         );
       }
     }
@@ -140,15 +148,20 @@ export function template(sources: string[]): string {
         source,
         note: "",
         item: {
-          name: "",
-          metadata: TEMPLATE_SCHEMA.attributes
-            .slice(1)
-            .map((attribute) => ({
-              attribute: attribute.attribute,
-              value: attribute.kind === "list" ? [] : "",
-              kind: attribute.kind,
-              prov: "user" as const,
-            })),
+          data: {
+            name: { attribute: "name", value: "", kind: "string" as const, prov: "user" as const },
+            ...Object.fromEntries(
+              TEMPLATE_SCHEMA.attributes.slice(1).map((attribute) => [
+                attribute.attribute.toLowerCase(),
+                {
+                  attribute: attribute.attribute,
+                  value: attribute.kind === "list" ? [] : "",
+                  kind: attribute.kind,
+                  prov: "user" as const,
+                },
+              ]),
+            ),
+          },
         },
       })),
     },

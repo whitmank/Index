@@ -1,5 +1,5 @@
 // Authored by Karter Whitman using Claude Sonnet 5
-// Cover and tracklist beside the metadata — the lightbox a Spotify-style
+// Cover and tracklist beside the data — the lightbox a Spotify-style
 // album page gets.
 //
 // The cover art is painted directly from the primary resource's cached
@@ -34,8 +34,8 @@ import { useOrderedChildren } from "../parts/useOrderedChildren.ts";
 const ALBUM_TRACK_LABEL = "labels:track";
 
 function durationOf(song: Item): string {
-  const entry = song.metadata.find((candidate) => candidate.attribute?.toLowerCase() === "duration");
-  return typeof entry?.value === "string" ? entry.value : "";
+  const value = song.data.duration?.value;
+  return typeof value === "string" ? value : "";
 }
 
 export function AlbumLayout({ item, content, editor }: LayoutProps) {
@@ -46,7 +46,7 @@ export function AlbumLayout({ item, content, editor }: LayoutProps) {
   const rows = tracks.map(({ connection, item: song }, index) => ({
     id: connection.id,
     index: index + 1,
-    primary: song.display_name ?? (song.name || "untitled"),
+    primary: (song.data.display_name?.value as string | undefined) ?? ((song.data.name.value as string) || "untitled"),
     trailing: durationOf(song),
   }));
 

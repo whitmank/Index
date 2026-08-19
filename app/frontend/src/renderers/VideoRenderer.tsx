@@ -11,5 +11,10 @@ export function VideoRenderer({ item, resource }: RendererProps) {
     return <p className="renderer-missing">this link isn’t a video after all</p>;
   }
 
-  return <VideoEmbed title={item.display_name ?? item.name} uri={resource.uri} />;
+  return (
+    <VideoEmbed
+      title={(item.data.display_name?.value as string | undefined) ?? (item.data.name.value as string)}
+      uri={resource.uri}
+    />
+  );
 }

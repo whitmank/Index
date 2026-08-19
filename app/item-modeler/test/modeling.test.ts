@@ -18,7 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
-import type { Item, MetadataEntry, Schema, SchemaAttribute } from "@index/database/types";
+import type { Data, Item, Schema, SchemaAttribute } from "@index/database/types";
 import { modelItem } from "../src/index.js";
 import type { ItemModelingOutcome, ModelingSuccess } from "../src/contracts/index.js";
 import type { ModelClient } from "../src/extraction/language-model/local-model-client.js";
@@ -116,8 +116,9 @@ function modeled(outcome: ItemModelingOutcome): ModelingSuccess {
   return outcome as ModelingSuccess;
 }
 
-const valueOf = (metadata: MetadataEntry[], name: string) =>
-  metadata.find((entry) => entry.attribute === name)?.value;
+const valueOf = (data: Data, name: string) => data[name.toLowerCase()]?.value;
+
+const nameOf = (item: Item) => item.data.name.value;
 
 const actionFor = (result: ModelingSuccess, name: string) =>
   result.changes.find((change) => change.field === name)?.action;
@@ -310,11 +311,11 @@ async function run(): Promise<void> {
     const filepath = await writeEpub("dune.epub");
     const result = modeled(await model(itemWith(filepath), { languageModelMode: "never" }));
 
-    assert.equal(result.item.name, "Dune");
+    assert.equal(nameOf(result.item), "Dune");
     // Canonicalised on the way out: the OPF says `Herbert, Frank`.
-    assert.equal(valueOf(result.item.metadata, "author"), "Frank Herbert");
-    assert.equal(valueOf(result.item.metadata, "publisher"), "Chilton Books");
-    assert.equal(valueOf(result.item.metadata, "isbn"), "9780441013593");
+    assert.equal(valueOf(result.item.data, "author"), "Frank Herbert");
+    assert.equal(valueOf(result.item.data, "publisher"), "Chilton Books");
+    assert.equal(valueOf(result.item.data, "isbn"), "9780441013593");
     assert.equal(provenanceFor(result, "author")?.method, "epub-opf");
     assert.equal(provenanceFor(result, "isbn")?.method, "checksum");
   });
@@ -397,8 +398,8 @@ async function run(): Promise<void> {
 
     // The reading no regex ladder managed: the publisher is split off the
     // title even though the hyphen has no space before it.
-    assert.equal(result.item.name, "Neuromancer");
-    assert.equal(valueOf(result.item.metadata, "publisher"), "Ace Hardcover");
+    assert.equal(nameOf(result.item), "Neuromancer");
+    assert.equal(valueOf(result.item.data, "publisher"), "Ace Hardcover");
     const provenance = provenanceFor(result, "author");
     assert.equal(provenance?.origin, "language-model");
     assert.equal(provenance?.model?.name, "stub");
@@ -414,7 +415,7 @@ async function run(): Promise<void> {
     });
     const result = modeled(await model(itemWith(filepath), { model: clientFor(stub) }));
 
-    assert.equal(valueOf(result.item.metadata, "publisher"), undefined);
+    assert.equal(valueOf(result.item.data, "publisher"), undefined);
     const rejected = result.warnings.filter((warning) => warning.code === "value-rejected");
     assert.ok(rejected.length >= 1, "an invented value must be rejected");
     assert.match(rejected[0]?.message ?? "", /not supported by the evidence/);
@@ -427,7 +428,7 @@ async function run(): Promise<void> {
     const stub = stubModel({ isbn: "10.1234/9780128154321" });
     const result = modeled(await model(itemWith(filepath), { model: clientFor(stub) }));
 
-    assert.equal(valueOf(result.item.metadata, "isbn"), undefined);
+    assert.equal(valueOf(result.item.data, "isbn"), undefined);
   });
 
   await check("an answer that just repeats another field is not an answer", async () => {
@@ -439,8 +440,8 @@ async function run(): Promise<void> {
     const stub = stubModel({ subject: "Dune", published: "1965" });
     const result = modeled(await model(itemWith(filepath), { model: clientFor(stub) }));
 
-    assert.equal(valueOf(result.item.metadata, "subject"), undefined);
-    assert.equal(valueOf(result.item.metadata, "published"), "1965");
+    assert.equal(valueOf(result.item.data, "subject"), undefined);
+    assert.equal(valueOf(result.item.data, "published"), "1965");
     assert.ok(
       result.warnings.some(
         (warning) => warning.code === "value-rejected" && warning.field === "subject",
@@ -457,8 +458,8 @@ async function run(): Promise<void> {
     );
     const result = modeled(await model(itemWith(filepath), { languageModelMode: "never" }));
 
-    assert.equal(valueOf(result.item.metadata, "author"), "Jane Roe");
-    assert.equal(valueOf(result.item.metadata, "publisher"), "Jane Roe");
+    assert.equal(valueOf(result.item.data, "author"), "Jane Roe");
+    assert.equal(valueOf(result.item.data, "publisher"), "Jane Roe");
   });
 
   await check("a pdf's producer software never reaches the basket", async () => {
@@ -487,7 +488,7 @@ async function run(): Promise<void> {
     const result = modeled(await model(itemWith(filepath), { model: clientFor(stub) }));
 
     assert.equal(result.changes.filter((change) => change.action === "populated").length, 0);
-    assert.equal(result.item.name, "IMG_2024.pdf", "the minted name should stand");
+    assert.equal(nameOf(result.item), "IMG_2024.pdf", "the minted name should stand");
   });
 
   await check("a model failure degrades the run rather than failing it", async () => {
@@ -496,8 +497,8 @@ async function run(): Promise<void> {
     const result = modeled(await model(itemWith(filepath), { model: clientFor(stub) }));
 
     // Everything the file stated outright still stands.
-    assert.equal(result.item.name, "Dune");
-    assert.equal(valueOf(result.item.metadata, "author"), "Frank Herbert");
+    assert.equal(nameOf(result.item), "Dune");
+    assert.equal(valueOf(result.item.data, "author"), "Frank Herbert");
     assert.ok(result.warnings.some((warning) => warning.message.includes("did not answer")));
   });
 
@@ -510,7 +511,7 @@ async function run(): Promise<void> {
     process.env["INDEX_MODELS_DIR"] = path.join(workspace, "no-models");
     try {
       const result = modeled(await model(itemWith(filepath)));
-      assert.equal(valueOf(result.item.metadata, "author"), "Frank Herbert");
+      assert.equal(valueOf(result.item.data, "author"), "Frank Herbert");
       assert.ok(
         result.warnings.some((warning) => warning.message.includes("not installed")),
         "'nobody looked' and 'the book does not say' are different facts",
@@ -526,13 +527,13 @@ async function run(): Promise<void> {
   await check("a user's value is never overwritten, and the disagreement is recorded", async () => {
     const filepath = await writeEpub("dune-conflict.epub");
     const item = itemWith(filepath, {
-      metadata: [{ attribute: "author", value: "Someone Else", kind: "string", prov: "user" }],
+      entries: [{ attribute: "author", value: "Someone Else", kind: "string", prov: "user" }],
     });
     const result = modeled(
       await model(item, { userFields: ["author"], languageModelMode: "never" }),
     );
 
-    assert.equal(valueOf(result.item.metadata, "author"), "Someone Else");
+    assert.equal(valueOf(result.item.data, "author"), "Someone Else");
     assert.equal(actionFor(result, "author"), "conflicted");
     const conflict = result.conflicts.find((entry) => entry.field === "author");
     assert.equal(conflict?.challengers[0]?.value, "Frank Herbert");
@@ -541,18 +542,18 @@ async function run(): Promise<void> {
   await check("a filled field with nothing marking it is treated as the user's", async () => {
     const filepath = await writeEpub("dune-implicit.epub");
     const item = itemWith(filepath, {
-      metadata: [{ attribute: "publisher", value: "Ace Books", kind: "string", prov: "user" }],
+      entries: [{ attribute: "publisher", value: "Ace Books", kind: "string", prov: "user" }],
     });
     const result = modeled(await model(item, { languageModelMode: "never" }));
 
-    assert.equal(valueOf(result.item.metadata, "publisher"), "Ace Books");
+    assert.equal(valueOf(result.item.data, "publisher"), "Ace Books");
     assert.equal(actionFor(result, "publisher"), "conflicted");
   });
 
   await check("a sorted name confirms rather than conflicts with a read one", async () => {
     const filepath = await writeEpub("dune-sorted.epub");
     const item = itemWith(filepath, {
-      metadata: [{ attribute: "author", value: "Frank Herbert", kind: "string", prov: "user" }],
+      entries: [{ attribute: "author", value: "Frank Herbert", kind: "string", prov: "user" }],
     });
     const result = modeled(
       await model(item, { userFields: ["author"], languageModelMode: "never" }),
@@ -566,7 +567,7 @@ async function run(): Promise<void> {
     const renamed = itemWith(filepath, { name: "My favourite book" });
     const result = modeled(await model(renamed, { languageModelMode: "never" }));
 
-    assert.equal(result.item.name, "My favourite book");
+    assert.equal(nameOf(result.item), "My favourite book");
     assert.equal(result.changes.find((change) => change.target === "name")?.action, "skipped");
   });
 
@@ -585,7 +586,7 @@ async function run(): Promise<void> {
     const filepath = writePdf("sparse.pdf", { info: { Title: literal("Dune") } });
     const result = modeled(await model(itemWith(filepath), { languageModelMode: "never" }));
 
-    assert.equal(valueOf(result.item.metadata, "isbn"), undefined);
+    assert.equal(valueOf(result.item.data, "isbn"), undefined);
     assert.ok(
       result.warnings.some(
         (warning) => warning.code === "field-unsupported" && warning.field === "isbn",
@@ -614,7 +615,7 @@ async function run(): Promise<void> {
       await model(itemWith(filepath), { includeProvenance: false, languageModelMode: "never" }),
     );
 
-    assert.equal(valueOf(result.item.metadata, "author"), "Frank Herbert");
+    assert.equal(valueOf(result.item.data, "author"), "Frank Herbert");
     assert.ok(result.changes.every((change) => change.provenance === undefined));
   });
 
@@ -635,7 +636,7 @@ async function run(): Promise<void> {
       0,
       "a second run should confirm, not populate",
     );
-    assert.deepEqual(second.item.metadata, first.item.metadata);
+    assert.deepEqual(second.item.data, first.item.data);
     assert.equal(second.meta.fingerprint, first.meta.fingerprint);
   });
 
@@ -685,7 +686,7 @@ async function run(): Promise<void> {
     item.resources.push({ uri: path.join(workspace, "also-gone.pdf"), name: "also-gone.pdf" });
 
     const result = modeled(await model(item, { languageModelMode: "never" }));
-    assert.equal(valueOf(result.item.metadata, "author"), "Frank Herbert");
+    assert.equal(valueOf(result.item.data, "author"), "Frank Herbert");
     assert.ok(result.warnings.some((warning) => warning.code === "source-unreadable"));
     assert.equal(result.meta.sources.read, 1);
     assert.equal(result.meta.sources.attached, 2);

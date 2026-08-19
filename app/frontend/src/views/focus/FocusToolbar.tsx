@@ -14,15 +14,20 @@ import { ParseIcon } from "../../components/ParseIcon.tsx";
 import { isPublic } from "../../components/itemActions.ts";
 import { sameTypeName } from "../../lib/derive.js";
 import { parseItems } from "../../lib/parseItems.js";
+import { isSystemId } from "../../lib/seeds.js";
 import { pool, usePool } from "../../store/index.js";
+
+function typeOf(item: Item): string | undefined {
+  return item.data.type?.value as string | undefined;
+}
 
 /** The type chip's tooltip. It used to claim "you classified this" for
  * every typed item, including ones the classifier typed at intake and the
  * user never touched — `type.prov` is what lets it stop saying that,
  * and lets a guess point at the resource it came from. */
 function typeProvenance(item: Item): string {
-  if (!item.type) return "not yet classified";
-  if (item.type.prov === "user") return "you set this — click to change";
+  if (!item.data.type) return "not yet classified";
+  if (item.data.type.prov === "user") return "you set this — click to change";
   const primary = item.resources[0];
   return primary
     ? `guessed from ${primary.name} — click to change`
@@ -32,7 +37,7 @@ function typeProvenance(item: Item): string {
 /** Whether there is a guess standing unanswered. A type the user chose
  * needs no agreeing with — picking it from the menu already said so. */
 function awaitsConfirmation(item: Item): boolean {
-  return Boolean(item.type) && item.type?.prov !== "user";
+  return Boolean(item.data.type) && item.data.type?.prov !== "user";
 }
 
 export interface FocusToolbarProps {
@@ -75,7 +80,7 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
           title={typeProvenance(item)}
           type="button"
         >
-          <span className="type-trigger-label">{item.type?.value ?? "untyped"}</span>
+          <span className="type-trigger-label">{item.data.type?.value ?? "untyped"}</span>
           <span className="type-trigger-caret" aria-hidden="true">
             ⌄
           </span>
@@ -86,7 +91,7 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
             confirmed state — there is nothing left to ask. */}
         {awaitsConfirmation(item) && (
           <button
-            aria-label={`confirm this item is a ${item.type?.value}`}
+            aria-label={`confirm this item is a ${item.data.type?.value}`}
             className="type-confirm"
             onClick={() => void apply(changes.confirmType(item))}
             title="confirm this type, so changing resources won't revise it"
@@ -99,19 +104,19 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
         {typeMenuOpen && (
           <ul className="type-popover">
             {schemas.length === 0 && (
-              <li className="opens-as-empty">no types yet — add one from the types button</li>
+              <li className="type-option-empty">no types yet — add one from the types button</li>
             )}
             {schemas.map((schema) => (
               <li key={schema.id}>
                 <button
                   className={
-                    item.type && sameTypeName(schema.name, item.type.value)
+                    typeOf(item) && sameTypeName(schema.name, typeOf(item) as string)
                       ? "type-option is-current"
                       : "type-option"
                   }
                   onClick={() => {
                     setTypeMenuOpen(false);
-                    if (!item.type || !sameTypeName(schema.name, item.type.value)) {
+                    if (!typeOf(item) || !sameTypeName(schema.name, typeOf(item) as string)) {
                       void apply(changes.setType(item, schema.name));
                     }
                   }}
@@ -121,7 +126,7 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
                 </button>
               </li>
             ))}
-            {item.type && (
+            {item.data.type && (
               <li>
                 <button
                   className="type-option"
@@ -190,14 +195,14 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
           <button
             aria-label="parse"
             className="item-screen-icon-button"
-            disabled={!item.type || parsing}
+            disabled={!item.data.type || parsing}
             onClick={() => {
               setParsing(true);
               void parseItems([item]).finally(() => setParsing(false));
             }}
             title={
-              item.type
-                ? `read this file and fill in what a ${item.type.value} declares`
+              item.data.type
+                ? `read this file and fill in what a ${item.data.type.value} declares`
                 : "give it a type first"
             }
             type="button"
@@ -208,7 +213,7 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
           <button
             aria-label="Delete"
             className="item-screen-icon-button danger"
-            disabled={item.system}
+            disabled={isSystemId(item.id)}
             onClick={() => setConfirmingDelete(true)}
             title="Delete"
             type="button"

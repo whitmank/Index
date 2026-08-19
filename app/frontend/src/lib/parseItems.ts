@@ -44,12 +44,12 @@ export async function parseItems(items: Item[]): Promise<ParseOutcome> {
 
   for (const item of items) {
     const resource = item.resources?.[0];
-    if (!item.type || !resource) {
+    if (!item.data.type || !resource) {
       outcome.skipped += 1;
       continue;
     }
 
-    const answer = await window.index.ingest.parse(resource.uri, item.type.value);
+    const answer = await window.index.ingest.parse(resource.uri, item.data.type.value as string);
     if ("err" in answer) {
       outcome.skipped += 1;
       continue;

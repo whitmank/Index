@@ -156,14 +156,14 @@ export function nodeImageUrl(item: Item): string | null {
 
 /** The caption drawn under a node; blank means draw nothing. */
 export function captionOf(item: Item): string {
-  return item.display_name ?? item.name;
+  return (item.data.display_name?.value as string | undefined) ?? (item.data.name.value as string);
 }
 
 /** Roles are read off the graph, never stored (DESIGN-CONCEPT §3). Both
  * of these answer from what the pool happens to hold, which is what the
  * views need — a full answer would be a query. */
 export function looksLikeSet(item: Item, inbound: Connection[]): boolean {
-  return item.query !== null || inbound.some((connection) => connection.label === MEMBER_OF_LABEL_ID);
+  return item.set !== false || inbound.some((connection) => connection.label === MEMBER_OF_LABEL_ID);
 }
 
 export function looksLikeTag(inbound: Connection[]): boolean {

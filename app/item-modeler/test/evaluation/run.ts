@@ -33,7 +33,7 @@ import { itemFor } from "../item.js";
  * modeled from an item that carries only its source, so nothing the
  * module produces can have come from the answer key. */
 function blankItem(entry: CorpusEntry, source: string, corpus: Corpus): Item {
-  return itemFor(source, { type: entry.item.type?.value ?? corpus.schema.name });
+  return itemFor(source, { type: (entry.item.data.type?.value as string) ?? corpus.schema.name });
 }
 
 async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string): Promise<EntryScore> {
@@ -57,7 +57,7 @@ async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string):
 
   const item = blankItem(entry, source, corpus);
   const outcome = await modelItem(item, corpus.schema, {
-    derivedName: item.name,
+    derivedName: item.data.name.value as string,
     debugDiagnostics: true,
   });
 
@@ -68,7 +68,7 @@ async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string):
 
   // The spec's idempotency test, run per source rather than asserted
   // once: model the answer again and require that nothing is populated.
-  const again = await modelItem(result.item, corpus.schema, { derivedName: item.name });
+  const again = await modelItem(result.item, corpus.schema, { derivedName: item.data.name.value as string });
   const idempotent =
     again.status === "modeled" &&
     again.changes.every((change) => change.action !== "populated" && change.action !== "replaced");

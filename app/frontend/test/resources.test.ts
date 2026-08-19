@@ -5,7 +5,7 @@
 // which resource counts as the subject, which guesses are allowed to
 // overwrite what, and which are refused.
 import assert from "node:assert/strict";
-import type { Item, ItemType, Resource, Schema, SchemaAttribute } from "@index/database/types";
+import type { Data, DataEntry, Item, Provenance, Resource, Schema, SchemaAttribute } from "@index/database/types";
 
 let passed = 0;
 
@@ -43,26 +43,21 @@ function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
 }
 
-function itemType(value: string, prov: ItemType["prov"]): ItemType {
-  return { value, prov };
+function itemType(value: string, prov: Provenance): DataEntry {
+  return { attribute: "type", value, kind: "string", prov };
 }
 
-function item(overrides: Partial<Item> = {}): Item {
+function item(overrides: { name?: string; type?: DataEntry | null; resources?: Resource[] } = {}): Item {
+  const data: Data = { name: { attribute: "name", value: overrides.name ?? "Dune", kind: "string", prov: "user" } };
+  if (overrides.type) data.type = overrides.type;
   return {
     id: "items:01TEST",
-    name: "Dune",
-    display_name: null,
     date_added: "2026-08-12T00:00:00.000Z",
-    date_created: null,
-    opens: null,
-    query: null,
-    system: false,
-    is_set: false,
-    type: null,
-    metadata: [],
-    resources: [],
+    layout: "default",
+    set: false,
+    data,
+    resources: overrides.resources ?? [],
     deleted_at: null,
-    ...overrides,
   };
 }
 
@@ -83,8 +78,8 @@ await check("classifies the resource that becomes an untyped item's primary", as
   const after = outcome(await attachResource(item(), resource("dune.epub")));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.epub"]);
-  assert.equal(after.type?.value, "book");
-  assert.equal(after.type?.prov, "auto");
+  assert.equal(after.data.type?.value, "book");
+  assert.equal(after.data.type?.prov, "auto");
 });
 
 await check("never classifies a resource appended behind the primary", async () => {
@@ -95,7 +90,7 @@ await check("never classifies a resource appended behind the primary", async () 
   // The IMDb-page case: a supplementary source says nothing about what
   // the item fundamentally is, so it is never asked about.
   assert.deepEqual(asked, []);
-  assert.equal(after.type?.value, "movie");
+  assert.equal(after.data.type?.value, "movie");
   assert.equal(after.resources.length, 2);
 });
 
@@ -106,8 +101,8 @@ await check("classifies again when a different resource is promoted to primary",
   const after = outcome(await moveResource(page, 1, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.mp4"]);
-  assert.equal(after.type?.value, "movie");
-  assert.equal(after.type?.prov, "auto");
+  assert.equal(after.data.type?.value, "movie");
+  assert.equal(after.data.type?.prov, "auto");
   assert.equal(after.resources[0]?.name, "dune.mp4");
 });
 
@@ -127,7 +122,7 @@ await check("classifies whatever a removed primary was standing in front of", as
   const after = outcome(await detachResource(film, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/dune.epub"]);
-  assert.equal(after.type?.value, "book");
+  assert.equal(after.data.type?.value, "book");
 });
 
 console.log("\na type the user set is never argued with");
@@ -139,8 +134,8 @@ await check("refuses to reclassify over a hand-set type", async () => {
   const after = outcome(await moveResource(textbook, 1, 0));
 
   assert.deepEqual(asked, []);
-  assert.equal(after.type?.value, "textbook");
-  assert.equal(after.type?.prov, "user");
+  assert.equal(after.data.type?.value, "textbook");
+  assert.equal(after.data.type?.prov, "user");
   assert.equal(after.resources[0]?.name, "dune.epub", "the reorder itself still happens");
 });
 
@@ -153,15 +148,15 @@ await check("keeps an existing type when the classifier has nothing to say", asy
   const after = outcome(await moveResource(film, 1, 0));
 
   assert.deepEqual(asked, ["mbp:///Users/k/notes.txt"]);
-  assert.equal(after.type?.value, "movie");
-  assert.equal(after.type?.prov, "auto");
+  assert.equal(after.data.type?.value, "movie");
+  assert.equal(after.data.type?.prov, "auto");
 });
 
 await check("leaves an untyped item untyped when nothing matches", async () => {
   reset(null);
   const after = outcome(await attachResource(item(), resource("notes.txt")));
 
-  assert.equal(after.type, null);
+  assert.equal(after.data.type, undefined);
 });
 
 console.log("\none gesture, one undo");
@@ -175,8 +170,8 @@ await check("carries the new type in the same pair as the new order", async () =
   // Two pairs would mean two undos, and a user who pressed undo once
   // would be left holding the old order with the new type.
   assert.equal(change.pairs.length, 1);
-  assert.equal((change.pairs[0]?.before as Item).type?.value, "movie");
-  assert.equal(outcome(change).type?.value, "book");
+  assert.equal((change.pairs[0]?.before as Item).data.type?.value, "movie");
+  assert.equal(outcome(change).data.type?.value, "book");
 });
 
 await check("says in the description that the type moved too", async () => {
@@ -322,8 +317,8 @@ await check("confirming keeps the type and takes ownership of it", async () => {
   const guessed = item({ type: itemType("book", "auto") });
   const after = outcome(changes.confirmType(guessed));
 
-  assert.equal(after.type?.value, "book", "confirming changes who decided, not what");
-  assert.equal(after.type?.prov, "user");
+  assert.equal(after.data.type?.value, "book", "confirming changes who decided, not what");
+  assert.equal(after.data.type?.prov, "user");
 });
 
 await check("a confirmed guess then survives a new primary resource", async () => {
@@ -333,7 +328,7 @@ await check("a confirmed guess then survives a new primary resource", async () =
   const after = outcome(await moveResource(confirmed, 1, 0));
 
   assert.deepEqual(asked, [], "a confirmed type is not even asked about");
-  assert.equal(after.type?.value, "book");
+  assert.equal(after.data.type?.value, "book");
 });
 
 await check("choosing a type by hand confirms it in the same gesture", async () => {
@@ -341,20 +336,20 @@ await check("choosing a type by hand confirms it in the same gesture", async () 
   // Nothing to agree with afterwards: picking from the menu already said
   // a person decided, which is the only thing confirming would add.
   const picked = outcome(changes.setType(item({ type: itemType("book", "auto") }), "textbook"));
-  assert.equal(picked.type?.prov, "user");
+  assert.equal(picked.data.type?.prov, "user");
 
   picked.resources = [resource("dune.epub"), resource("dune.mp4")];
   assert.deepEqual(asked, []);
-  assert.equal(outcome(await moveResource(picked, 1, 0)).type?.value, "textbook");
+  assert.equal(outcome(await moveResource(picked, 1, 0)).data.type?.value, "textbook");
 });
 
 await check("clearing is the way back to guessing", async () => {
   reset("movie");
   const cleared = outcome(changes.setType(item({ type: itemType("book", "user") }), null));
-  assert.equal(cleared.type, null);
+  assert.equal(cleared.data.type, undefined);
 
   cleared.resources = [resource("dune.epub"), resource("dune.mp4")];
-  assert.equal(outcome(await moveResource(cleared, 1, 0)).type?.value, "movie");
+  assert.equal(outcome(await moveResource(cleared, 1, 0)).data.type?.value, "movie");
 });
 
 await check("records no provenance for an item with no type", async () => {
@@ -362,7 +357,7 @@ await check("records no provenance for an item with no type", async () => {
 
   // A type and its source are present or absent together; nothing can be
   // confirmed about a classification that was never made.
-  assert.equal(after.type, null);
+  assert.equal(after.data.type, undefined);
 });
 
 await check("names what was agreed to in the description", async () => {

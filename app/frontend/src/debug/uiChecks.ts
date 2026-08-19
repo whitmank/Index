@@ -11,8 +11,20 @@ import type { Item } from "@index/database/types";
 import { apply, applyUntracked, changes, undo } from "../changes/index.js";
 import { captionOf } from "../lib/derive.js";
 import { createItemsFromPaths } from "../lib/intake.js";
-import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
+import { HOME_SET_ID, isSystemId, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { history, pool, selection } from "../store/index.js";
+
+function nameOf(item: Item): string {
+  return (item.data.display_name?.value as string | undefined) ?? (item.data.name.value as string);
+}
+
+const RESERVED_DATA_KEYS = new Set<string>(["name", "display_name", "description", "date_created", "type"]);
+
+/** How many entries in `data` are ordinary attributes/tags — everything
+ * but the five reserved keys. */
+function miscCount(item: Item): number {
+  return Object.keys(item.data).filter((key) => !RESERVED_DATA_KEYS.has(key)).length;
+}
 
 export interface CheckLine {
   ok: boolean;
@@ -493,8 +505,8 @@ export async function checkFocus(checks: Checks): Promise<void> {
   );
   checks.say(trail()[trail().length - 1] === nodeName, "the last crumb is the thing you opened");
 
-  const chip = focus.querySelector(".opens-as .chip")?.textContent ?? "";
-  checks.say(chip.startsWith("opens as"), `the opens-as chip reads "${chip}"`);
+  const typeLabel = focus.querySelector(".type-trigger-label")?.textContent ?? "";
+  checks.say(Boolean(typeLabel), `the type trigger reads "${typeLabel}"`);
 
   const slot = focus.querySelector(".content-slot");
   checks.say(Boolean(slot), `the content slot rendered (${slot?.className ?? "absent"})`);
@@ -511,8 +523,8 @@ export async function checkFocus(checks: Checks): Promise<void> {
   nameField.blur();
   await sleep(300);
 
-  const renamedInPool = pool.getItem(itemId)?.name;
-  const renamedInDb = (await itemFromDatabase(itemId))?.name;
+  const renamedInPool = pool.getItem(itemId)?.data.name.value;
+  const renamedInDb = (await itemFromDatabase(itemId))?.data.name.value;
   checks.say(
     renamedInPool === "renamed by the checks" && renamedInDb === "renamed by the checks",
     `commit-on-settle renamed it (pool "${renamedInPool}", database "${renamedInDb}")`,
@@ -537,7 +549,7 @@ export async function checkFocus(checks: Checks): Promise<void> {
 
   const tagged = pool
     .outboundFrom(itemId)
-    .map((connection) => pool.getItem(connection.target)?.name)
+    .map((connection) => pool.getItem(connection.target)?.data.name.value)
     .filter(Boolean);
   checks.say(tagged.includes("checkstag"), `the composer tagged it (${tagged.join(", ") || "nothing"})`);
 
@@ -545,14 +557,14 @@ export async function checkFocus(checks: Checks): Promise<void> {
   await sleep(400);
   const afterUndo = pool
     .outboundFrom(itemId)
-    .map((connection) => pool.getItem(connection.target)?.name)
+    .map((connection) => pool.getItem(connection.target)?.data.name.value)
     .filter(Boolean);
   checks.say(!afterUndo.includes("checkstag"), "undo takes the tag and its target back");
 
   await undo();
   await sleep(400);
   checks.say(
-    pool.getItem(itemId)?.name === originalName,
+    pool.getItem(itemId)?.data.name.value === originalName,
     `undo restores the name to "${originalName}"`,
   );
 
@@ -651,12 +663,12 @@ export async function checkSelection(
   const target = pool
     .all()
     .filter(pool.isItem)
-    .find((item) => pool.isPlace(item.id) && !item.system);
+    .find((item) => pool.isPlace(item.id) && !isSystemId(item.id));
   if (!target) {
     checks.say(false, "selection — no set to add a batch to");
     return;
   }
-  const targetName = target.display_name ?? target.name;
+  const targetName = (target.data.display_name?.value as string | undefined) ?? (target.data.name.value as string);
   // A sweep of `~` catches the sets drawn on it too, and one of them may
   // be the very set being added to. Nothing can be its own member, so it
   // is not part of what this expects to land.
@@ -1253,19 +1265,17 @@ export async function checkNavBar(homeSetId: string, checks: Checks): Promise<vo
   await sleep(200);
   checks.say(!document.querySelector(".nav-dropdown"), "empty, it offers nothing");
 
-  const homeName = pool.getItem(homeSetId)?.display_name ?? pool.getItem(homeSetId)?.name ?? "";
+  const homeItem = pool.getItem(homeSetId);
+  const homeName = homeItem ? nameOf(homeItem) : "";
   const targetItem = pool
     .all()
     .filter(pool.isItem)
-    .find(
-      (item) =>
-        pool.isPlace(item.id) && item.id !== homeSetId && (item.display_name ?? item.name).length > 3,
-    );
+    .find((item) => pool.isPlace(item.id) && item.id !== homeSetId && nameOf(item).length > 3);
   if (!targetItem) {
     checks.say(false, "nav bar — no other place in the pool to search for");
     return;
   }
-  const target = targetItem.display_name ?? targetItem.name;
+  const target = nameOf(targetItem);
 
   // A set, found by a fragment of its name that is not its start — the
   // reason this is a substring search and not a prefix one.
@@ -1291,12 +1301,12 @@ export async function checkNavBar(homeSetId: string, checks: Checks): Promise<vo
   const thing = pool
     .all()
     .filter(pool.isItem)
-    .find((item) => !pool.isPlace(item.id) && (item.display_name ?? item.name).length > 3);
+    .find((item) => !pool.isPlace(item.id) && nameOf(item).length > 3);
   if (!thing) {
     checks.say(false, "nav bar — no thing in the pool to look for");
     return;
   }
-  const thingName = thing.display_name ?? thing.name;
+  const thingName = nameOf(thing);
 
   field = await open();
   if (!field) {
@@ -1476,7 +1486,7 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
     checks.say(false, `parse — nothing was created from ${filepath}`);
     return;
   }
-  checks.say(item.type?.value === "book", `a 366-page pdf arrives typed "${item.type?.value}"`);
+  checks.say(item.data.type?.value === "book", `a 366-page pdf arrives typed "${item.data.type?.value}"`);
 
   // Stripped back to what an item added before this feature existed looks
   // like: named after its file, typed but unconfirmed, no fields. That is
@@ -1489,17 +1499,19 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
   const stub = "buddha check";
   const bare: Item = {
     ...item,
-    name: stub,
-    type: item.type ? { value: item.type.value, prov: "auto" } : null,
-    metadata: [],
+    data: {
+      name: { attribute: "name", value: stub, kind: "string", prov: "user" },
+      ...(item.data.display_name ? { display_name: item.data.display_name } : {}),
+      ...(item.data.description ? { description: item.data.description } : {}),
+      ...(item.data.date_created ? { date_created: item.data.date_created } : {}),
+      ...(item.data.type ? { type: { ...item.data.type, prov: "auto" as const } } : {}),
+    },
     resources: item.resources.map((one, at) => (at === 0 ? { ...one, name: stub } : one)),
   };
   await applyUntracked({ description: "strip", pairs: [{ before: item, after: bare }] });
   await sleep(300);
-  checks.say(
-    (pool.getItem(item.id)?.metadata ?? []).length === 0,
-    "starting from an item with nothing filled in",
-  );
+  const stripped = pool.getItem(item.id);
+  checks.say(!!stripped && miscCount(stripped) === 0, "starting from an item with nothing filled in");
 
   // Opened through the nav bar — ⌘L, type, ↵ — which is how a person
   // reaches a thing by name. Not the canvas: home's membership is a
@@ -1540,12 +1552,11 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
   await sleep(400);
 
   const parsed = await itemFromDatabase(item.id);
-  const value = (name: string) =>
-    (parsed?.metadata ?? []).find((entry) => entry.attribute === name)?.value ?? "";
+  const value = (name: string) => parsed?.data[name.toLowerCase()]?.value ?? "";
 
   checks.say(
-    parsed?.name === "The Buddha in the Machine: Art, Technology, and the Meeting of East and West",
-    `it took the book's real title — "${parsed?.name}" (was "${before}")`,
+    parsed?.data.name.value === "The Buddha in the Machine: Art, Technology, and the Meeting of East and West",
+    `it took the book's real title — "${parsed?.data.name.value}" (was "${before}")`,
   );
   checks.say(value("author") === "R. John Williams", `author = "${value("author")}"`);
   checks.say(
@@ -1555,13 +1566,13 @@ export async function checkParsing(checks: Checks, filepath: string): Promise<vo
   checks.say(value("publisher") === "Yale University Press", `publisher = "${value("publisher")}"`);
   checks.say(value("isbn") === "9780300206579", `isbn = "${value("isbn")}"`);
   checks.say(value("pages") === "366", `pages = "${value("pages")}" — read from the file itself`);
-  checks.say(parsed?.type?.prov === "user", "parsing settled the type as yours");
+  checks.say(parsed?.data.type?.prov === "user", "parsing settled the type as yours");
 
   await undo();
   await sleep(500);
   const reverted = await itemFromDatabase(item.id);
   checks.say(
-    reverted?.name === before && (reverted?.metadata ?? []).length <= 2,
+    reverted?.data.name.value === before && !!reverted && miscCount(reverted) <= 2,
     "one undo takes the whole parsing back",
   );
 

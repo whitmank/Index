@@ -6,7 +6,7 @@
 // Sources return *observations*, not metadata: a key in whatever
 // vocabulary the thing itself uses (an epub's OPF says "creator"; the
 // v1 book reader calls it "author"), which is a different thing from
-// the attribute name a user's schema happens to declare. `toMetadata` is
+// the attribute name a user's schema happens to declare. `toEntries` is
 // the join between the two, and the only thing that has to change when
 // the matching gets smarter — no source knows a schema exists.
 //
@@ -14,14 +14,14 @@
 // `writer` row from the layout and an orphan `author` row underneath it:
 // two rows for one fact, one of them blank, in the panel opened to see
 // what was extracted.
-import type { AttributeKind, MetadataEntry, Schema, SchemaAttribute } from "@index/database/types";
+import type { AttributeKind, DataEntry, Schema, SchemaAttribute } from "@index/database/types";
 import type { Probe } from "./probe.js";
 import { observeAll } from "./sources.js";
 
 /** One thing a resource declared about itself, in its own words. */
 export interface Observation {
   key: string;
-  value: MetadataEntry["value"];
+  value: DataEntry["value"];
   kind: AttributeKind;
   /** Which source said it, when anything cares to explain itself — the
    * change `index` writes names where each value came from, since a
@@ -45,7 +45,7 @@ export type Extractor = (probe: Probe) => Promise<Observation[]>;
  */
 export interface Extracted {
   name?: string;
-  metadata: MetadataEntry[];
+  entries: DataEntry[];
 }
 
 /**
@@ -105,7 +105,7 @@ const RULES: ((observation: Observation, attribute: SchemaAttribute) => boolean)
  * the dependency rule keeps out of reach from here — the same trade the
  * derivation ladder already makes, and for the same reason.
  */
-function coerce(value: MetadataEntry["value"], kind: AttributeKind): MetadataEntry["value"] {
+function coerce(value: DataEntry["value"], kind: AttributeKind): DataEntry["value"] {
   if (kind === "list") {
     if (Array.isArray(value)) return value;
     return value.trim() === "" ? [] : [value];
@@ -113,12 +113,12 @@ function coerce(value: MetadataEntry["value"], kind: AttributeKind): MetadataEnt
   return Array.isArray(value) ? value.join(", ") : value;
 }
 
-function asEntry(observation: Observation): MetadataEntry {
+function asEntry(observation: Observation): DataEntry {
   return { attribute: observation.key, value: observation.value, kind: observation.kind, prov: "auto" };
 }
 
 /** A name is one line, whatever shape the observation arrived in. */
-function asText(value: MetadataEntry["value"]): string {
+function asText(value: DataEntry["value"]): string {
   return Array.isArray(value) ? value.join(", ") : value;
 }
 
@@ -154,14 +154,14 @@ function asText(value: MetadataEntry["value"]): string {
  * shipped before this join existed. Everything this file produces is
  * machine-derived, so every entry carries `prov: "auto"`.
  */
-export function toMetadata(
+export function toEntries(
   observations: Observation[],
   schema?: Schema,
   options: { keepUnmatched?: boolean } = {},
 ): Extracted {
   const keepUnmatched = options.keepUnmatched ?? true;
   const attributes = schema?.attributes ?? [];
-  if (attributes.length === 0) return { metadata: keepUnmatched ? observations.map(asEntry) : [] };
+  if (attributes.length === 0) return { entries: keepUnmatched ? observations.map(asEntry) : [] };
 
   const pairs = new Map<SchemaAttribute, Observation>();
   const claimed = new Set<Observation>();
@@ -202,7 +202,7 @@ export function toMetadata(
 
   return {
     ...(named ? { name: asText(named.value) } : {}),
-    metadata: [...matched, ...unmatched],
+    entries: [...matched, ...unmatched],
   };
 }
 
@@ -224,10 +224,10 @@ export async function extract(
   schema?: Schema,
   options?: { keepUnmatched?: boolean },
 ): Promise<Extracted> {
-  if (!type || !probe) return { metadata: [] };
+  if (!type || !probe) return { entries: [] };
   try {
-    return toMetadata(await observeAll(probe), schema, options);
+    return toEntries(await observeAll(probe), schema, options);
   } catch {
-    return { metadata: [] };
+    return { entries: [] };
   }
 }

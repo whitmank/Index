@@ -98,7 +98,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
         device: uri ? deviceOf(uri) : "—",
         kind: uri ? deviceKindOf(uri, selfDevice) : null,
         place: pool.isPlace(item.id),
-        type: item.type?.value ?? null,
+        type: (item.data.type?.value as string | undefined) ?? null,
       };
     },
     [selfDevice],

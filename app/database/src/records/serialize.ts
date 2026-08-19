@@ -7,32 +7,24 @@
 import { StringRecordId } from "surrealdb";
 import type {
   Connection,
+  Data,
   Item,
-  ItemType,
   Label,
-  MetadataEntry,
   Position,
   Resource,
   Schema,
   SchemaAttribute,
-  SetQuery,
+  SetState,
   StoredRecord,
 } from "../types.js";
 import { isItem } from "../types.js";
 
 export interface ItemRow {
   id: unknown;
-  name: string;
-  display_name?: string | null;
-  description?: string | null;
   date_added: unknown;
-  date_created?: unknown;
-  opens?: string | null;
-  query?: SetQuery | null;
-  system?: boolean;
-  is_set?: boolean;
-  type?: ItemType | null;
-  metadata?: MetadataEntry[];
+  layout?: string;
+  set?: SetState | false;
+  data?: Data;
   resources?: Resource[];
   deleted_at?: unknown;
 }
@@ -76,20 +68,19 @@ function optionalDate(raw: unknown): string | null {
   return raw === undefined || raw === null ? null : dateToString(raw);
 }
 
+/** A row missing `data` entirely (shouldn't happen — the DB ASSERTs
+ * `data.name`) still gets a valid, blank one rather than crashing every
+ * reader that assumes `name` exists; the same defensive fallback
+ * `row.name ?? ""` provided before this field moved. */
+const BLANK_DATA: Data = { name: { attribute: "name", value: "", kind: "string", prov: "user" } };
+
 export function serializeItem(row: ItemRow): Item {
   return {
     id: idToString(row.id),
-    name: row.name ?? "",
-    display_name: row.display_name ?? null,
-    description: row.description ?? null,
     date_added: dateToString(row.date_added),
-    date_created: optionalDate(row.date_created),
-    opens: row.opens ?? null,
-    query: row.query ?? null,
-    system: row.system ?? false,
-    is_set: row.is_set ?? false,
-    type: row.type ?? null,
-    metadata: row.metadata ?? [],
+    layout: row.layout ?? "default",
+    set: row.set ?? false,
+    data: row.data ?? BLANK_DATA,
     resources: row.resources ?? [],
     deleted_at: optionalDate(row.deleted_at),
   };
@@ -133,25 +124,21 @@ function toDbDate(value: string | null): Date | undefined {
  * is READONLY in the schema, so it is only sent on creation — SurrealDB
  * rejects an attempt to change it. */
 export function itemContent(item: Item, includeCreatedAt: boolean): Record<string, unknown> {
-  return {
-    name: item.name,
-    display_name: item.display_name ?? undefined,
-    description: item.description ?? undefined,
-    ...(includeCreatedAt ? { date_added: new Date(item.date_added) } : {}),
-    date_created: toDbDate(item.date_created),
-    opens: item.opens ?? undefined,
-    query: item.query ?? undefined,
-    system: item.system,
-    is_set: item.is_set,
-    type: item.type
-      ? { value: item.type.value, prov: item.type.prov }
-      : undefined,
-    metadata: item.metadata.map((entry) => ({
+  const data: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(item.data)) {
+    data[key] = {
       attribute: entry.attribute ?? undefined,
       value: entry.value,
       kind: entry.kind,
       prov: entry.prov,
-    })),
+    };
+  }
+
+  return {
+    ...(includeCreatedAt ? { date_added: new Date(item.date_added) } : {}),
+    layout: item.layout,
+    set: item.set,
+    data,
     resources: item.resources.map((resource) => ({
       uri: resource.uri,
       name: resource.name,

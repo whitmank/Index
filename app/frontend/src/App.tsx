@@ -44,7 +44,7 @@ import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { parseItems } from "./lib/parseItems.js";
 import { captureFromPaths } from "./lib/intake.js";
-import { HOME_SET_ID } from "./lib/seeds.js";
+import { HOME_SET_ID, isSystemId } from "./lib/seeds.js";
 import { holdsEverything } from "./lib/sets.js";
 import { homeEntry, readStoredPath, storePath, type PathEntry } from "./store/location.js";
 import {
@@ -479,7 +479,7 @@ export function App() {
 
   const askToDeletePicked = useCallback(() => {
     // Every one of them is a system item: there is nothing to ask about.
-    if (pickedItems().every((item) => item.system)) {
+    if (pickedItems().every((item) => isSystemId(item.id))) {
       errors.surface("These are system items, and cannot be deleted.");
       return;
     }
@@ -794,14 +794,15 @@ function otherViewMode(mode: ViewMode): ViewMode {
 
 /** An item is "still blank" when nothing has been said about it — what
  * decides whether a still-new item, once it falls off the trail, is
- * worth keeping (`arriveAt`) rather than discarded. */
+ * worth keeping (`arriveAt`) rather than discarded. Deliberately doesn't
+ * look at `description`/`date_created`, same as before this moved into
+ * `data`: neither ever counted toward "something has been said". */
 function isBlankDraft(item: Item): boolean {
+  const misc = Object.keys(item.data).filter((key) => key !== "name" && key !== "description" && key !== "date_created");
   return (
-    item.name.trim() === "" &&
-    !item.display_name &&
-    !item.type &&
+    (item.data.name.value as string).trim() === "" &&
+    misc.length === 0 &&
     item.resources.length === 0 &&
-    item.metadata.length === 0 &&
     pool.connectionsTouching(item.id).length === 0
   );
 }
@@ -812,7 +813,7 @@ function isBlankDraft(item: Item): boolean {
  * how a person does.
  */
 function deleteQuestion(picked: Item[]): string {
-  const deletable = picked.filter((item) => !item.system);
+  const deletable = picked.filter((item) => !isSystemId(item.id));
   if (deletable.length === 1) {
     const only = deletable[0] as Item;
     return `Delete ${captionOf(only) ? `“${captionOf(only)}”` : "this item"}?`;

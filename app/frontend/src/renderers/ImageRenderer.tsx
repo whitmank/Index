@@ -13,7 +13,7 @@ export function ImageRenderer({ item, resource }: RendererProps) {
 
   return (
     <img
-      alt={item.display_name ?? item.name}
+      alt={(item.data.display_name?.value as string | undefined) ?? (item.data.name.value as string)}
       className="renderer-image"
       onError={() => setFailed(true)}
       src={window.index.url.res(resource.uri)}

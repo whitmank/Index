@@ -5,29 +5,27 @@
 -- store without a migration step).
 
 DEFINE TABLE IF NOT EXISTS items SCHEMAFULL;
-DEFINE FIELD OVERWRITE name         ON items TYPE string DEFAULT "";
-DEFINE FIELD OVERWRITE display_name ON items TYPE option<string>;
-DEFINE FIELD OVERWRITE description  ON items TYPE option<string>;   -- what the user said this is, at intake
--- date_added: immutable, when the item entered the index — absorbs what
--- used to be the separate `created_at`. date_created: mutable, intrinsic
--- to the resource itself (a photo's shot date, a book's publication
--- date) — optional, since it's rarely known at intake, and never
--- inferred yet.
-DEFINE FIELD OVERWRITE date_added   ON items TYPE datetime DEFAULT time::now() READONLY;
-DEFINE FIELD OVERWRITE date_created ON items TYPE option<datetime>;
-DEFINE FIELD OVERWRITE opens        ON items TYPE option<string>;   -- presentation override
-DEFINE FIELD OVERWRITE query        ON items TYPE option<object> FLEXIBLE;  -- set-role predicate, §1.5
-DEFINE FIELD OVERWRITE system       ON items TYPE bool DEFAULT false;
-DEFINE FIELD OVERWRITE is_set       ON items TYPE bool DEFAULT false;  -- deliberately created as a set, before it has a query or any members
-DEFINE FIELD OVERWRITE type         ON items TYPE option<object>;  -- classification, names a schemas row, and who decided it, atomically
-DEFINE FIELD OVERWRITE type.value   ON items TYPE string;
-DEFINE FIELD OVERWRITE type.prov    ON items TYPE string ASSERT $value IN ["auto", "user"];
-DEFINE FIELD OVERWRITE metadata       ON items TYPE array<object> DEFAULT [];
-DEFINE FIELD OVERWRITE metadata.*.attribute ON items TYPE option<string>;  -- absent: a freeform tag
-DEFINE FIELD OVERWRITE metadata.*.value     ON items TYPE string | array<string>;  -- array: the "list" kind
-DEFINE FIELD OVERWRITE metadata.*.kind      ON items TYPE string DEFAULT "string"
+-- immutable, when the item entered the index — absorbs what used to be
+-- the separate `created_at`.
+DEFINE FIELD OVERWRITE date_added ON items TYPE datetime DEFAULT time::now() READONLY;
+-- presentation override; "default" means "use the type's own layout" —
+-- never absent, so a raw record needs no out-of-band knowledge of what
+-- null would have meant.
+DEFINE FIELD OVERWRITE layout ON items TYPE string DEFAULT "default";
+-- an item's set-related state, in one field: `false` = not a set,
+-- `true` = deliberately created as one before it has a filter yet, an
+-- object = it has one (§1.5).
+DEFINE FIELD OVERWRITE set ON items TYPE bool | object FLEXIBLE DEFAULT false;
+-- everything resource-descriptive and app-displayed: name, description,
+-- classification, extracted attributes, freeform tags. `name` is the
+-- one key every item is guaranteed to carry.
+DEFINE FIELD OVERWRITE data ON items TYPE object ASSERT $value.name != NONE;
+DEFINE FIELD OVERWRITE data.*           ON items TYPE object;
+DEFINE FIELD OVERWRITE data.*.attribute ON items TYPE option<string>;  -- absent: a freeform tag
+DEFINE FIELD OVERWRITE data.*.value     ON items TYPE string | array<string>;  -- array: the "list" kind
+DEFINE FIELD OVERWRITE data.*.kind      ON items TYPE string DEFAULT "string"
     ASSERT $value IN ["string", "number", "date", "list"];
-DEFINE FIELD OVERWRITE metadata.*.prov      ON items TYPE string ASSERT $value IN ["auto", "user"];
+DEFINE FIELD OVERWRITE data.*.prov      ON items TYPE string ASSERT $value IN ["auto", "user"];
 DEFINE FIELD OVERWRITE resources    ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE resources.*.uri    ON items TYPE string;
 DEFINE FIELD OVERWRITE resources.*.name   ON items TYPE string;
@@ -35,8 +33,8 @@ DEFINE FIELD OVERWRITE resources.*.cached ON items TYPE option<object> FLEXIBLE;
 DEFINE FIELD OVERWRITE resources.*.contentHash ON items TYPE option<string>;
 DEFINE FIELD OVERWRITE resources.*.size        ON items TYPE option<int>;
 DEFINE FIELD OVERWRITE deleted_at   ON items TYPE option<datetime>;
-DEFINE INDEX OVERWRITE items_date_added   ON items FIELDS date_added;
-DEFINE INDEX OVERWRITE items_date_created ON items FIELDS date_created;
+DEFINE INDEX OVERWRITE items_date_added ON items FIELDS date_added;
+DEFINE INDEX OVERWRITE items_name       ON items FIELDS data.name.value;
 
 DEFINE TABLE IF NOT EXISTS connections SCHEMAFULL TYPE RELATION IN items OUT items ENFORCED;
 DEFINE FIELD OVERWRITE label      ON connections TYPE option<record<labels>>;
@@ -64,6 +62,6 @@ DEFINE FIELD OVERWRITE attributes.*.attribute ON schemas TYPE string;
 DEFINE FIELD OVERWRITE attributes.*.kind      ON schemas TYPE string DEFAULT "string"
     ASSERT $value IN ["string", "number", "date", "list"];
 -- Shown in Focus's laid-out block when true; still extracted, stored,
--- and shown in the generic metadata list below it either way.
+-- and shown in the generic data list below it either way.
 DEFINE FIELD OVERWRITE attributes.*.display ON schemas TYPE bool DEFAULT true;
 DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;

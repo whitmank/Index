@@ -5,13 +5,16 @@
 import { getDb } from "../db.js";
 import { formatOf } from "../derive.js";
 import {
+  HOME_SET_ID,
   MEMBER_OF_LABEL_ID,
+  PUBLIC_SET_ID,
   type ConnectionWithEndpoint,
   type EndpointSummary,
   type Item,
   type ItemDetail,
   type Members,
   type MembersOptions,
+  type SetQuery,
 } from "../types.js";
 import { listConnectionsAmong } from "./connections.js";
 import { compileQuery } from "./query.js";
@@ -33,9 +36,9 @@ export const TIMELINE_DIRECTION_FIELD = "timeline_direction";
 export type TimelinePartition = "date_added" | "date_created" | "created_at";
 
 export function timelinePartitionOf(set: Item): TimelinePartition {
-  const entry = set.metadata.find((entry) => entry.attribute === TIMELINE_PARTITION_FIELD);
-  if (entry?.value === "created_at") return "created_at";
-  if (entry?.value === "date_created") return "date_created";
+  const value = set.data[TIMELINE_PARTITION_FIELD]?.value;
+  if (value === "created_at") return "created_at";
+  if (value === "date_created") return "date_created";
   return "date_added";
 }
 
@@ -79,12 +82,12 @@ export async function listItemsWithResources(): Promise<Item[]> {
 
 /**
  * The items that play the set role — what the home screen lists. An item
- * is a set when it carries a query, was deliberately made as one
- * (`is_set`), or has at least one live belonging arrow pointing at it.
- * The two seeds always qualify: they carry a query. Roles are computed,
- * never stored (DESIGN-CONCEPT §3) — `is_set` is the one deliberate
- * exception, for the bootstrapping moment before a brand-new set has
- * either a query or a member yet.
+ * is a set when `set` carries a filter or the bootstrap `true` state, or
+ * it has at least one live belonging arrow pointing at it. The two seeds
+ * always qualify: `~` carries a filter, `public` carries the bootstrap
+ * state. Roles are computed, never stored (DESIGN-CONCEPT §3) — `set`'s
+ * `true` state is the one deliberate exception, for the bootstrapping
+ * moment before a brand-new set has a filter or a member yet.
  */
 /**
  * The set role, as a SurrealQL predicate. Named once because two callers
@@ -94,24 +97,27 @@ export async function listItemsWithResources(): Promise<Item[]> {
  *
  * `member of` is the one reserved, structural label — everything else
  * (unlabelled, or any other label like `track`/`author`/`related`) is a
- * plain relationship and never promotes its target. Unlike `query` and
- * `is_set`, which were always explicit, an unlabelled arrow used to mean
- * "belongs" implicitly; that's the rule this replaces (a freehand canvas
- * edge no longer turns whatever it lands on into a container).
+ * plain relationship and never promotes its target. Unlike `set`, which
+ * is always explicit, an unlabelled arrow used to mean "belongs"
+ * implicitly; that's the rule this replaces (a freehand canvas edge no
+ * longer turns whatever it lands on into a container).
  */
 const PLAYS_SET_ROLE = `(
-  query IS NOT NONE
-  OR is_set = true
+  set != false
   OR id IN (SELECT VALUE out FROM connections WHERE label = ${MEMBER_OF_LABEL_ID} AND ${LIVE})
 )`;
 
 export async function listSets(): Promise<Item[]> {
   const db = getDb();
+  // ORDER BY only accepts a field/idiom, not an arbitrary expression —
+  // verified directly against SurrealDB 3.0.4 — so the boolean is
+  // projected as its own field first, then ordered by that.
   const [rows] = await db
     .query<[ItemRow[]]>(
-      `SELECT * FROM items
+      `SELECT *, (id = $home OR id = $public) AS is_system FROM items
        WHERE ${LIVE} AND ${PLAYS_SET_ROLE}
-       ORDER BY system DESC, date_added ASC`,
+       ORDER BY is_system DESC, date_added ASC`,
+      { home: recordId(HOME_SET_ID), public: recordId(PUBLIC_SET_ID) },
     )
     .collect();
   return rows.map(serializeItem);
@@ -152,8 +158,8 @@ export async function searchItems(term: string, limit = 20): Promise<Item[]> {
     .query<[ItemRow[]]>(
       `SELECT * FROM items
        WHERE ${LIVE}
-         AND (string::contains(string::lowercase(name), $term)
-           OR string::contains(string::lowercase(display_name ?? ""), $term))`,
+         AND (string::contains(string::lowercase(data.name.value), $term)
+           OR string::contains(string::lowercase(data.display_name.value ?? ""), $term))`,
       { term: needle },
     )
     .collect();
@@ -170,15 +176,23 @@ export async function searchItems(term: string, limit = 20): Promise<Item[]> {
     .slice(0, limit);
 }
 
+function nameOf(item: Item): string {
+  return item.data.name.value as string;
+}
+
+function displayNameOf(item: Item): string | undefined {
+  return item.data.display_name?.value as string | undefined;
+}
+
 /** What the caption reads as — the same choice the views draw. */
 function captionOf(item: Item): string {
-  return item.display_name ?? item.name;
+  return displayNameOf(item) ?? nameOf(item);
 }
 
 /** 0 exact, 1 prefix, 2 substring — the best of the two names. */
 function matchRank(item: Item, needle: string): number {
   return Math.min(
-    ...[item.name, item.display_name ?? ""].map((name) => {
+    ...[nameOf(item), displayNameOf(item) ?? ""].map((name) => {
       const lowered = name.toLowerCase();
       if (lowered === needle) return 0;
       if (lowered.startsWith(needle)) return 1;
@@ -213,9 +227,10 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
     byId.set(item.id, item);
   }
 
-  if (set.query) {
+  const query = queryOf(set);
+  if (query) {
     for (const item of await listByQuery(
-      set,
+      query,
       partitionBy === "created_at" ? undefined : partition,
       itemDateField,
     )) {
@@ -228,7 +243,7 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   // An item admitted by an arrow still belongs to the page its own date
   // puts it on, when the set partitions by an item-level date.
   if (partition && partitionBy !== "created_at") {
-    items = items.filter((item) => item[itemDateField]?.slice(0, 10) === partition);
+    items = items.filter((item) => dateValueOf(item, itemDateField)?.slice(0, 10) === partition);
   }
 
   items.sort((a, b) => a.date_added.localeCompare(b.date_added));
@@ -237,19 +252,37 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   return { items, arrows, connections, places };
 }
 
+/** `item.set` when it's a real filter, not just the bootstrap `true`
+ * state or `false` — the one shape `compileQuery` knows how to read. */
+function queryOf(item: Item): SetQuery | null {
+  return typeof item.set === "object" ? item.set : null;
+}
+
+/** `date_created` isn't a same-named top-level property any more — it
+ * lives in `data`, plain-string-valued, unlike `date_added`. */
+function dateValueOf(item: Item, field: "date_added" | "date_created"): string | undefined {
+  return field === "date_created" ? (item.data.date_created?.value as string | undefined) : item.date_added;
+}
+
 async function listByQuery(
-  set: Item,
+  query: SetQuery,
   partitionDate: string | undefined,
   dateField: "date_added" | "date_created",
 ): Promise<Item[]> {
-  if (!set.query) return [];
   const db = getDb();
-  const compiled = compileQuery(set.query);
+  const compiled = compileQuery(query);
 
-  const clauses = [LIVE, "system = false", compiled.where];
-  const bindings: Record<string, unknown> = { ...compiled.bindings };
+  const clauses = [LIVE, "id != $home", "id != $public", compiled.where];
+  const bindings: Record<string, unknown> = {
+    ...compiled.bindings,
+    home: recordId(HOME_SET_ID),
+    public: recordId(PUBLIC_SET_ID),
+  };
   if (partitionDate !== undefined) {
-    clauses.push(`string::slice(<string> ${dateField}, 0, 10) = $partitionDate`);
+    // `date_added` is a real `datetime` column and needs the cast;
+    // `data.date_created.value` is already a plain string.
+    const target = dateField === "date_created" ? "data.date_created.value" : "<string> date_added";
+    clauses.push(`string::slice(${target}, 0, 10) = $partitionDate`);
     bindings.partitionDate = partitionDate;
   }
 
@@ -294,7 +327,7 @@ export async function listMemberDates(setId: string): Promise<string[]> {
   const partitionBy = set ? timelinePartitionOf(set) : "date_added";
 
   const dayOf = (item: Item): string | null =>
-    partitionBy === "date_created" ? (item.date_created?.slice(0, 10) ?? null) : item.date_added.slice(0, 10);
+    dateValueOf(item, partitionBy === "date_created" ? "date_created" : "date_added")?.slice(0, 10) ?? null;
 
   const dates = items.map(dayOf).filter((date): date is string => date !== null);
   return [...new Set(dates)].sort();
@@ -325,8 +358,8 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
   for (const endpoint of await listItems(endpointIds)) {
     endpoints.set(endpoint.id, {
       id: endpoint.id,
-      name: endpoint.name,
-      display_name: endpoint.display_name,
+      name: nameOf(endpoint),
+      display_name: displayNameOf(endpoint) ?? null,
     });
   }
 

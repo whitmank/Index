@@ -39,23 +39,15 @@ async function checkAsync(what: string, assertion: () => Promise<void>): Promise
   console.log(`  ✓ ${what}`);
 }
 
-function blankItem(overrides: Partial<Item> = {}): Item {
+function blankItem(overrides: { name?: string; resources?: Item["resources"] } = {}): Item {
   return {
     id: itemId(),
-    name: "",
-    display_name: null,
-    description: null,
     date_added: new Date().toISOString(),
-    date_created: null,
-    opens: null,
-    query: null,
-    system: false,
-    is_set: false,
-    type: null,
-    metadata: [],
-    resources: [],
+    layout: "default",
+    set: false,
+    data: { name: { attribute: "name", value: overrides.name ?? "", kind: "string", prov: "user" } },
+    resources: overrides.resources ?? [],
     deleted_at: null,
-    ...overrides,
   };
 }
 

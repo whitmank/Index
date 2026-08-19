@@ -16,18 +16,24 @@ import {
   getItemDetail,
   getItemIncludingDeleted,
   invert,
+  isSystemId,
   itemId,
   listMembers,
   listSchemas,
   schemaFor,
   startDatabase,
+  ulid,
   upsertSchema,
   HOME_SET_ID,
   MEMBER_OF_LABEL_ID,
   PUBLIC_SET_ID,
   type Change,
   type Connection,
+  type Data,
+  type DataEntry,
   type Item,
+  type Resource,
+  type SetState,
 } from "../src/index.js";
 
 const TEST_PORT = 8499;
@@ -41,23 +47,30 @@ function check(what: string, assertion: () => void): void {
   console.log(`  ✓ ${what}`);
 }
 
-function blankItem(overrides: Partial<Item> = {}): Item {
+/** Just the name — the common case. */
+function nameOf(item: Item): string {
+  return item.data.name.value as string;
+}
+
+function blankItem(overrides: {
+  name?: string;
+  entries?: DataEntry[];
+  set?: SetState | false;
+  date_added?: string;
+  resources?: Resource[];
+} = {}): Item {
+  const data: Data = { name: { attribute: "name", value: overrides.name ?? "", kind: "string", prov: "user" } };
+  for (const entry of overrides.entries ?? []) {
+    data[entry.attribute ? entry.attribute.toLowerCase() : ulid()] = entry;
+  }
   return {
     id: itemId(),
-    name: "",
-    display_name: null,
-    description: null,
-    date_added: new Date().toISOString(),
-    date_created: null,
-    opens: null,
-    query: null,
-    system: false,
-    is_set: false,
-    type: null,
-    metadata: [],
-    resources: [],
+    date_added: overrides.date_added ?? new Date().toISOString(),
+    layout: "default",
+    set: overrides.set ?? false,
+    data,
+    resources: overrides.resources ?? [],
     deleted_at: null,
-    ...overrides,
   };
 }
 
@@ -87,15 +100,15 @@ async function main(): Promise<void> {
       assert.ok(home, "~ missing");
       assert.equal(home.id, HOME_SET_ID);
       // The id is still `~`; the name is what the set list calls it.
-      assert.equal(home.name, "All");
-      assert.equal(home.system, true);
-      assert.deepEqual(home.query, { all: true });
+      assert.equal(nameOf(home), "All");
+      assert.ok(isSystemId(home.id));
+      assert.deepEqual(home.set, { all: true });
     });
-    check("public exists with no query", () => {
+    check("public exists as a deliberate set with no filter", () => {
       assert.ok(publicSet, "public missing");
       assert.equal(publicSet.id, PUBLIC_SET_ID);
-      assert.equal(publicSet.system, true);
-      assert.equal(publicSet.query, null);
+      assert.ok(isSystemId(publicSet.id));
+      assert.equal(publicSet.set, true);
     });
 
     console.log("\ncreate");
@@ -110,24 +123,27 @@ async function main(): Promise<void> {
     check("created item is readable", () => {
       assert.ok(stored, "created item not found");
       assert.equal(stored.id, photo.id);
-      assert.equal(stored.name, "hallway");
+      assert.equal(nameOf(stored), "hallway");
       assert.equal(stored.resources[0]?.uri, "mbp:///Users/k/hallway.jpg");
     });
     const homeMembers = await listMembers(HOME_SET_ID);
     check("~ lists it, and lists no system items", () => {
       assert.ok(homeMembers.items.some((item) => item.id === photo.id));
-      assert.ok(!homeMembers.items.some((item) => item.system));
+      assert.ok(!homeMembers.items.some((item) => isSystemId(item.id)));
     });
 
     console.log("\nrename");
-    const renamed: Item = { ...stored!, name: "hallway, morning" };
+    const renamed: Item = {
+      ...stored!,
+      data: { ...stored!.data, name: { ...stored!.data.name, value: "hallway, morning" } },
+    };
     await applyChange({
       description: "Rename to 'hallway, morning'",
       pairs: [{ before: stored!, after: renamed }],
     });
     const afterRename = await getItem(photo.id);
     check("rename landed", () => {
-      assert.equal(afterRename?.name, "hallway, morning");
+      assert.equal(afterRename && nameOf(afterRename), "hallway, morning");
       assert.equal(afterRename?.date_added, stored!.date_added);
     });
 
@@ -212,7 +228,7 @@ async function main(): Promise<void> {
     const restored = await getItem(photo.id);
     const restoredArrow = await findConnection(photo.id, album.id, MEMBER_OF_LABEL_ID);
     check("undo restores the item and its connections symmetrically", () => {
-      assert.equal(restored?.name, "hallway, morning");
+      assert.equal(restored && nameOf(restored), "hallway, morning");
       assert.equal(restored?.deleted_at, null);
       assert.equal(restoredArrow?.id, arrow.id);
       assert.deepEqual(restoredArrow?.position, { x: 120.5, y: -40 });
@@ -230,7 +246,7 @@ async function main(): Promise<void> {
     await applyChange(invert({ description: "Rename", pairs: [{ before: stored!, after: renamed }] }));
     const unrenamed = await getItem(photo.id);
     check("undoing the rename puts the old name back", () => {
-      assert.equal(unrenamed?.name, "hallway");
+      assert.equal(unrenamed && nameOf(unrenamed), "hallway");
     });
 
     await applyChange(invert(create));
@@ -244,7 +260,7 @@ async function main(): Promise<void> {
     const recent = blankItem({
       name: "new note",
       date_added: "2026-07-20",
-      metadata: [{ attribute: "year", value: "1999", kind: "number", prov: "auto" }],
+      entries: [{ attribute: "year", value: "1999", kind: "number", prov: "auto" }],
       resources: [{ uri: "https://example.com/a", name: "example" }],
     });
     await applyChange({
@@ -257,17 +273,17 @@ async function main(): Promise<void> {
 
     const rangeSet = blankItem({
       name: "since 2026",
-      query: { and: [{ date: { gte: "2026-01-01" } }] },
+      set: { and: [{ date: { gte: "2026-01-01" } }] },
     });
-    const webSet = blankItem({ name: "on the web", query: { and: [{ device: "web" }] } });
-    const linkSet = blankItem({ name: "links", query: { and: [{ format: "link" }] } });
+    const webSet = blankItem({ name: "on the web", set: { and: [{ device: "web" }] } });
+    const linkSet = blankItem({ name: "links", set: { and: [{ format: "link" }] } });
     const yearSet = blankItem({
       name: "released in the nineties",
-      query: { and: [{ metadata: { attribute: "year", kind: "number", gte: "1990", lte: "1999" } }] },
+      set: { and: [{ data: { attribute: "year", kind: "number", gte: "1990", lte: "1999" } }] },
     });
     await applyChange({
       description: "Seed query sets",
-      pairs: [rangeSet, webSet, linkSet, yearSet].map((set) => ({ before: null, after: set })),
+      pairs: [rangeSet, webSet, linkSet, yearSet].map((item) => ({ before: null, after: item })),
     });
 
     const inRange = await listMembers(rangeSet.id);
@@ -387,18 +403,18 @@ async function main(): Promise<void> {
     // wears.
     const tome = blankItem({
       name: "Flatland",
-      metadata: [
+      entries: [
         { attribute: "Author", value: "Edwin Abbott Abbott", kind: "string", prov: "auto" },
         { attribute: "published", value: "1884-01-01", kind: "date", prov: "auto" },
       ],
     });
     const shelfLower = blankItem({
       name: "by author",
-      query: { and: [{ metadata: { attribute: "author", kind: "string", eq: "Edwin Abbott Abbott" } }] },
+      set: { and: [{ data: { attribute: "author", kind: "string", eq: "Edwin Abbott Abbott" } }] },
     });
     const shelfUpper = blankItem({
       name: "by published",
-      query: { and: [{ metadata: { attribute: "PUBLISHED", kind: "date", gte: "1800-01-01" } }] },
+      set: { and: [{ data: { attribute: "PUBLISHED", kind: "date", gte: "1800-01-01" } }] },
     });
     await applyChange({
       description: "A book and two shelves that ask for it",

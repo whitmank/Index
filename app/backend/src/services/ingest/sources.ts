@@ -10,7 +10,7 @@
 // filename carries the publication year, the publisher and the isbn
 // (signals/filename.ts has that story).
 //
-// Precedence needs no machinery: `toMetadata` takes the first unclaimed
+// Precedence needs no machinery: `toEntries` takes the first unclaimed
 // match, so the order of this array *is* the order of authority. What it
 // does need is `settle` — see below, and do not remove it.
 import type { Observation } from "./extract.js";

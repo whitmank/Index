@@ -46,7 +46,7 @@ function outcomeOf(change: Change): Item | null {
  * has to unwind separately.
  */
 async function withReclassification(before: Item, change: Change): Promise<Change> {
-  if (before.type?.prov === "user") return change;
+  if (before.data.type?.prov === "user") return change;
 
   const after = outcomeOf(change);
   const promoted = after?.resources[0];
@@ -54,14 +54,20 @@ async function withReclassification(before: Item, change: Change): Promise<Chang
 
   const answer = await window.index.ingest.classify(promoted.uri, promoted.name);
   const type = "err" in answer ? null : answer.ok.type;
-  if (!type || type === before.type?.value) return change;
+  if (!type || type === before.data.type?.value) return change;
 
   const pair = change.pairs[0];
   if (!pair) return change;
 
   return {
     description: `${change.description}, reclassified as ${type}`,
-    pairs: [{ ...pair, after: { ...after, type: { value: type, prov: "auto" } } }, ...change.pairs.slice(1)],
+    pairs: [
+      {
+        ...pair,
+        after: { ...after, data: { ...after.data, type: { attribute: "type", value: type, kind: "string", prov: "auto" } } },
+      },
+      ...change.pairs.slice(1),
+    ],
   };
 }
 

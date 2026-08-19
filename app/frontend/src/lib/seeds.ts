@@ -8,6 +8,13 @@
 export const HOME_SET_ID = "items:⟨~⟩";
 export const PUBLIC_SET_ID = "items:public";
 
+/** Whether an item is one of these two fixed, built-in seeds rather than
+ * something the user made. Mirrors @index/database/types' own — computed
+ * from `id`, not stored, since both ids are known constants. */
+export function isSystemId(id: string): boolean {
+  return id === HOME_SET_ID || id === PUBLIC_SET_ID;
+}
+
 /** The one reserved, structural label — see @index/database/types for
  * the full rationale. Every unlabelled connection, and every connection
  * carrying any other label, is a plain relationship. */

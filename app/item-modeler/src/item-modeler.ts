@@ -148,7 +148,7 @@ export async function modelItem(
   const started = Date.now();
   const elapsed = () => Date.now() - started;
 
-  if (!item || typeof item !== "object" || !Array.isArray(item.resources)) {
+  if (!item || typeof item !== "object" || !item.data || !Array.isArray(item.resources)) {
     return failed("invalid-input", "not a usable item", emptyMeta(elapsed()));
   }
   if (options.inferType) {
@@ -158,7 +158,7 @@ export async function modelItem(
       emptyMeta(elapsed()),
     );
   }
-  if (!item.type || !schema || !Array.isArray(schema.attributes) || schema.attributes.length === 0) {
+  if (!item.data.type || !schema || !Array.isArray(schema.attributes) || schema.attributes.length === 0) {
     return failed(
       "no-type",
       "an item must have a type with declared fields before it can be modeled",

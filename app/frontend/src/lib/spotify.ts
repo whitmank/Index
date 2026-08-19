@@ -6,7 +6,7 @@
 // (lib/intake.ts's createItemsFromPaths, Focus.tsx's attachDropped) can
 // fold the result into whatever change they're already building and
 // apply it once, one undo for the album and every song together.
-import type { ChangePair, Item, Resource } from "@index/database/types";
+import type { ChangePair, Data, DataEntry, Item, Resource } from "@index/database/types";
 import { changes } from "../changes/index.js";
 import { errors } from "../store/index.js";
 
@@ -16,17 +16,14 @@ export function isSpotifyAlbumUrl(uri: string): boolean {
   return ALBUM_URL_PATTERN.test(uri);
 }
 
-/** `MetadataEntry[]`, upserted by attribute — the same shape
- * `layouts/registry.tsx`'s `KnownFields` already uses to edit a known
- * field in place without disturbing whatever else an item's `metadata`
- * array holds. */
-function upsertByName(metadata: Item["metadata"], updates: Item["metadata"]): Item["metadata"] {
-  let next = metadata;
+/** Upsert by attribute, keyed the same way `layouts/registry.tsx`'s
+ * `KnownFields` already writes a known field in place without
+ * disturbing whatever else `data` holds. */
+function upsertByName(data: Data, updates: DataEntry[]): Data {
+  let next = data;
   for (const update of updates) {
-    const at = next.findIndex(
-      (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === update.attribute?.toLowerCase(),
-    );
-    next = at === -1 ? [...next, update] : next.map((entry, index) => (index === at ? update : entry));
+    if (!update.attribute) continue;
+    next = { ...next, [update.attribute.toLowerCase()]: update };
   }
   return next;
 }
@@ -85,7 +82,7 @@ export interface SpotifyExpansion {
    * the user: an item is never left typed with nothing recorded about who
    * typed it, or the classifier could not tell later whether it is
    * allowed to revise the answer. */
-  itemPatch: Pick<Item, "type" | "metadata">;
+  itemPatch: Pick<Item, "data">;
   /** The real album title, for callers that want it — see above. */
   albumName: string;
   /** One `createItem` pair and one connection pair per song — append
@@ -122,7 +119,7 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
   const releaseDate = padReleaseDate(album.releaseDate);
   const totalMs = album.tracks.reduce((sum, track) => sum + track.durationMs, 0);
 
-  const albumFields = upsertByName(item.metadata, [
+  const albumData = upsertByName(item.data, [
     { attribute: "Artist", value: album.artists.join(", "), kind: "string", prov: "auto" },
     { attribute: "Year", value: releaseDate.slice(0, 4), kind: "string", prov: "auto" },
     { attribute: "Duration", value: formatAlbumDuration(totalMs), kind: "string", prov: "auto" },
@@ -140,14 +137,14 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
       // itself was created on, exactly as if you'd added each song by
       // hand today.
       ...changes.blankItem(item.date_added),
-      name: track.name,
-      type: { value: "song", prov: "auto" },
       resources: [{ uri: track.url, name: track.name }],
-      metadata: [
-        { attribute: "Duration", value: formatTrackDuration(track.durationMs), kind: "string", prov: "auto" },
-        { attribute: "Artist", value: track.artists.join(", "), kind: "string", prov: "auto" },
-        { attribute: "Release Date", value: releaseDate, kind: "date", prov: "auto" },
-      ],
+      data: {
+        name: { attribute: "name", value: track.name, kind: "string", prov: "auto" },
+        type: { attribute: "type", value: "song", kind: "string", prov: "auto" },
+        duration: { attribute: "Duration", value: formatTrackDuration(track.durationMs), kind: "string", prov: "auto" },
+        artist: { attribute: "Artist", value: track.artists.join(", "), kind: "string", prov: "auto" },
+        "release date": { attribute: "Release Date", value: releaseDate, kind: "date", prov: "auto" },
+      },
     };
     extraPairs.push({ before: null, after: song });
 
@@ -164,7 +161,7 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
   }
 
   return {
-    itemPatch: { type: { value: "album", prov: "auto" }, metadata: albumFields },
+    itemPatch: { data: { ...albumData, type: { attribute: "type", value: "album", kind: "string", prov: "auto" } } },
     albumName: album.name,
     extraPairs,
   };

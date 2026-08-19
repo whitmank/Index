@@ -2,25 +2,12 @@
 // A layout's own field: its attribute name, and the kind its value
 // editor should present as — `list` gets chips (ListValueInput),
 // everything else a single line (SettleInput).
-import type { AttributeKind, Item, MetadataEntry } from "@index/database/types";
+import type { DataEntry, Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { blankFieldValue } from "../../lib/metadata.js";
+import { blankFieldValue } from "../../lib/data.js";
 import type { KnownField } from "../registry.tsx";
-
-function upsertByName(
-  metadata: MetadataEntry[],
-  attribute: string,
-  value: MetadataEntry["value"],
-  kind: AttributeKind,
-): MetadataEntry[] {
-  const at = metadata.findIndex(
-    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === attribute.toLowerCase(),
-  );
-  if (at === -1) return [...metadata, { attribute, value, kind, prov: "user" }];
-  return metadata.map((entry, index) => (index === at ? { ...entry, value, kind, prov: "user" } : entry));
-}
 
 /**
  * A layout's own recognized fields — dedicated, always-present rows
@@ -36,13 +23,10 @@ export function KnownFields({ item, fields }: { item: Item; fields: KnownField[]
   return (
     <ul className="fields-list fields-list-unlabeled">
       {fields.map(({ attribute, kind }) => {
-        const entry = item.metadata.find(
-          (candidate) => candidate.attribute?.toLowerCase() === attribute.toLowerCase(),
-        );
+        const entry = item.data[attribute.toLowerCase()];
         const value = entry?.value ?? blankFieldValue(kind);
         const isAuto = entry?.prov === "auto";
-        const commit = (next: MetadataEntry["value"]) =>
-          void apply(changes.setMetadata(item, upsertByName(item.metadata, attribute, next, kind)));
+        const commit = (next: DataEntry["value"]) => void apply(changes.setAttribute(item, attribute, next, kind));
         return (
           <li
             className={isAuto ? "fields-row is-auto" : "fields-row"}

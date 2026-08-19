@@ -17,7 +17,7 @@ export const PLACE_GLYPH = "◍";
  * the ⌫ key about a selection — and they must not disagree.
  */
 export function holdsEverything(set: Item): boolean {
-  return set.query !== null && "all" in set.query;
+  return typeof set.set === "object" && "all" in set.set;
 }
 
 /** The order sets are offered in, wherever they are listed: `~` first —

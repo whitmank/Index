@@ -62,11 +62,11 @@ class Report {
       if (!inPool) complaints.push("missing from the pool");
       if (!inDatabase) complaints.push("missing from the database");
       if (expectation.name !== undefined) {
-        if (inPool && inPool.name !== expectation.name) {
-          complaints.push(`pool name is '${inPool.name}'`);
+        if (inPool && inPool.data.name.value !== expectation.name) {
+          complaints.push(`pool name is '${inPool.data.name.value}'`);
         }
-        if (inDatabase && inDatabase.name !== expectation.name) {
-          complaints.push(`database name is '${inDatabase.name}'`);
+        if (inDatabase && inDatabase.data.name.value !== expectation.name) {
+          complaints.push(`database name is '${inDatabase.data.name.value}'`);
         }
       }
     } else {

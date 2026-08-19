@@ -19,7 +19,7 @@
 // the same book's isbn-13, `1965` against `1965-08-01`. Both a strict and
 // a normalised verdict are recorded, and the gap between them is itself a
 // finding about normalization/.
-import type { Item, MetadataEntry, Schema } from "@index/database/types";
+import type { Data, DataEntry, Item, Schema } from "@index/database/types";
 import { hintFor } from "../../src/normalization/field-hints.js";
 import { valuesAgree } from "../../src/normalization/compare-values.js";
 import { isBlank } from "../../src/normalization/normalize-value.js";
@@ -30,8 +30,8 @@ export type FieldVerdict = "correct" | "missed" | "wrong" | "absent";
 export interface FieldScore {
   field: string;
   verdict: FieldVerdict;
-  expected?: MetadataEntry["value"];
-  got?: MetadataEntry["value"];
+  expected?: DataEntry["value"];
+  got?: DataEntry["value"];
   /** True when the values match only after normalisation — the same fact
    * recorded two ways. Counted as correct, and tracked so the cost of
    * normalisation being wrong is visible. */
@@ -57,20 +57,18 @@ export interface EntryScore {
   failure?: string;
 }
 
-function valueOf(item: Pick<Item, "metadata">, name: string): MetadataEntry["value"] | undefined {
-  return (item.metadata ?? []).find(
-    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === name.toLowerCase(),
-  )?.value;
+function valueOf(data: Data, name: string): DataEntry["value"] | undefined {
+  return data[name.toLowerCase()]?.value;
 }
 
 /** The naming field is not a row — `attributes[0]` is the item's name. */
 function expectedFor(
-  truth: Pick<Item, "name" | "metadata">,
+  truth: Pick<Item, "data">,
   schema: Schema,
   field: string,
-): MetadataEntry["value"] | undefined {
-  if (schema.attributes[0]?.attribute === field) return truth.name;
-  return valueOf(truth, field);
+): DataEntry["value"] | undefined {
+  if (schema.attributes[0]?.attribute === field) return truth.data.name.value;
+  return valueOf(truth.data, field);
 }
 
 /**
@@ -78,7 +76,7 @@ function expectedFor(
  * *wrote*, not *ended up carrying*.
  *
  * The distinction only bites on the naming field, and it bites hard. An
- * item is minted carrying its resource's filename, so `item.name` is
+ * item is minted carrying its resource's filename, so `item.data.name` is
  * never blank; a run that read nothing and wrote nothing still comes back
  * called `IMG_2024.pdf`. Scoring that against a truth title counts a
  * value the module declined to claim as one it claimed wrongly — which
@@ -92,8 +90,8 @@ function actualFor(
   schema: Schema,
   field: string,
   changes: FieldChange[],
-): MetadataEntry["value"] | undefined {
-  if (schema.attributes[0]?.attribute !== field) return valueOf(item, field);
+): DataEntry["value"] | undefined {
+  if (schema.attributes[0]?.attribute !== field) return valueOf(item.data, field);
 
   const written = changes.some(
     (change) =>
@@ -103,15 +101,15 @@ function actualFor(
         change.action === "replaced" ||
         change.action === "confirmed"),
   );
-  return written ? item.name : undefined;
+  return written ? item.data.name.value : undefined;
 }
 
-function strictlyEqual(a: MetadataEntry["value"], b: MetadataEntry["value"]): boolean {
+function strictlyEqual(a: DataEntry["value"], b: DataEntry["value"]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export interface ScoreRequest {
-  truth: Pick<Item, "name" | "metadata">;
+  truth: Pick<Item, "data">;
   modeled: Item;
   schema: Schema;
   changes: FieldChange[];
@@ -142,18 +140,18 @@ export function scoreFields(request: ScoreRequest): FieldScore[] {
     }
 
     if (isBlank(got)) {
-      return { ...base, verdict: "missed", expected: expected as MetadataEntry["value"] };
+      return { ...base, verdict: "missed", expected: expected as DataEntry["value"] };
     }
 
-    const exact = strictlyEqual(expected as MetadataEntry["value"], got as MetadataEntry["value"]);
+    const exact = strictlyEqual(expected as DataEntry["value"], got as DataEntry["value"]);
     const agrees =
-      exact || valuesAgree(expected as MetadataEntry["value"], got as MetadataEntry["value"], hintFor(field));
+      exact || valuesAgree(expected as DataEntry["value"], got as DataEntry["value"], hintFor(field));
 
     return {
       ...base,
       verdict: agrees ? "correct" : "wrong",
-      expected: expected as MetadataEntry["value"],
-      got: got as MetadataEntry["value"],
+      expected: expected as DataEntry["value"],
+      got: got as DataEntry["value"],
       normalizedMatch: agrees && !exact,
     };
   });

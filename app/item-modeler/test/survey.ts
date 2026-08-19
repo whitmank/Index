@@ -50,9 +50,7 @@ function walk(from: string): string[] {
 }
 
 function valueOf(item: Item, name: string): string | string[] | undefined {
-  return item.metadata.find(
-    (entry) => entry.attribute !== null && entry.attribute.toLowerCase() === name.toLowerCase(),
-  )?.value;
+  return item.data[name.toLowerCase()]?.value;
 }
 
 /**
@@ -68,7 +66,7 @@ async function survey(filepath: string): Promise<SourceReport> {
   const started = Date.now();
 
   const outcome = await modelItem(item, BOOK, {
-    derivedName: item.name,
+    derivedName: item.data.name.value as string,
     debugDiagnostics: true,
   });
 
@@ -109,7 +107,7 @@ async function survey(filepath: string): Promise<SourceReport> {
     // always carries *a* name — the file's — and reporting that as a
     // result would make the module look like it read every title on the
     // shelf when it read none of them.
-    name: wroteName ? result.item.name : null,
+    name: wroteName ? (result.item.data.name.value as string) : null,
     nameProvenance: nameChange?.provenance ?? null,
     fields: BOOK.attributes.slice(1).map((attribute) => {
       const change = result.changes.find((entry) => entry.field === attribute.attribute);

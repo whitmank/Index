@@ -3,6 +3,8 @@
 // SurrealQL query in the project does; the policy — how old is old
 // enough, how often to sweep — belongs to the backend's gc service.
 import { getDb } from "../db.js";
+import { recordId } from "./serialize.js";
+import { HOME_SET_ID, PUBLIC_SET_ID } from "../types.js";
 
 export interface Purge {
   items: number;
@@ -19,8 +21,8 @@ export async function purgeDeletedBefore(cutoff: Date): Promise<Purge> {
   const [connections, items] = await db
     .query<[unknown[], unknown[]]>(
       `DELETE connections WHERE deleted_at != NONE AND deleted_at < $cutoff RETURN BEFORE;
-       DELETE items WHERE deleted_at != NONE AND deleted_at < $cutoff AND system = false RETURN BEFORE;`,
-      { cutoff },
+       DELETE items WHERE deleted_at != NONE AND deleted_at < $cutoff AND id != $home AND id != $public RETURN BEFORE;`,
+      { cutoff, home: recordId(HOME_SET_ID), public: recordId(PUBLIC_SET_ID) },
     )
     .collect();
   return { items: items.length, connections: connections.length };

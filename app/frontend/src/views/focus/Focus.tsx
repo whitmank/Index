@@ -156,7 +156,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           autoFocus={isNew}
           onCommit={(name) => void apply(changes.rename(item, name))}
           placeholder="unnamed"
-          value={item.name}
+          value={item.data.name.value as string}
         />
       </label>
       <label className="field field-description">
@@ -165,9 +165,12 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           ariaLabel="description"
           onCommit={(description) => void apply(changes.setDescription(item, description))}
           placeholder="add a description…"
-          value={item.description ?? ""}
+          value={(item.data.description?.value as string | undefined) ?? ""}
         />
       </label>
+      {/* TEMPORARY — raw look at the item's attributes while we work on
+          the focus view redesign. Remove before shipping. */}
+      <pre className="debug-attributes">{JSON.stringify(item, null, 2)}</pre>
       <ResourcesEditor item={item} />
     </>
   );

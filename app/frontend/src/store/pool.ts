@@ -112,8 +112,7 @@ export function isPlace(id: string): boolean {
 
   const item = getItem(id);
   if (!item) return false;
-  if (item.query !== null) return true;
-  if (item.is_set) return true;
+  if (item.set !== false) return true;
   // `member of` is the one reserved, structural label — everything else
   // (unlabelled or any other label) is a plain relationship and never
   // makes its target a place.

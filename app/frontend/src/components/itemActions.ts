@@ -4,7 +4,7 @@
 import type { Item } from "@index/database/types";
 import { apply, changes } from "../changes/index.js";
 import { captionOf, deviceOf } from "../lib/derive.js";
-import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
+import { isSystemId, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import { parseItems } from "../lib/parseItems.js";
 import { holdsEverything } from "../lib/sets.js";
 import { errors, pool } from "../store/index.js";
@@ -79,7 +79,7 @@ export function itemMenu(
     // missing rather than going quiet.
     {
       label: "Parse",
-      disabled: !item.type || !resource,
+      disabled: !item.data.type || !resource,
       onChoose: () => void parseItems([item]),
     },
     {
@@ -108,7 +108,7 @@ export function itemMenu(
     {
       label: "Delete",
       tone: "danger",
-      disabled: item.system,
+      disabled: isSystemId(item.id),
       onChoose: () => {
         const change = changes.deleteItem(item);
         if (!change) return;

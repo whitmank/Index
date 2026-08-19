@@ -12,24 +12,45 @@
 import type {
   Change,
   Connection,
+  Data,
+  DataEntry,
   Item,
-  MetadataEntry,
   Position,
   Resource,
 } from "@index/database/types";
 import { today } from "../lib/dates.js";
-import { isBlankFieldValue } from "../lib/metadata.js";
-import { connectionId, itemId } from "../lib/ids.js";
-import { MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
+import { isBlankFieldValue } from "../lib/data.js";
+import { connectionId, itemId, ulid } from "../lib/ids.js";
+import { isSystemId, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
 import * as pool from "../store/pool.js";
 
 function now(): string {
   return new Date().toISOString();
 }
 
+function stringValue(entry: DataEntry | undefined): string | undefined {
+  return entry ? (entry.value as string) : undefined;
+}
+
 /** What an item's name is called when it has none yet. */
 function nameOf(item: Item): string {
-  return item.display_name ?? item.name ?? "";
+  return stringValue(item.data.display_name) ?? stringValue(item.data.name) ?? "";
+}
+
+/** Upsert a named entry into `data`, without disturbing anything else. */
+function withEntry(data: Data, attribute: string, value: DataEntry["value"], kind: DataEntry["kind"]): Data {
+  return { ...data, [attribute.toLowerCase()]: { attribute, value, kind, prov: "user" } };
+}
+
+/** Clear a named entry — the key itself is removed, matching how a
+ * scalar field used to go back to `null`. `name` can never be cleared
+ * this way (its key is required); callers wanting to blank the name
+ * write an empty string as its value instead. */
+function withoutEntry(data: Data, attribute: string): Data {
+  const key = attribute.toLowerCase();
+  if (key === "name") return data;
+  const { [key]: _removed, ...rest } = data;
+  return rest as Data;
 }
 
 function describe(item: Item): string {
@@ -46,17 +67,10 @@ function swap(before: Item, after: Item, description: string): Change {
 export function blankItem(dateAdded = today()): Item {
   return {
     id: itemId(),
-    name: "",
-    display_name: null,
-    description: null,
     date_added: dateAdded,
-    date_created: null,
-    opens: null,
-    query: null,
-    system: false,
-    is_set: false,
-    type: null,
-    metadata: [],
+    layout: "default",
+    set: false,
+    data: { name: { attribute: "name", value: "", kind: "string", prov: "user" } },
     resources: [],
     deleted_at: null,
   };
@@ -69,44 +83,49 @@ export function createItem(item: Item): Change {
 }
 
 /**
- * A new set. It plays the set role from birth because `is_set` says so
- * — what listSets recognises — so an empty set still shows on the home
- * screen before it has a query or any members. How it's viewed (canvas
- * or list) is the application's global toggle, not anything stored here.
- * The caller keeps the record: it needs the id to navigate into the set.
+ * A new set. It plays the set role from birth because `set` carries the
+ * bootstrap `true` state — what listSets recognises — so an empty set
+ * still shows on the home screen before it has a filter or any members.
+ * How it's viewed (canvas or list) is the application's global toggle,
+ * not anything stored here. The caller keeps the record: it needs the
+ * id to navigate into the set.
  */
 export function blankSet(name: string): Item {
-  return { ...blankItem(), name, is_set: true };
+  const blank = blankItem();
+  return { ...blank, data: withEntry(blank.data, "name", name, "string"), set: true };
 }
 
 export function createSet(set: Item): Change {
+  const name = set.data.name.value as string;
   return {
-    description: set.name ? `Create set '${set.name}'` : "Create set",
+    description: name ? `Create set '${name}'` : "Create set",
     pairs: [{ before: null, after: set }],
   };
 }
 
 export function rename(item: Item, name: string): Change {
-  return swap(item, { ...item, name }, name ? `Rename to '${name}'` : "Clear the name");
+  return swap(
+    item,
+    { ...item, data: withEntry(item.data, "name", name, "string") },
+    name ? `Rename to '${name}'` : "Clear the name",
+  );
 }
 
 export function setDisplayName(item: Item, displayName: string): Change {
-  const next = displayName.trim() || null;
-  return swap(
-    item,
-    { ...item, display_name: next },
-    next ? `Show as '${next}'` : "Clear the display name",
-  );
+  const next = displayName.trim();
+  const data = next ? withEntry(item.data, "display_name", next, "string") : withoutEntry(item.data, "display_name");
+  return swap(item, { ...item, data }, next ? `Show as '${next}'` : "Clear the display name");
 }
 
 /** What the user said this is, in their own words — usually captured
  * once at intake, but not locked after that: nothing about the model
  * marks it immutable, so this lets a later edit correct or clear it. */
 export function setDescription(item: Item, description: string): Change {
-  const next = description.trim() || null;
+  const next = description.trim();
+  const data = next ? withEntry(item.data, "description", next, "string") : withoutEntry(item.data, "description");
   return swap(
     item,
-    { ...item, description: next },
+    { ...item, data },
     next ? `Describe ${describe(item)} as '${next}'` : `Clear ${describe(item)}'s description`,
   );
 }
@@ -123,9 +142,12 @@ export function setDateAdded(item: Item, dateAdded: string): Change {
  * date — distinct from `date_added`, which is when it entered the index.
  * Passing null clears it back to unknown. */
 export function setDateCreated(item: Item, dateCreated: string | null): Change {
+  const data = dateCreated
+    ? withEntry(item.data, "date_created", dateCreated, "date")
+    : withoutEntry(item.data, "date_created");
   return swap(
     item,
-    { ...item, date_created: dateCreated },
+    { ...item, data },
     dateCreated
       ? `Set ${describe(item)}'s date to ${dateCreated}`
       : `Clear ${describe(item)}'s date`,
@@ -134,30 +156,31 @@ export function setDateCreated(item: Item, dateCreated: string | null): Change {
 
 /** The presentation override — written only when the inference is wrong
  * (DESIGN-CONCEPT §5). Passing null retires it and lets the cascade
- * decide again. */
-export function setOpens(item: Item, opens: string | null): Change {
+ * decide again — "default" is the retired state, not an absent field. */
+export function setLayout(item: Item, layout: string | null): Change {
   return swap(
     item,
-    { ...item, opens },
-    opens ? `Open ${describe(item)} as ${opens}` : `Let ${describe(item)} choose how it opens`,
+    { ...item, layout: layout ?? "default" },
+    layout ? `Open ${describe(item)} as ${layout}` : `Let ${describe(item)} choose how it opens`,
   );
 }
 
 /** The classification — written by the classifier's guess, or by the
- * user correcting it. Passing null clears it, same as `setOpens`. */
+ * user correcting it. Passing null clears it, same as `setLayout`. */
 /**
  * Only the type picker reaches this, so every call is a decision the user
- * made — which is what `type.prov` records, and what stops the
+ * made — which is what `type`'s `prov` records, and what stops the
  * classifier ever arguing with it (lib/resources.ts).
  *
- * Clearing sets `type` to null rather than pinning "user" on an empty
- * type: clearing withdraws an opinion instead of asserting one, so a
- * later primary resource is free to be guessed from again.
+ * Clearing removes the `type` entry rather than pinning "user" on an
+ * empty one: clearing withdraws an opinion instead of asserting one, so
+ * a later primary resource is free to be guessed from again.
  */
 export function setType(item: Item, type: string | null): Change {
+  const data = type ? withEntry(item.data, "type", type, "string") : withoutEntry(item.data, "type");
   return swap(
     item,
-    { ...item, type: type ? { value: type, prov: "user" } : null },
+    { ...item, data },
     type ? `Classify ${describe(item)} as ${type}` : `Clear the type on ${describe(item)}`,
   );
 }
@@ -174,16 +197,13 @@ export function setType(item: Item, type: string | null): Change {
  * There is no route back. `clear` reopens guessing, and wanting to keep
  * an answer while inviting the classifier to overrule it is not a thing
  * anyone means — the way to change a type is to change it.
- *
- * An item with no type has no provenance to record, so the invariant (a
- * type and its source are present or absent together) is enforced here
- * rather than assumed of every caller.
  */
 export function confirmType(item: Item): Change {
+  const data = item.data.type ? { ...item.data, type: { ...item.data.type, prov: "user" as const } } : item.data;
   return swap(
     item,
-    { ...item, type: item.type ? { ...item.type, prov: "user" } : null },
-    `Confirm ${describe(item)} is a ${item.type?.value}`,
+    { ...item, data },
+    `Confirm ${describe(item)} is a ${item.data.type?.value}`,
   );
 }
 
@@ -214,44 +234,38 @@ export function confirmType(item: Item): Change {
  */
 export function parseItem(
   item: Item,
-  found: { name?: string; metadata: MetadataEntry[] },
+  found: { name?: string; entries: DataEntry[] },
   derivedName: string,
 ): Change | null {
-  const existing = item.metadata ?? [];
-  const sameAttribute = (a: string | null, b: string | null) =>
-    a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
-  const has = (name: string) =>
-    existing.some((entry) => sameAttribute(entry.attribute, name) && !isBlankFieldValue(entry.value));
+  const has = (attribute: string) => {
+    const entry = item.data[attribute.toLowerCase()];
+    return entry !== undefined && !isBlankFieldValue(entry.value);
+  };
 
   // Extraction-produced entries are never null-attribute.
-  const filled = found.metadata.filter((entry) => !has(entry.attribute as string));
+  const filled = found.entries.filter((entry) => !has(entry.attribute as string));
   const takesName = Boolean(found.name) && nameOf(item) === derivedName;
-  const confirms = Boolean(item.type) && item.type?.prov !== "user";
+  const confirms = Boolean(item.data.type) && item.data.type?.prov !== "user";
   if (filled.length === 0 && !takesName && !confirms) return null;
 
-  // A found entry replaces the blank row already standing for it, rather
+  // A found entry replaces the entry already standing for it, rather
   // than landing beside it — the layout draws a type's declared
-  // attributes whether or not they carry anything, so appending would
-  // show the name twice with one of them empty.
-  const written = existing.map(
-    (entry) => filled.find((one) => sameAttribute(one.attribute, entry.attribute)) ?? entry,
-  );
-  const added = filled.filter(
-    (one) => !existing.some((entry) => sameAttribute(entry.attribute, one.attribute)),
-  );
+  // attributes whether or not they carry anything, so a second key
+  // would show the name twice with one of them empty.
+  let data = item.data;
+  for (const entry of filled) data = { ...data, [(entry.attribute as string).toLowerCase()]: entry };
+  // Machine-derived, like every other entry `found` supplies — not a
+  // decision the user made, so it carries the same provenance they do.
+  if (takesName) data = { ...data, name: { attribute: "name", value: found.name as string, kind: "string", prov: "auto" } };
+  if (item.data.type) data = { ...data, type: { ...item.data.type, prov: "user" as const } };
 
   const what = [...(takesName ? ["name"] : []), ...filled.map((entry) => entry.attribute ?? "")];
   return swap(
     item,
-    {
-      ...item,
-      ...(takesName ? { name: found.name as string } : {}),
-      ...(item.type ? { type: { ...item.type, prov: "user" as const } } : {}),
-      metadata: [...written, ...added],
-    },
+    { ...item, data },
     what.length > 0
       ? `Parse ${describe(item)}: filled ${list(what)}`
-      : `Confirm ${describe(item)} is a ${item.type?.value}`,
+      : `Confirm ${describe(item)} is a ${item.data.type?.value}`,
   );
 }
 
@@ -261,12 +275,38 @@ function list(words: string[]): string {
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1] as string}`;
 }
 
+/** The keys in `data` that describe the item itself rather than a
+ * generic attribute — never touched by `setData`, which replaces
+ * everything else. */
+export const RESERVED_DATA_KEYS = ["name", "display_name", "description", "date_created", "type"] as const;
+
 /** Blank rows vanish on commit — an explicitly empty name and value is a
  * row the user abandoned, not a fact. A null attribute is a freeform tag,
- * a legitimate state on its own, not an abandoned row. */
-export function setMetadata(item: Item, metadata: MetadataEntry[]): Change {
-  const kept = metadata.filter((entry) => entry.attribute !== "" || !isBlankFieldValue(entry.value));
-  return swap(item, { ...item, metadata: kept }, `Edit fields on ${describe(item)}`);
+ * a legitimate state on its own, not an abandoned row, and gets a fresh
+ * generated key (ordering doesn't matter, so there's no reason to try to
+ * preserve the old one). */
+export function setData(item: Item, entries: DataEntry[]): Change {
+  const kept = entries.filter((entry) => entry.attribute !== "" || !isBlankFieldValue(entry.value));
+  const data: Data = { name: item.data.name };
+  for (const key of RESERVED_DATA_KEYS) {
+    if (key === "name") continue;
+    const existing = item.data[key];
+    if (existing) data[key] = existing;
+  }
+  for (const entry of kept) data[entry.attribute ? entry.attribute.toLowerCase() : ulid()] = entry;
+  return swap(item, { ...item, data }, `Edit fields on ${describe(item)}`);
+}
+
+/** Upsert exactly one named attribute, leaving everything else in
+ * `data` untouched — what a layout's own known-field row writes
+ * (layouts/parts/KnownFields.tsx), as opposed to `setData`'s "here is
+ * the complete generic list" replacement. */
+export function setAttribute(item: Item, attribute: string, value: DataEntry["value"], kind: DataEntry["kind"]): Change {
+  return swap(
+    item,
+    { ...item, data: withEntry(item.data, attribute, value, kind) },
+    `Edit ${attribute} on ${describe(item)}`,
+  );
 }
 
 export function addResource(item: Item, resource: Resource): Change {
@@ -301,7 +341,7 @@ export function reorderResources(item: Item, from: number, to: number): Change {
  * refuse deletion.
  */
 export function deleteItem(item: Item): Change | null {
-  if (item.system) return null;
+  if (isSystemId(item.id)) return null;
 
   const at = now();
   const touching = pool.connectionsTouching(item.id);
@@ -419,7 +459,7 @@ export function untagMany(items: Item[], target: Item): Change {
  */
 export function deleteMany(items: Item[]): Change {
   const at = now();
-  const deletable = items.filter((item) => !item.system);
+  const deletable = items.filter((item) => !isSystemId(item.id));
   const connections = new Map<string, Connection>();
   for (const item of deletable) {
     for (const connection of pool.connectionsTouching(item.id)) {
