@@ -1002,64 +1002,31 @@
   border-bottom-color: var(--is-line-strong);
 }
 
-/* TEMPORARY — raw item dump for debugging while the focus view is being
-   redesigned. Remove along with its call site in Focus.tsx. */
-.debug-attributes {
-  margin: 0 0 20px;
-  padding: 12px 14px;
-  max-height: 320px;
-  overflow: auto;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--is-ink-dim);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--is-line);
-  border-radius: 6px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.fields {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--is-line);
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--is-line);
-}
-
-.field-row.is-draft {
-  opacity: 0.55;
-}
-
-.field-row.is-draft:focus-within {
-  opacity: 1;
-}
-
 /* A guessed value (prov: "auto") reads a touch quieter than one you
-   entered yourself — not an error state, the same non-judgemental
-   dimming `is-draft` uses. Editing it is what confirms it (the editor
-   forces `prov: "user"` on any commit), so there's no separate accept
-   gesture to draw — the class just stops applying next render. */
-.field-row.is-auto,
+   entered yourself — not an error state. Editing it is what confirms it
+   (the editor forces `prov: "user"` on any commit), so there's no
+   separate accept gesture to draw — the class just stops applying next
+   render. */
 .fields-row.is-auto {
   opacity: 0.7;
 }
 
-.field-row.is-auto:focus-within,
 .fields-row.is-auto:focus-within {
   opacity: 1;
 }
 
-/* KnownFields (registry.tsx) — a fixed-name label beside an editable
-   value, same row rhythm as the generic list but nothing to remove. */
+/* The trailing composer row — quiet until it has your attention, the
+   same "not yet a fact" dimming a guessed value gets. */
+.fields-row.is-draft {
+  opacity: 0.55;
+}
+
+.fields-row.is-draft:focus-within {
+  opacity: 1;
+}
+
+/* DataFields — a fixed-name label beside an editable value, plus a
+   remove button. */
 .fields-list {
   display: flex;
   flex-direction: column;

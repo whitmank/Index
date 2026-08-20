@@ -1,13 +1,6 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 // The focus view: an item opened up (PRODUCT-SPEC §3.4). Deliberately
-// minimal — title, description, and the resources that back the item —
-// not the full data-dump this used to be. Known fields, ordered
-// children, misc fields and connections all still exist on the item and
-// in the change catalog; they just aren't drawn here anymore. Their
-// components (KnownFields, ChildrenList, FieldsEditor, ConnectionComposer)
-// stay in the tree, unimported here, the same way layouts/registry.tsx's
-// retired cascade does — reference for when that richer surface comes
-// back, not dead weight to delete.
+// minimal — title, description, and the resources that back the item.
 //
 // The top bar (type classification, public/parse/delete/close) lives in
 // FocusToolbar.tsx — pulled out because it's the one piece every future
@@ -27,6 +20,7 @@ import { SettleInput } from "../../components/SettleInput.tsx";
 import { attachResource } from "../../lib/resources.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
+import { DataFields } from "./DataFields.tsx";
 import { FocusLayout } from "./FocusLayout.tsx";
 import { FocusToolbar } from "./FocusToolbar.tsx";
 import { ResourceCarousel } from "./ResourceCarousel.tsx";
@@ -144,9 +138,8 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       <ResourceContent item={item} resource={item.resources[0]} />
     );
 
-  // Title, then description, then what backs the item. Everything else
-  // the full editor used to draw here (known fields, children, misc
-  // fields, connections) is deliberately absent — see this file's header.
+  // Title, then description, then the item's other data, then what
+  // backs it.
   const editor = (
     <>
       <label className="field field-name">
@@ -168,9 +161,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           value={(item.data.description?.value as string | undefined) ?? ""}
         />
       </label>
-      {/* TEMPORARY — raw look at the item's attributes while we work on
-          the focus view redesign. Remove before shipping. */}
-      <pre className="debug-attributes">{JSON.stringify(item, null, 2)}</pre>
+      <DataFields item={item} />
       <ResourcesEditor item={item} />
     </>
   );
