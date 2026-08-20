@@ -141,9 +141,9 @@ export interface SchemaAttribute {
    *
    * `false` is not a secret and not a deletion: the value is still
    * extracted, still stored, and still shown — it drops to the generic
-   * data list below, which draws whatever the layout did not claim
-   * (views/focus/FieldsEditor.tsx). An ISBN is worth having and rarely
-   * worth looking at, and this is the difference.
+   * data list below, which draws whatever the laid-out block did not
+   * claim. An ISBN is worth having and rarely worth looking at, and this
+   * is the difference.
    *
    * A flag rather than a position, unlike `attribute`, where an
    * attribute sits says which matters most, which is a different
@@ -161,8 +161,8 @@ export interface SchemaAttribute {
  * the primary resource: ordered, and reordering is how the user says
  * which one it is. A book's title is what the book is called, so it
  * leads — the ingestor writes what it extracted there into `Item.data.name`
- * (ingest/extract.ts) and the layout draws the rest (layouts/registry.tsx),
- * since the name is already on screen above them.
+ * (ingest/extract.ts), since the name is already on screen above the
+ * rest of an item's fields.
  *
  * Positional rather than flagged because the word is no guide: a
  * `person` type's `title` means Dr. or a job, not a name. What decides

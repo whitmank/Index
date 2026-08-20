@@ -138,10 +138,9 @@ function asText(value: DataEntry["value"]): string {
  *   on an item they already curated asked for that type's attributes,
  *   and loose rows they never asked for are noise there rather than
  *   rescue.
- * - **Unmatched schema attributes are not emitted.** The layout already
- *   draws a type's declared attributes from the schema itself
- *   (layouts/registry.tsx), so writing empty rows here would put the
- *   same blanks on the item twice.
+ * - **Unmatched schema attributes are not emitted.** The frontend already
+ *   draws a type's declared attributes from the schema itself, so
+ *   writing empty rows here would put the same blanks on the item twice.
  *
  * The type's **first** attribute takes its match as the item's name and
  * writes no row — `resources[0]` is the primary resource for the same

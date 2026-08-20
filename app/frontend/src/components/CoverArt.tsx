@@ -1,12 +1,7 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // A plain cover image — no card chrome, no shadow — shared by whatever
 // content genuinely has one as its identity rather than incidental
-// decoration: an album's artwork (layouts/types/AlbumLayout.tsx), a
-// book's jacket (renderers/BookRenderer.tsx). Lives here, not under
-// layouts/, because a renderer needs it too: layouts/registry.tsx's own
-// rule is that the renderer and the layout are two independent
-// machines, and a renderer reaching into layouts/ for a shared part
-// would blur that seam.
+// decoration: a book's jacket (renderers/BookRenderer.tsx).
 //
 // Deliberately has no "missing cover" state of its own — a caller
 // already knows its own data source, so it decides what to render

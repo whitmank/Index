@@ -1,9 +1,8 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The schema manager: create a type, name its attributes. A schema is
 // data, not code (database/types.ts) — this is the one place that data
-// gets written, the same relationship FieldsEditor has to an item's own
-// data. Schemas sit outside the Change model, like labels: there is
-// nothing about a type's shape to undo, only its current shape.
+// gets written. Schemas sit outside the Change model, like labels: there
+// is nothing about a type's shape to undo, only its current shape.
 //
 // `SchemaEditor` is the list-and-editor itself; `SchemaManager` is that
 // plus a standalone modal's backdrop and header — Settings' Types tab
@@ -164,8 +163,7 @@ export function SchemaManager({ onClose }: SchemaManagerProps) {
 }
 
 /** The selected type's attribute list — one row per attribute, plus a
- * standing draft row, exactly FieldsEditor's shape one level up (defining
- * attributes instead of filling them in). */
+ * standing draft row (defining attributes instead of filling them in). */
 function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Draft) => void }) {
   const [draftRow, setDraftRow] = useState<SchemaAttribute>({ attribute: "", kind: "string", display: true });
   // SettleInput only clears its own typed text when its `value` prop

@@ -16,9 +16,7 @@ export function isSpotifyAlbumUrl(uri: string): boolean {
   return ALBUM_URL_PATTERN.test(uri);
 }
 
-/** Upsert by attribute, keyed the same way `layouts/registry.tsx`'s
- * `KnownFields` already writes a known field in place without
- * disturbing whatever else `data` holds. */
+/** Upsert by attribute, without disturbing whatever else `data` holds. */
 function upsertByName(data: Data, updates: DataEntry[]): Data {
   let next = data;
   for (const update of updates) {

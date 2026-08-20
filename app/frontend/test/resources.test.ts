@@ -5,7 +5,7 @@
 // which resource counts as the subject, which guesses are allowed to
 // overwrite what, and which are refused.
 import assert from "node:assert/strict";
-import type { Data, DataEntry, Item, Provenance, Resource, Schema, SchemaAttribute } from "@index/database/types";
+import type { Data, DataEntry, Item, Provenance, Resource } from "@index/database/types";
 
 let passed = 0;
 
@@ -36,8 +36,6 @@ const { attachResource, detachResource, dropIndexFor, moveResource } = await imp
   "../src/lib/resources.js"
 );
 const { changes } = await import("../src/changes/index.js");
-const { resolveLayout } = await import("../src/layouts/registry.tsx");
-const { knownFieldsFor } = await import("../src/lib/derive.js");
 
 function resource(name: string): Resource {
   return { uri: `mbp:///Users/k/${name}`, name };
@@ -190,98 +188,6 @@ await check("stays quiet when the guess is the type it already had", async () =>
   const change = await moveResource(book, 1, 0);
 
   assert.doesNotMatch(change.description, /reclassified/);
-});
-
-console.log("\nwhat a type puts at the top of an item");
-
-const bookSchema = (attributes: SchemaAttribute[]): Schema => ({
-  id: "schemas:book",
-  name: "book",
-  attributes,
-});
-const declare = (attribute: string, hidden = false): SchemaAttribute => ({
-  attribute,
-  kind: "string",
-  display: !hidden,
-});
-
-const laidOut = (attributes: SchemaAttribute[]) =>
-  resolveLayout(item({ type: itemType("book", "auto") }), [bookSchema(attributes)]).entry.fields?.map(
-    (f) => f.attribute,
-  );
-
-await check("draws every field but the one that names the item", () => {
-  assert.deepEqual(laidOut([declare("title"), declare("author"), declare("isbn")]), [
-    "author",
-    "isbn",
-  ]);
-});
-
-await check("leaves out the ones marked hidden", () => {
-  // Not gone: FieldsEditor draws whatever this block doesn't claim, so a
-  // hidden field's value moves down the panel rather than off it.
-  assert.deepEqual(laidOut([declare("title"), declare("author"), declare("isbn", true)]), [
-    "author",
-  ]);
-});
-
-await check("finds its type's schema whatever case either was written in", () => {
-  const capitalised: Schema = {
-    id: "schemas:song",
-    name: "Song",
-    attributes: [declare("title"), declare("artist")],
-  };
-
-  // The Spotify import writes `type: "song"`; a schema created by typing
-  // "Song" into the type manager keeps the capital. An exact match found
-  // neither, so every imported song lost its fields.
-  const drawn = resolveLayout(item({ type: itemType("song", "auto") }), [capitalised]).entry.fields;
-  assert.deepEqual(drawn?.map((field) => field.attribute), ["artist"]);
-});
-
-await check("falls back to the default layout when nothing is left to lay out", () => {
-  const resolution = resolveLayout(
-    item({ type: itemType("book", "auto") }),
-    [bookSchema([declare("title"), declare("isbn", true)])],
-  );
-
-  // A type whose only visible field is its name has nothing for the
-  // two-column shape to hold, so it resolves as an untyped item would.
-  assert.equal(resolution.entry.fields, undefined);
-  assert.equal(resolution.source, "default");
-});
-
-console.log("\nknownFieldsFor — not currently drawn by Focus.tsx (stripped to title/description/resources), but exported for when a richer editor comes back");
-
-await check("draws every field but the one that names the item", () => {
-  const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("author"), declare("isbn")])]);
-  assert.deepEqual(fields.map((f) => f.attribute), ["author", "isbn"]);
-});
-
-await check("leaves out the ones marked hidden", () => {
-  const fields = knownFieldsFor("book", [
-    bookSchema([declare("title"), declare("author"), declare("isbn", true)]),
-  ]);
-  assert.deepEqual(fields.map((f) => f.attribute), ["author"]);
-});
-
-await check("finds its type's schema whatever case either was written in", () => {
-  const capitalised: Schema = {
-    id: "schemas:song",
-    name: "Song",
-    attributes: [declare("title"), declare("artist")],
-  };
-  const fields = knownFieldsFor("song", [capitalised]);
-  assert.deepEqual(fields.map((f) => f.attribute), ["artist"]);
-});
-
-await check("returns nothing when there is nothing left to lay out", () => {
-  const fields = knownFieldsFor("book", [bookSchema([declare("title"), declare("isbn", true)])]);
-  assert.deepEqual(fields, []);
-});
-
-await check("returns nothing for an untyped item", () => {
-  assert.deepEqual(knownFieldsFor(null, [bookSchema([declare("title"), declare("author")])]), []);
 });
 
 console.log("\nwhere a dragged row lands");

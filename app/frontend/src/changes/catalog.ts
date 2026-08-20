@@ -298,9 +298,8 @@ export function setData(item: Item, entries: DataEntry[]): Change {
 }
 
 /** Upsert exactly one named attribute, leaving everything else in
- * `data` untouched — what a layout's own known-field row writes
- * (layouts/parts/KnownFields.tsx), as opposed to `setData`'s "here is
- * the complete generic list" replacement. */
+ * `data` untouched, as opposed to `setData`'s "here is the complete
+ * generic list" replacement. */
 export function setAttribute(item: Item, attribute: string, value: DataEntry["value"], kind: DataEntry["kind"]): Change {
   return swap(
     item,
