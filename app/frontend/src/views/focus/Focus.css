@@ -478,10 +478,15 @@
   border-bottom: 1px solid var(--is-line);
 }
 
-/* A row is a button, not just styled like one — clicking a child goes
-   into it, the same `onGoTo` every other row of items in this app
-   answers to (List's rows, Canvas's nodes). Reset to plain text/flex
-   rather than a button's usual chrome, so it still reads as a row. */
+/* A row is a button, not just styled like one, when it actually goes
+   somewhere — clicking it goes into that child, the same `onGoTo` every
+   other row of items in this app answers to (List's rows, Canvas's
+   nodes). Reset to plain text/flex rather than a button's usual chrome,
+   so it still reads as a row. A leaf child (a plain track, nothing
+   nested under it) renders the same shape as a plain `<div>` instead —
+   still highlights on hover the way every row here does, since it's
+   still worth reading closely, but the pointer cursor is reserved for
+   the rows a click actually does something to. */
 .child-row {
   display: flex;
   align-items: baseline;
@@ -493,11 +498,14 @@
   text-align: left;
   background: none;
   border: 0;
-  cursor: pointer;
 }
 
 .child-row:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+button.child-row {
+  cursor: pointer;
 }
 
 .child-index {

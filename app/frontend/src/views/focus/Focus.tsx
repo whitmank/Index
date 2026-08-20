@@ -25,6 +25,7 @@ import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { CoverArt } from "../../components/CoverArt.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
+import { sameTypeName } from "../../lib/derive.js";
 import { formatDurationRounded } from "../../lib/duration.js";
 import { attachResource } from "../../lib/resources.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
@@ -48,6 +49,19 @@ function durationOf(child: Item): string {
   const entry = child.data.duration;
   if (!entry || typeof entry.value !== "string") return "";
   return entry.kind === "duration" ? formatDurationRounded(entry.value) : entry.value;
+}
+
+/** A song, specifically — not "any leaf child." A movie series' episodes
+ * are children too, and each one is worth going into on its own (or
+ * will, once the content pane can page through them); a song just isn't,
+ * the same way clicking a track in Spotify plays it rather than opening
+ * a page about it. Once clicking a song does that instead, this is the
+ * one place that decides — not "does it have children of its own," which
+ * only ever meant "is this actually a song" for the one case that
+ * existed to test it. */
+function isSong(child: Item): boolean {
+  const type = child.data.type?.value as string | undefined;
+  return Boolean(type) && sameTypeName(type as string, "song");
 }
 
 export interface FocusProps {
@@ -207,7 +221,12 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo, onOpenTypeSettings }: 
           index: index + 1,
           primary: (child.data.name.value as string) || "untitled",
           trailing: durationOf(child),
-          onGoTo: () => onGoTo({ id: child.id }),
+          // A song specifically (isSong, above) doesn't navigate —
+          // clicking one is headed toward playback later, not toward
+          // opening a page about it, so for now it just does nothing.
+          // Every other kind of child (a movie series' episodes, say)
+          // goes into it normally.
+          onGoTo: isSong(child) ? undefined : () => onGoTo({ id: child.id }),
         }))}
       />
       <DataFields item={item} />
