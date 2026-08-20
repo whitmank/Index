@@ -414,11 +414,26 @@
   cursor: pointer;
 }
 
+/* A book's cover sits inside its content-slot's own 3:4 box, already
+   bounded by .layout-content's max-width — the 420px cap above is for a
+   context with no such bound and just leaves this one floating small in
+   the middle of a much bigger frame. */
+.content-slot.fit-aspect-3-4 .cover-art-button {
+  max-width: none;
+}
+
+/* `contain`, not `cover` — the box's aspect ratio is a guess at the
+   artwork's own (a square for an album, 3:4 for a book jacket), and a
+   real cover is rarely exactly that. `cover` would crop off whatever the
+   guess got wrong; `contain` letterboxes instead, so the whole image
+   always shows. No fill behind it — Focus's own dark backdrop already
+   sits behind the box, so a transparent letterbox gap just blends into
+   it instead of reading as a border. */
 .cover-art {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 6px;
 }
 
@@ -686,8 +701,13 @@
   border-radius: 6px;
 }
 
+/* Capped well below .layout-content's own 960px — at that width a book
+   cover reads as huge rather than as a cover, and cropped the epub
+   reader taller than it needs to be too, since both states share this
+   box. */
 .fit-aspect-3-4 {
   width: 100%;
+  max-width: 420px;
   aspect-ratio: 3 / 4;
 }
 
