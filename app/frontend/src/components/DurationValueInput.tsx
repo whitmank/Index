@@ -1,11 +1,9 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // A duration field whose stored value is always the full integer-second
 // count, but reads at rest the way you'd actually say it — "59 min", not
-// "58:32". Hovering it, the same as focusing it to edit, swaps that
-// rounded reading for the exact one underneath (DateValueInput.tsx's
-// commit-on-settle field does the same swap on focus alone; a duration
-// adds hover because the exact value here is worth a glance without
-// committing to an edit).
+// "58:32". Focusing it to actually edit is what asks for the exact
+// reading instead (DateValueInput.tsx's commit-on-settle field does the
+// same swap, for the same reason).
 import { useEffect, useRef, useState } from "react";
 import { formatDurationPrecise, formatDurationRounded, parseDurationInput } from "../lib/duration.js";
 
@@ -19,7 +17,6 @@ export interface DurationValueInputProps {
 export function DurationValueInput({ value, onCommit, placeholder, ariaLabel }: DurationValueInputProps) {
   const [draft, setDraft] = useState(formatDurationPrecise(value));
   const [focused, setFocused] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const wasFocused = useRef(false);
 
   useEffect(() => {
@@ -59,11 +56,9 @@ export function DurationValueInput({ value, onCommit, placeholder, ariaLabel }: 
           event.currentTarget.blur();
         }
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       placeholder={placeholder}
       type="text"
-      value={focused ? draft : hovered ? formatDurationPrecise(value) : formatDurationRounded(value)}
+      value={focused ? draft : formatDurationRounded(value)}
     />
   );
 }

@@ -18,8 +18,8 @@ export function formatDurationRounded(value: string): string {
   return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
 }
 
-/** The exact reading, down to the second — what focusing or hovering the
- * field asks for. */
+/** The exact reading, down to the second — what focusing the field to
+ * edit it asks for. */
 export function formatDurationPrecise(value: string): string {
   if (!value) return value;
   const totalSeconds = Math.max(0, Math.round(Number(value) || 0));

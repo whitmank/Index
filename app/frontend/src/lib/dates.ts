@@ -3,7 +3,6 @@
 // chronological order and no timezone ever enters the data. These helpers
 // exist to keep the conversion between a local clock and that string in
 // exactly one place.
-import type { DatePrecision } from "@index/database/types";
 
 /** Today, by the local clock — the journal sense of "today". */
 export function today(): string {
@@ -74,16 +73,6 @@ export function todayISO(): string {
   return today();
 }
 
-/** A stored date, trimmed to a schema attribute's declared precision — the
- * full `YYYY-MM-DD` underneath is never touched, only what's shown. Absent
- * precision means the full date, same as always. */
-export function formatByPrecision(date: string, precision?: DatePrecision): string {
-  if (!date) return date;
-  if (precision === "year") return date.slice(0, 4);
-  if (precision === "month") return date.slice(0, 7);
-  return date;
-}
-
 const MONTH_NAMES = [
   "January",
   "February",
@@ -109,28 +98,15 @@ function ordinal(day: number): string {
   return `${day}th`;
 }
 
-/** A full stored date, spelled the way a person would say it — "2021,
- * April 23rd" — for wherever the exact value is worth reading rather
- * than scanning (DateValueInput.tsx's hover reveal). Editing a date
- * still works in the plain ISO string underneath; this is a reading, not
- * an input format. */
+/** A full stored date, spelled the way a person would say it — "August
+ * 24th, 2016" — the everyday reading a date-kind field shows at rest,
+ * not just something a hover used to dig up. Editing a date still works
+ * in the plain ISO string underneath; this is a reading, not an input
+ * format. */
 export function formatDateEnglish(date: string): string {
   if (!date) return date;
   const parsed = fromISODate(date);
   const month = MONTH_NAMES[parsed.getMonth()];
   if (!month) return date;
-  return `${parsed.getFullYear()}, ${month} ${ordinal(parsed.getDate())}`;
-}
-
-/** A schema attribute's on-screen word, matched to what it actually shows
- * rather than what it's keyed by — "Date" reads as "Year" once its
- * precision has trimmed it down to one, the same way `formatByPrecision`
- * trims the value beside it. `attribute` itself stays the storage key and
- * the schema's own name for the field; this only ever touches the label,
- * and only where the word "date" is literally in it — a field with some
- * other name (e.g. "Published") is left alone rather than guessed at. */
-export function dateFieldLabel(attribute: string, precision?: DatePrecision): string {
-  const word = precision === "year" ? "Year" : precision === "month" ? "Month" : null;
-  if (!word) return attribute;
-  return attribute.replace(/\bdate\b/i, word);
+  return `${month} ${ordinal(parsed.getDate())}, ${parsed.getFullYear()}`;
 }

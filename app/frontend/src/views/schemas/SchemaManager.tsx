@@ -8,11 +8,10 @@
 // plus a standalone modal's backdrop and header — Settings' Types tab
 // wants the first without the second.
 import { useEffect, useRef, useState } from "react";
-import type { AttributeKind, DatePrecision, Schema, SchemaAttribute } from "@index/database/types";
+import type { AttributeKind, Schema, SchemaAttribute } from "@index/database/types";
 import { SettleInput } from "../../components/SettleInput.tsx";
 
 const KINDS: AttributeKind[] = ["string", "number", "date", "list", "duration"];
-const PRECISIONS: DatePrecision[] = ["day", "month", "year"];
 
 /** The password-reveal pair, in the app's own outline-glyph idiom
  * (DeviceIcon): plain currentColor strokes, so hover and quiet states
@@ -305,10 +304,7 @@ function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Dra
             />
             <select
               aria-label="field kind"
-              onChange={(event) => {
-                const kind = event.target.value as AttributeKind;
-                updateAttribute(index, { kind, precision: kind === "date" ? attribute.precision : undefined });
-              }}
+              onChange={(event) => updateAttribute(index, { kind: event.target.value as AttributeKind })}
               value={attribute.kind}
             >
               {KINDS.map((kind) => (
@@ -317,25 +313,6 @@ function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Dra
                 </option>
               ))}
             </select>
-            {/* Meaningful only for a date field — a fixed column so every
-                row's remove button stays aligned whether or not this one
-                has anything in it. */}
-            {attribute.kind === "date" ? (
-              <select
-                aria-label="date precision"
-                onChange={(event) => updateAttribute(index, { precision: event.target.value as DatePrecision })}
-                title="how much of the full stored date to show"
-                value={attribute.precision ?? "day"}
-              >
-                {PRECISIONS.map((precision) => (
-                  <option key={precision} value={precision}>
-                    {precision}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span />
-            )}
             <button
               aria-label={`remove ${attribute.attribute}`}
               className="field-remove"
@@ -361,10 +338,7 @@ function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Dra
           />
           <select
             aria-label="new field kind"
-            onChange={(event) => {
-              const kind = event.target.value as AttributeKind;
-              setDraftRow({ ...draftRow, kind, precision: kind === "date" ? draftRow.precision : undefined });
-            }}
+            onChange={(event) => setDraftRow({ ...draftRow, kind: event.target.value as AttributeKind })}
             value={draftRow.kind}
           >
             {KINDS.map((kind) => (
@@ -373,22 +347,6 @@ function AttributesList({ schema, onSave }: { schema: Schema; onSave: (next: Dra
               </option>
             ))}
           </select>
-          {draftRow.kind === "date" ? (
-            <select
-              aria-label="new field date precision"
-              onChange={(event) => setDraftRow({ ...draftRow, precision: event.target.value as DatePrecision })}
-              title="how much of the full stored date to show"
-              value={draftRow.precision ?? "day"}
-            >
-              {PRECISIONS.map((precision) => (
-                <option key={precision} value={precision}>
-                  {precision}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span />
-          )}
           <span />
         </div>
       </div>

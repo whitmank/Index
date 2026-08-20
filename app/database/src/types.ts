@@ -136,13 +136,6 @@ export interface Item {
   deleted_at: string | null;
 }
 
-/** How much of a `date`-kind value is worth showing. The stored value is
- * always a full `YYYY-MM-DD` string regardless — this only trims what's
- * displayed, the way an album's release date is real information down to
- * the day (or padded to look that way) but only its year is worth a
- * glance. */
-export type DatePrecision = "day" | "month" | "year";
-
 /** One attribute a `type` is known to carry, and how to present it. */
 export interface SchemaAttribute {
   attribute: string;
@@ -161,9 +154,6 @@ export interface SchemaAttribute {
    * question from whether it earns room up front. Defaults `true`.
    */
   display: boolean;
-  /** Meaningful only when `kind` is `"date"`. Absent means the full date
-   * shows, same as always. */
-  precision?: DatePrecision;
 }
 
 /**

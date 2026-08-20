@@ -1100,26 +1100,6 @@ button.child-row {
   color: var(--is-ink-dim);
 }
 
-/* A date field's label swaps words with its precision — "Year" opening
-   into "Date" while its value is focused open to the full date beside it,
-   and back on blur. Remounted on a fresh `key` each time the word
-   changes, so this plays the same way in both directions rather than
-   needing a matched pair of enter/exit rules. */
-@keyframes field-label-swap {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.field-label-animated {
-  animation: field-label-swap 160ms ease;
-}
-
 .fields-value-input {
   flex: 1;
   min-width: 0;

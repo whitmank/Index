@@ -30,8 +30,7 @@ function upsertByName(data: Data, updates: DataEntry[]): Data {
 /** Data keys this integration used to write, since renamed — kept here so
  * re-attaching an already-imported album's Spotify link cleans the stale
  * field up instead of leaving it sitting beside the one that replaced it
- * forever. `"year"` predates `"Date"` (with a `year` precision) taking
- * over the same job. */
+ * forever. `"year"` predates `"Date"` taking over the same job. */
 const RETIRED_KEYS = ["year"];
 
 function withoutRetiredKeys(data: Data): Data {
@@ -109,14 +108,10 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
     name: "album",
     attributes: [
       { attribute: "Artist", kind: "string", display: true },
-      // Full date underneath, year-only on screen: Spotify usually only
-      // knows the year anyway, and `padReleaseDate` already fabricates a
-      // day for it — the precision flag just stops that fabricated day
-      // from being shown as if it meant something.
-      { attribute: "Date", kind: "date", display: true, precision: "year" },
-      // Same idea as `Date`: the exact second count underneath, rounded
-      // to the nearest minute on screen (DurationValueInput.tsx) — a
-      // hover or a focus is what asks for the precise reading instead.
+      { attribute: "Date", kind: "date", display: true },
+      // The exact second count underneath, rounded to the nearest minute
+      // on screen — focusing it to edit is what asks for the precise
+      // reading instead (DurationValueInput.tsx).
       { attribute: "Duration", kind: "duration", display: true },
     ],
   });
