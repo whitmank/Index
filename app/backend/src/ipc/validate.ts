@@ -7,6 +7,7 @@ import type {
   AttributeKind,
   Change,
   ChangePair,
+  DatePrecision,
   MembersOptions,
   SchemaAttribute,
   StoredRecord,
@@ -48,7 +49,7 @@ export function asMembersOptions(value: unknown): MembersOptions {
   return { partition: { date: asString((partition as { date: unknown }).date, "partition.date") } };
 }
 
-const ATTRIBUTE_KINDS: AttributeKind[] = ["string", "number", "date", "list"];
+const ATTRIBUTE_KINDS: AttributeKind[] = ["string", "number", "date", "list", "duration"];
 
 function asAttributeKind(value: unknown, what: string): AttributeKind {
   if (typeof value !== "string" || !ATTRIBUTE_KINDS.includes(value as AttributeKind)) {
@@ -57,12 +58,23 @@ function asAttributeKind(value: unknown, what: string): AttributeKind {
   return value as AttributeKind;
 }
 
+const DATE_PRECISIONS: DatePrecision[] = ["day", "month", "year"];
+
+function asDatePrecision(value: unknown, what: string): DatePrecision | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !DATE_PRECISIONS.includes(value as DatePrecision)) {
+    fail(`${what} must be one of ${DATE_PRECISIONS.join(", ")}`);
+  }
+  return value as DatePrecision;
+}
+
 function asSchemaAttribute(value: unknown, what: string): SchemaAttribute {
   if (typeof value !== "object" || value === null) fail(`${what} must be an object`);
-  const { attribute, kind, display } = value as {
+  const { attribute, kind, display, precision } = value as {
     attribute?: unknown;
     kind?: unknown;
     display?: unknown;
+    precision?: unknown;
   };
   if (display !== undefined && typeof display !== "boolean") {
     fail(`${what}.display must be a boolean`);
@@ -75,6 +87,7 @@ function asSchemaAttribute(value: unknown, what: string): SchemaAttribute {
     attribute: asString(attribute, `${what}.attribute`),
     kind: asAttributeKind(kind, `${what}.kind`),
     display: display !== false,
+    precision: asDatePrecision(precision, `${what}.precision`),
   };
 }
 

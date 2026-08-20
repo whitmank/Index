@@ -24,7 +24,7 @@ DEFINE FIELD OVERWRITE data.*           ON items TYPE object;
 DEFINE FIELD OVERWRITE data.*.attribute ON items TYPE option<string>;  -- absent: a freeform tag
 DEFINE FIELD OVERWRITE data.*.value     ON items TYPE string | array<string>;  -- array: the "list" kind
 DEFINE FIELD OVERWRITE data.*.kind      ON items TYPE string DEFAULT "string"
-    ASSERT $value IN ["string", "number", "date", "list"];
+    ASSERT $value IN ["string", "number", "date", "list", "duration"];
 DEFINE FIELD OVERWRITE data.*.prov      ON items TYPE string ASSERT $value IN ["auto", "user"];
 DEFINE FIELD OVERWRITE resources    ON items TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE resources.*.uri    ON items TYPE string;
@@ -60,8 +60,12 @@ DEFINE FIELD OVERWRITE name  ON schemas TYPE string;
 DEFINE FIELD OVERWRITE attributes ON schemas TYPE array<object> DEFAULT [];
 DEFINE FIELD OVERWRITE attributes.*.attribute ON schemas TYPE string;
 DEFINE FIELD OVERWRITE attributes.*.kind      ON schemas TYPE string DEFAULT "string"
-    ASSERT $value IN ["string", "number", "date", "list"];
+    ASSERT $value IN ["string", "number", "date", "list", "duration"];
 -- Shown in Focus's laid-out block when true; still extracted, stored,
 -- and shown in the generic data list below it either way.
 DEFINE FIELD OVERWRITE attributes.*.display ON schemas TYPE bool DEFAULT true;
+-- Meaningful only for a "date" kind attribute: how much of the full
+-- stored date is worth showing. Absent means the full date.
+DEFINE FIELD OVERWRITE attributes.*.precision ON schemas TYPE option<string>
+    ASSERT $value = NONE OR $value IN ["day", "month", "year"];
 DEFINE INDEX OVERWRITE schemas_name ON schemas FIELDS name UNIQUE;

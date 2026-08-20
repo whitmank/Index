@@ -105,10 +105,30 @@ export function App() {
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [commanding, setCommanding] = useState(false);
   const navBarRef = useRef<NavBarHandle>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Which items are pending a delete confirmation, and whether finishing
+  // should also clear the selection — true for the ⌘⌫/selection path,
+  // false for a single item asked about from a context menu, which
+  // shouldn't disturb a selection it was never part of.
+  const [confirmingDelete, setConfirmingDelete] = useState<{ items: Item[]; clearSelection: boolean } | null>(
+    null,
+  );
   const capturePrompt = useCapturePrompt();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  // Only set by the type badge's right-click shortcut, and cleared on
+  // close — so opening Settings normally (⌘, or the gear) always lands on
+  // the Types tab's own "pick a type, or add one", not wherever the last
+  // shortcut left it.
+  const [settingsSelectedType, setSettingsSelectedType] = useState<string | undefined>(undefined);
+  const closeSettings = (): void => {
+    setSettingsOpen(false);
+    setSettingsSelectedType(undefined);
+  };
+  const openTypeSettings = (typeName: string): void => {
+    setSettingsTab("types");
+    setSettingsSelectedType(typeName);
+    setSettingsOpen(true);
+  };
   const troubles = useTroubles();
 
   // The space actually on the stage — the nearest trailing entry that's a
@@ -467,30 +487,59 @@ export function App() {
     });
   }, [currentSetId, pickedItems, readMembers]);
 
-  /** ⌘⌫ — the thing itself. The only gesture in the app that asks first. */
-  const deletePicked = useCallback(() => {
-    setConfirmingDelete(false);
-    const change = changes.deleteMany(pickedItems());
-    if (change.pairs.length === 0) return;
-    void apply(change).then((ok) => {
-      if (ok) selection.clear();
-    });
-  }, [pickedItems]);
-
-  const askToDeletePicked = useCallback(() => {
+  /** The thing itself — the only gesture in the app that asks first.
+   * Shared by every delete surface (⌘⌫ on a selection, a context menu's
+   * "Delete", FocusToolbar's own): each just says which items and
+   * whether finishing should clear the selection, and this asks once. */
+  const askToDelete = useCallback((items: Item[], clearSelection: boolean) => {
     // Every one of them is a system item: there is nothing to ask about.
-    if (pickedItems().every((item) => isSystemId(item.id))) {
+    if (items.length === 0 || items.every((item) => isSystemId(item.id))) {
       errors.surface("These are system items, and cannot be deleted.");
       return;
     }
-    setConfirmingDelete(true);
-  }, [pickedItems]);
+    setConfirmingDelete({ items, clearSelection });
+  }, []);
+
+  const askToDeletePicked = useCallback(() => askToDelete(pickedItems(), true), [askToDelete, pickedItems]);
+
+  /** A context menu's "Delete" — one item, and it may not be part of
+   * whatever else happens to be selected right now. */
+  const askToDeleteOne = useCallback((item: Item) => askToDelete([item], false), [askToDelete]);
+
+  /** The direct children (`child: true`) of every item pending
+   * confirmation, resolved to items and deduped — what lets the dialog
+   * ask "...and its N children too?" instead of a plain yes/no. */
+  const deleteChildren = usePool(() => {
+    if (!confirmingDelete) return [];
+    const found = new Map<string, Item>();
+    for (const target of confirmingDelete.items) {
+      for (const connection of pool.childrenOf(target.id)) {
+        const child = pool.getItem(connection.target);
+        if (child) found.set(child.id, child);
+      }
+    }
+    return [...found.values()];
+  });
+
+  const finishDelete = useCallback(
+    (recursive: boolean) => {
+      const request = confirmingDelete;
+      setConfirmingDelete(null);
+      if (!request) return;
+      const change = changes.deleteMany(request.items, { recursive });
+      if (change.pairs.length === 0) return;
+      void apply(change).then((ok) => {
+        if (ok && request.clearSelection) selection.clear();
+      });
+    },
+    [confirmingDelete],
+  );
 
   // Everything on this list is over the stage in the same sense: while
   // any of them is up, the surface underneath stops answering to keys
   // that would otherwise reach it.
   const overlayOpen =
-    opened !== null || commanding || confirmingDelete || settingsOpen || capturePrompt.pending !== null;
+    opened !== null || commanding || confirmingDelete !== null || settingsOpen || capturePrompt.pending !== null;
 
   /**
    * Paste's counterpart to `onDropAnywhere`, for a gesture that has never
@@ -581,7 +630,10 @@ export function App() {
         navBarRef.current?.startEditing();
       } else if (key === ",") {
         event.preventDefault();
-        setSettingsOpen((open) => !open);
+        setSettingsOpen((open) => {
+          if (open) setSettingsSelectedType(undefined);
+          return !open;
+        });
       } else if (key === "/") {
         event.preventDefault();
         goAll();
@@ -718,6 +770,7 @@ export function App() {
           <Canvas
             describe={capturePrompt.describe}
             itemIds={memberIds}
+            onDeleteRequested={askToDeleteOne}
             onGoTo={goTo}
             onMembersChanged={readMembers}
             setId={currentSetId}
@@ -726,6 +779,7 @@ export function App() {
         {viewMode === "list" && (
           <List
             itemIds={memberIds}
+            onDeleteRequested={askToDeleteOne}
             onGoTo={goTo}
             onMembersChanged={readMembers}
             setId={currentSetId}
@@ -742,11 +796,17 @@ export function App() {
           // Following a connection is the same primitive as anywhere else:
           // a place takes you there, a thing swaps the focus to it.
           onGoTo={goTo}
+          onOpenTypeSettings={openTypeSettings}
         />
       )}
 
       {settingsOpen && (
-        <Settings onClose={() => setSettingsOpen(false)} onTabChange={setSettingsTab} tab={settingsTab} />
+        <Settings
+          onClose={closeSettings}
+          onTabChange={setSettingsTab}
+          selectedType={settingsSelectedType}
+          tab={settingsTab}
+        />
       )}
 
       {commanding && (
@@ -755,11 +815,21 @@ export function App() {
 
       {confirmingDelete && (
         <Confirm
+          altVerb={
+            deleteChildren.length > 0
+              ? `delete ${deleteChildren.length === 1 ? "it and the child" : `all ${deleteChildren.length} children`} too`
+              : undefined
+          }
           note="One undo brings them back."
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={deletePicked}
-          question={deleteQuestion(pickedItems())}
-          verb="delete"
+          onAlt={deleteChildren.length > 0 ? () => finishDelete(true) : undefined}
+          onCancel={() => setConfirmingDelete(null)}
+          onConfirm={() => finishDelete(false)}
+          question={
+            deleteChildren.length > 0
+              ? `${deleteQuestion(confirmingDelete.items)} ${confirmingDelete.items.length === 1 ? "It has" : "They have"} ${deleteChildren.length} ${deleteChildren.length === 1 ? "child" : "children"} — delete ${deleteChildren.length === 1 ? "it" : "them"} too?`
+              : deleteQuestion(confirmingDelete.items)
+          }
+          verb={deleteChildren.length > 0 ? "just this" : "delete"}
         />
       )}
 

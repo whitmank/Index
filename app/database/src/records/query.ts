@@ -39,10 +39,12 @@ class Bindings {
 }
 
 function compareTerm(kind: string, left: string, operator: string, bound: string): string {
-  // `number` compares numerically, `string` and `date` lexically — and
-  // ISO dates sort lexically by construction, which is why `date` needs
-  // no cast.
-  return kind === "number"
+  // `number` and `duration` compare numerically (a duration is a plain
+  // integer-seconds string, unpadded, so it doesn't sort lexically the
+  // way a zero-padded ISO date does); `string` and `date` compare
+  // lexically — ISO dates sort lexically by construction, which is why
+  // `date` needs no cast.
+  return kind === "number" || kind === "duration"
     ? `<float> ${left} ${operator} <float> ${bound}`
     : `${left} ${operator} ${bound}`;
 }

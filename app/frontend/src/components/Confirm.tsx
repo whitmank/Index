@@ -7,9 +7,11 @@
 // because it is the one gesture whose target is the thing itself rather
 // than something said about it.
 //
-// The confirming answer is focused on arrival, so ↵ takes it and Escape
-// leaves: the prompt costs a keystroke you were already making.
+// Its keyboard (←/→ to rove focus, ↵/⌘↵ fixed to the two ways of saying
+// yes) lives in useAnswerKeys — shared with FocusToolbar's own inline
+// delete strip, the other place this exact question shows up.
 import { useEffect, useRef } from "react";
+import { useAnswerKeys } from "../hooks/useAnswerKeys.ts";
 
 export interface ConfirmProps {
   question: string;
@@ -19,27 +21,38 @@ export interface ConfirmProps {
   note?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** A second way of saying yes, alongside `verb` rather than instead of
+   * it — for the one question that isn't really yes/no (delete just
+   * this, or with what it carries too?). Omit for the ordinary case;
+   * present, it sits between cancel and the primary answer, and never
+   * takes the Enter binding `verb` keeps. */
+  altVerb?: string;
+  onAlt?: () => void;
 }
 
-export function Confirm({ question, verb, note, onConfirm, onCancel }: ConfirmProps) {
+export function Confirm({ question, verb, note, onConfirm, onCancel, altVerb, onAlt }: ConfirmProps) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  const alt = useRef<HTMLButtonElement>(null);
   const yes = useRef<HTMLButtonElement>(null);
+
+  const hasAlt = Boolean(altVerb && onAlt);
+  // Left to right, matching both the DOM order below and how the row
+  // reads on screen — an arrow key moves the ring the direction it
+  // points, not by some other order this list would otherwise hide.
+  const order = [
+    { ref: cancel, onChoose: onCancel },
+    ...(hasAlt ? [{ ref: alt, onChoose: onAlt as () => void }] : []),
+    { ref: yes, onChoose: onConfirm },
+  ];
 
   useEffect(() => {
     yes.current?.focus();
   }, []);
 
-  // Escape is caught here rather than left to bubble: whatever is
-  // underneath — a focus view, a selection — must not also answer it.
-  const onKeyDown = (event: React.KeyboardEvent): void => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      onCancel();
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      onConfirm();
-    }
-  };
+  // Escape bubbling out from here would also reach whatever is
+  // underneath — a focus view, a selection — so useAnswerKeys stops it
+  // rather than letting it answer twice.
+  const onKeyDown = useAnswerKeys(order, { onAlt, onCancel });
 
   return (
     <div className="confirm-backdrop" onMouseDown={onCancel}>
@@ -54,9 +67,14 @@ export function Confirm({ question, verb, note, onConfirm, onCancel }: ConfirmPr
         {note && <p className="confirm-note">{note}</p>}
 
         <div className="confirm-answers">
-          <button className="confirm-no" onClick={onCancel} type="button">
+          <button className="confirm-no" onClick={onCancel} ref={cancel} type="button">
             cancel
           </button>
+          {hasAlt && (
+            <button className="confirm-alt" onClick={onAlt} ref={alt} type="button">
+              {altVerb}
+            </button>
+          )}
           <button className="confirm-yes" onClick={onConfirm} ref={yes} type="button">
             {verb}
           </button>

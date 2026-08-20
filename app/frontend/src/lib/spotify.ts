@@ -8,7 +8,8 @@
 // apply it once, one undo for the album and every song together.
 import type { ChangePair, Data, DataEntry, Item, Resource } from "@index/database/types";
 import { changes } from "../changes/index.js";
-import { errors } from "../store/index.js";
+import { secondsToDurationValue } from "./duration.js";
+import { errors, pool } from "../store/index.js";
 
 const ALBUM_URL_PATTERN = /open\.spotify\.com\/album\/([A-Za-z0-9]+)/;
 
@@ -23,6 +24,19 @@ function upsertByName(data: Data, updates: DataEntry[]): Data {
     if (!update.attribute) continue;
     next = { ...next, [update.attribute.toLowerCase()]: update };
   }
+  return next;
+}
+
+/** Data keys this integration used to write, since renamed — kept here so
+ * re-attaching an already-imported album's Spotify link cleans the stale
+ * field up instead of leaving it sitting beside the one that replaced it
+ * forever. `"year"` predates `"Date"` (with a `year` precision) taking
+ * over the same job. */
+const RETIRED_KEYS = ["year"];
+
+function withoutRetiredKeys(data: Data): Data {
+  const next = { ...data };
+  for (const key of RETIRED_KEYS) delete next[key];
   return next;
 }
 
@@ -43,13 +57,6 @@ function formatTrackDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function formatAlbumDuration(totalMs: number): string {
-  const totalMinutes = Math.round(totalMs / 1000 / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
 }
 
 /**
@@ -102,8 +109,15 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
     name: "album",
     attributes: [
       { attribute: "Artist", kind: "string", display: true },
-      { attribute: "Year", kind: "string", display: true },
-      { attribute: "Duration", kind: "string", display: true },
+      // Full date underneath, year-only on screen: Spotify usually only
+      // knows the year anyway, and `padReleaseDate` already fabricates a
+      // day for it — the precision flag just stops that fabricated day
+      // from being shown as if it meant something.
+      { attribute: "Date", kind: "date", display: true, precision: "year" },
+      // Same idea as `Date`: the exact second count underneath, rounded
+      // to the nearest minute on screen (DurationValueInput.tsx) — a
+      // hover or a focus is what asks for the precise reading instead.
+      { attribute: "Duration", kind: "duration", display: true },
     ],
   });
   if ("err" in schemaAnswer) errors.surface(schemaAnswer.err);
@@ -117,39 +131,66 @@ export async function expandSpotifyAlbum(item: Item, resource: Resource): Promis
   const releaseDate = padReleaseDate(album.releaseDate);
   const totalMs = album.tracks.reduce((sum, track) => sum + track.durationMs, 0);
 
-  const albumData = upsertByName(item.data, [
-    { attribute: "Artist", value: album.artists.join(", "), kind: "string", prov: "auto" },
-    { attribute: "Year", value: releaseDate.slice(0, 4), kind: "string", prov: "auto" },
-    { attribute: "Duration", value: formatAlbumDuration(totalMs), kind: "string", prov: "auto" },
-  ]);
+  const albumData = withoutRetiredKeys(
+    upsertByName(item.data, [
+      { attribute: "Artist", value: album.artists.join(", "), kind: "string", prov: "auto" },
+      { attribute: "Date", value: releaseDate, kind: "date", prov: "auto" },
+      { attribute: "Duration", value: secondsToDurationValue(totalMs / 1000), kind: "duration", prov: "auto" },
+    ]),
+  );
+
+  // A track's own url is stable across every re-fetch — matching by it is
+  // what makes a refetch converge onto the songs already here instead of
+  // minting a fresh set on top of them every time the button is pressed.
+  const existingByUrl = new Map<string, Item>();
+  for (const connection of pool.childrenOf(item.id)) {
+    const child = pool.getItem(connection.target);
+    const uri = child?.resources[0]?.uri;
+    if (child && uri) existingByUrl.set(uri, child);
+  }
 
   const extraPairs: ChangePair[] = [];
 
   for (const track of album.tracks) {
-    const song: Item = {
-      // `date_added` is the app's own "added" day — the same one the
-      // album item lands on — never Spotify's release date, which is
-      // real information but a different question (it's captured below
-      // as a "Release Date" field instead). It rides on `item.date_added`
-      // rather than `releaseDate` so it inherits whatever day the album
-      // itself was created on, exactly as if you'd added each song by
-      // hand today.
-      ...changes.blankItem(item.date_added),
-      resources: [{ uri: track.url, name: track.name }],
-      data: {
-        name: { attribute: "name", value: track.name, kind: "string", prov: "auto" },
-        type: { attribute: "type", value: "song", kind: "string", prov: "auto" },
-        duration: { attribute: "Duration", value: formatTrackDuration(track.durationMs), kind: "string", prov: "auto" },
-        artist: { attribute: "Artist", value: track.artists.join(", "), kind: "string", prov: "auto" },
-        "release date": { attribute: "Release Date", value: releaseDate, kind: "date", prov: "auto" },
-      },
+    const existing = existingByUrl.get(track.url);
+
+    const data: Data = {
+      // A renamed song keeps the name you gave it, the same courtesy the
+      // album itself gets (`itemPatch` above never touches its name
+      // either) — everything else here is Spotify's own, auto-derived,
+      // and refreshed on every fetch regardless.
+      name:
+        existing?.data.name.prov === "user"
+          ? existing.data.name
+          : { attribute: "name", value: track.name, kind: "string", prov: "auto" },
+      type: { attribute: "type", value: "song", kind: "string", prov: "auto" },
+      duration: { attribute: "Duration", value: formatTrackDuration(track.durationMs), kind: "string", prov: "auto" },
+      artist: { attribute: "Artist", value: track.artists.join(", "), kind: "string", prov: "auto" },
+      "release date": { attribute: "Release Date", value: releaseDate, kind: "date", prov: "auto" },
     };
-    extraPairs.push({ before: null, after: song });
+
+    const song: Item = existing
+      ? { ...existing, resources: [{ uri: track.url, name: track.name }], data }
+      : {
+          // `date_added` is the app's own "added" day — the same one the
+          // album item lands on — never Spotify's release date, which is
+          // real information but a different question (it's captured
+          // below as a "Release Date" field instead). It rides on
+          // `item.date_added` rather than `releaseDate` so it inherits
+          // whatever day the album itself was created on, exactly as if
+          // you'd added each song by hand today.
+          ...changes.blankItem(item.date_added),
+          resources: [{ uri: track.url, name: track.name }],
+          data,
+        };
+    extraPairs.push({ before: existing ?? null, after: song });
 
     // A child of the album, not just tagged into it — `track` still says
     // *what* the relation is, `child: true` says the song nests under the
     // album rather than standing beside it at the top level (PRODUCT-SPEC
-    // hierarchy). `connect`'s upsert-by-triple dedup applies here too.
+    // hierarchy). `connect`'s upsert-by-triple dedup applies here too —
+    // and since `song` reuses `existing`'s own id when there is one, this
+    // finds and updates the same connection rather than minting another.
     extraPairs.push(
       ...changes.connect(item, label.ok.id, label.ok.name, song, {
         child: true,

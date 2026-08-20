@@ -7,7 +7,11 @@
 // is what a SurrealDB relation calls its endpoints. The wire shape says
 // `source`/`target`, which is what the glossary calls them.
 
-export type AttributeKind = "string" | "number" | "date" | "list";
+/** `duration`'s value is a plain integer-seconds string (`"3512"`), the
+ * same "one canonical shape, format only on the way out" rule `date`
+ * follows with its ISO string — never a formatted "58:32" or "59 min",
+ * which the renderer derives instead (lib/duration.ts). */
+export type AttributeKind = "string" | "number" | "date" | "list" | "duration";
 
 /** Who supplied a value: the classifier/extractor's own guess, or a
  * choice the user made directly. */
@@ -132,6 +136,13 @@ export interface Item {
   deleted_at: string | null;
 }
 
+/** How much of a `date`-kind value is worth showing. The stored value is
+ * always a full `YYYY-MM-DD` string regardless — this only trims what's
+ * displayed, the way an album's release date is real information down to
+ * the day (or padded to look that way) but only its year is worth a
+ * glance. */
+export type DatePrecision = "day" | "month" | "year";
+
 /** One attribute a `type` is known to carry, and how to present it. */
 export interface SchemaAttribute {
   attribute: string;
@@ -150,6 +161,9 @@ export interface SchemaAttribute {
    * question from whether it earns room up front. Defaults `true`.
    */
   display: boolean;
+  /** Meaningful only when `kind` is `"date"`. Absent means the full date
+   * shows, same as always. */
+  precision?: DatePrecision;
 }
 
 /**

@@ -18,7 +18,6 @@ import type {
   Position,
   Resource,
 } from "@index/database/types";
-import { today } from "../lib/dates.js";
 import { isBlankFieldValue } from "../lib/data.js";
 import { connectionId, itemId, ulid } from "../lib/ids.js";
 import { isSystemId, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "../lib/seeds.js";
@@ -64,7 +63,14 @@ function swap(before: Item, after: Item, description: string): Change {
 
 // ── items ───────────────────────────────────────────────────────────────
 
-export function blankItem(dateAdded = today()): Item {
+/** `dateAdded` defaults to the exact moment of creation, not just today's
+ * date — List.tsx sorts by `date_added` to break same-day ties, so two
+ * items minted the same day without a real time-of-day would be
+ * indistinguishable to it and could land in either order. A caller
+ * backdating onto a specific day it's looking at (Calendar's day pages,
+ * a song riding on its album's day) passes that day explicitly instead,
+ * and keeps the coarser precision that implies. */
+export function blankItem(dateAdded = now()): Item {
   return {
     id: itemId(),
     date_added: dateAdded,
@@ -334,27 +340,38 @@ export function reorderResources(item: Item, from: number, to: number): Change {
   return swap(item, { ...item, resources }, `Reorder resources on ${describe(item)}`);
 }
 
+/** Every live descendant of a parent, however many levels deep. Nesting
+ * is only ever exercised one level today (an album's tracks), but a
+ * `child: true` connection carries no depth limit of its own, so a
+ * caller asking to delete "recursively" gets an actual recursive walk
+ * rather than one level's worth with a grandchild silently left behind.
+ * The `seen` set is both the cycle guard and the dedup — a child reached
+ * two ways is still one pair in the eventual change. */
+function descendantsOf(parentId: string, seen: Set<string> = new Set()): Item[] {
+  const found: Item[] = [];
+  for (const connection of pool.childrenOf(parentId)) {
+    if (seen.has(connection.target)) continue;
+    seen.add(connection.target);
+    const child = pool.getItem(connection.target);
+    if (!child) continue;
+    found.push(child, ...descendantsOf(child.id, seen));
+  }
+  return found;
+}
+
 /**
  * Deleting an item soft-deletes its live connections in the same change,
  * as explicit pairs, so undo restores them symmetrically. System items
  * refuse deletion.
+ *
+ * A thin wrapper over `deleteMany` (below), which does the actual work —
+ * every delete surface (FocusToolbar.tsx, the item context menu, the
+ * selection's ⌘⌫) ends up asking the same question about the same
+ * `recursive` option, so there is exactly one place that answers it.
  */
-export function deleteItem(item: Item): Change | null {
+export function deleteItem(item: Item, options: { recursive?: boolean } = {}): Change | null {
   if (isSystemId(item.id)) return null;
-
-  const at = now();
-  const touching = pool.connectionsTouching(item.id);
-
-  return {
-    description: `Delete ${describe(item)}`,
-    pairs: [
-      { before: item, after: { ...item, deleted_at: at } },
-      ...touching.map((connection) => ({
-        before: connection,
-        after: { ...connection, deleted_at: at },
-      })),
-    ],
-  };
+  return deleteMany([item], options);
 }
 
 // ── arrows and connections ──────────────────────────────────────────────
@@ -455,23 +472,49 @@ export function untagMany(items: Item[], target: Item): Change {
  * Delete many items and everything touching them, in one change. System
  * items refuse deletion here exactly as they do one at a time — the batch
  * simply passes over them rather than failing whole.
+ *
+ * `recursive` folds every live descendant of every deletable item into
+ * the same change too, deduped against the items already going (a
+ * child that happens to also be explicitly selected is still one pair) —
+ * the alternative is severing it loose as a standalone item without ever
+ * having asked.
  */
-export function deleteMany(items: Item[]): Change {
+export function deleteMany(items: Item[], options: { recursive?: boolean } = {}): Change {
   const at = now();
   const deletable = items.filter((item) => !isSystemId(item.id));
+
+  const targets = new Map<string, Item>(deletable.map((item) => [item.id, item]));
+  let childCount = 0;
+  if (options.recursive) {
+    for (const item of deletable) {
+      for (const child of descendantsOf(item.id)) {
+        if (isSystemId(child.id) || targets.has(child.id)) continue;
+        targets.set(child.id, child);
+        childCount += 1;
+      }
+    }
+  }
+
   const connections = new Map<string, Connection>();
-  for (const item of deletable) {
-    for (const connection of pool.connectionsTouching(item.id)) {
+  for (const target of targets.values()) {
+    for (const connection of pool.connectionsTouching(target.id)) {
       // A connection between two doomed items is touched by both; the map
       // keeps one pair for it, because two would undo each other.
       connections.set(connection.id, connection);
     }
   }
 
+  const description =
+    deletable.length === 1
+      ? childCount > 0
+        ? `Delete ${describe(deletable[0] as Item)} and ${childCount} ${childCount === 1 ? "child" : "children"}`
+        : `Delete ${describe(deletable[0] as Item)}`
+      : `Delete ${countOf(targets.size, "item")}`;
+
   return {
-    description: `Delete ${countOf(deletable.length, "item")}`,
+    description,
     pairs: [
-      ...deletable.map((item) => ({ before: item, after: { ...item, deleted_at: at } })),
+      ...[...targets.values()].map((item) => ({ before: item, after: { ...item, deleted_at: at } })),
       ...[...connections.values()].map((connection) => ({
         before: connection,
         after: { ...connection, deleted_at: at },

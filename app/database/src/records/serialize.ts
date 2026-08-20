@@ -160,6 +160,7 @@ export function schemaContent(schema: Pick<Schema, "name" | "attributes">): Reco
       attribute: attribute.attribute,
       kind: attribute.kind,
       display: attribute.display,
+      precision: attribute.precision,
     })),
   };
 }

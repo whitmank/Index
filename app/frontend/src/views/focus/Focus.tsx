@@ -1,6 +1,12 @@
 // Authored by Karter Whitman using Claude Opus 4.8
-// The focus view: an item opened up (PRODUCT-SPEC §3.4). Deliberately
-// minimal — title, description, and the resources that back the item.
+// The focus view: an item opened up (PRODUCT-SPEC §3.4). Title, its
+// direct children if it has any (an album's tracks —
+// ChildrenList.tsx/useOrderedChildren.ts, restored from the per-type
+// layout cascade that stripped-dead-code removed; general here rather
+// than album-specific, since nothing about "show what's nested under
+// this" is particular to albums), the item's own data, and the
+// resources that back it. No separate description field — whatever an
+// item has to say about itself lives in its data now.
 //
 // The top bar (type classification, public/parse/delete/close) lives in
 // FocusToolbar.tsx — pulled out because it's the one piece every future
@@ -15,17 +21,34 @@
 // component's own dismiss ever firing, so it has to live where every
 // trail change is guaranteed to pass through.
 import { useEffect, useRef, useState } from "react";
+import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
+import { CoverArt } from "../../components/CoverArt.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
+import { formatDurationRounded } from "../../lib/duration.js";
 import { attachResource } from "../../lib/resources.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
 import { errors, loadItem, pool, usePool } from "../../store/index.js";
+import { ChildrenList } from "./ChildrenList.tsx";
 import { DataFields } from "./DataFields.tsx";
 import { FocusLayout } from "./FocusLayout.tsx";
 import { FocusToolbar } from "./FocusToolbar.tsx";
 import { ResourceCarousel } from "./ResourceCarousel.tsx";
 import { ResourceContent } from "./ResourceContent.tsx";
 import { ResourcesEditor } from "./ResourcesEditor.tsx";
+import { useOrderedChildren } from "./useOrderedChildren.ts";
+
+/** A child's own duration, if it has one — a track's, today; whatever
+ * else a future child carries the same field tomorrow. Formatted by
+ * whichever kind it was actually stored as, since a song's own
+ * `Duration` is still the plain "M:SS" string `expandSpotifyAlbum`
+ * writes (lib/spotify.ts), not the rounded/precise `duration` kind the
+ * album's own field uses. */
+function durationOf(child: Item): string {
+  const entry = child.data.duration;
+  if (!entry || typeof entry.value !== "string") return "";
+  return entry.kind === "duration" ? formatDurationRounded(entry.value) : entry.value;
+}
 
 export interface FocusProps {
   itemId: string;
@@ -35,9 +58,12 @@ export interface FocusProps {
   /** The shell's one navigation primitive, so following a connection
    * behaves exactly as clicking the same item anywhere else would. */
   onGoTo: (item: { id: string }) => void;
+  /** Right-clicking the type chip's shortcut to that type's schema in
+   * Settings. */
+  onOpenTypeSettings: (typeName: string) => void;
 }
 
-export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
+export function Focus({ itemId, isNew, onDismiss, onGoTo, onOpenTypeSettings }: FocusProps) {
   // The scrim fades in rather than snapping to full dark — two rAFs so
   // the hidden state paints first, or the transition has nothing to
   // animate from.
@@ -91,6 +117,8 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onDismiss]);
 
+  const children = useOrderedChildren(itemId);
+
   if (!item) return null;
 
   /** A file dropped or pasted anywhere on the focused item, or a link
@@ -131,15 +159,36 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
     }
   };
 
+  // A resource with its own cached artwork (an album's cover, off
+  // Spotify's card metadata) paints that directly rather than through
+  // the format-driven renderer registry's own link card — the registry
+  // stays format-selected for everything else (renderers/registry.tsx's
+  // own rule), but a cover is this item's actual identity, not a
+  // favicon/title/extract summary of a page. Takes priority over the
+  // carousel for the same reason a book's jacket does (BookRenderer.tsx):
+  // there's nothing paging through when the whole point is the one image.
+  const primaryResource = item.resources[0];
+  const cover = primaryResource?.cached?.preview_image;
+
   const content =
-    item.resources.length > 1 ? (
+    cover && primaryResource ? (
+      <CoverArt
+        alt=""
+        onClick={() => {
+          void window.index.shell.openExternal(primaryResource.uri).then((result) => {
+            if ("err" in result) errors.surface(result.err);
+          });
+        }}
+        src={window.index.url.thumb(cover)}
+      />
+    ) : item.resources.length > 1 ? (
       <ResourceCarousel initialIndex={0} item={item} resources={item.resources} />
     ) : (
       <ResourceContent item={item} resource={item.resources[0]} />
     );
 
-  // Title, then description, then the item's other data, then what
-  // backs it.
+  // Title, then whatever is nested under it, then the item's other data,
+  // then what backs it.
   const editor = (
     <>
       <label className="field field-name">
@@ -152,15 +201,15 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
           value={item.data.name.value as string}
         />
       </label>
-      <label className="field field-description">
-        <span className="sr-only">description</span>
-        <SettleInput
-          ariaLabel="description"
-          onCommit={(description) => void apply(changes.setDescription(item, description))}
-          placeholder="add a description…"
-          value={(item.data.description?.value as string | undefined) ?? ""}
-        />
-      </label>
+      <ChildrenList
+        rows={children.map(({ connection, item: child }, index) => ({
+          id: connection.id,
+          index: index + 1,
+          primary: (child.data.name.value as string) || "untitled",
+          trailing: durationOf(child),
+          onGoTo: () => onGoTo({ id: child.id }),
+        }))}
+      />
       <DataFields item={item} />
       <ResourcesEditor item={item} />
     </>
@@ -207,7 +256,7 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo }: FocusProps) {
       }}
     >
       <div className={visible ? "focus visible" : "focus"} ref={panelRef} role="dialog" tabIndex={-1}>
-        <FocusToolbar item={item} onDismiss={onDismiss} onGoTo={onGoTo} />
+        <FocusToolbar item={item} onDismiss={onDismiss} onGoTo={onGoTo} onOpenTypeSettings={onOpenTypeSettings} />
 
         <FocusLayout content={content} editor={editor} />
       </div>

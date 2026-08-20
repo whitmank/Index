@@ -125,7 +125,8 @@
 
 /* The parse glyph is drawn, not typed, so it takes its size here rather
    than from the font-size the emoji buttons ride on. */
-.parse-icon {
+.parse-icon,
+.sync-icon {
   width: 18px;
   height: 18px;
   flex: none;
@@ -466,6 +467,7 @@
 }
 
 .children-list {
+  width: 100%;
   margin: 24px 0 0;
   padding: 0;
   list-style: none;
@@ -473,11 +475,29 @@
 }
 
 .children-list li {
+  border-bottom: 1px solid var(--is-line);
+}
+
+/* A row is a button, not just styled like one — clicking a child goes
+   into it, the same `onGoTo` every other row of items in this app
+   answers to (List's rows, Canvas's nodes). Reset to plain text/flex
+   rather than a button's usual chrome, so it still reads as a row. */
+.child-row {
   display: flex;
   align-items: baseline;
+  width: 100%;
   gap: 16px;
   padding: 10px 4px;
-  border-bottom: 1px solid var(--is-line);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.child-row:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .child-index {
@@ -1070,6 +1090,26 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--is-ink-dim);
+}
+
+/* A date field's label swaps words with its precision — "Year" opening
+   into "Date" while its value is focused open to the full date beside it,
+   and back on blur. Remounted on a fresh `key` each time the word
+   changes, so this plays the same way in both directions rather than
+   needing a matched pair of enter/exit rules. */
+@keyframes field-label-swap {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.field-label-animated {
+  animation: field-label-swap 160ms ease;
 }
 
 .fields-value-input {

@@ -41,6 +41,13 @@ export function itemMenu(
   item: Item,
   handlers: {
     onGoTo: (item: Item) => void;
+    /** Ask before deleting — every delete surface confirms, and a
+     * parent's direct children (if it has any) are the confirm dialog's
+     * business, not this menu's, so choosing "Delete" here only ever
+     * asks; it never deletes on its own. */
+    onRequestDelete?: (item: Item) => void;
+    /** Fired once the item is actually gone — nothing wires this today,
+     * but a caller that wants to react to the confirmed deletion still can. */
     onDelete?: (item: Item) => void;
     /** The set being viewed, which is what "remove from" removes it from. */
     setId?: string;
@@ -110,6 +117,12 @@ export function itemMenu(
       tone: "danger",
       disabled: isSystemId(item.id),
       onChoose: () => {
+        if (handlers.onRequestDelete) {
+          handlers.onRequestDelete(item);
+          return;
+        }
+        // No confirm flow wired up — the caller has opted out of asking.
+        // Delete outright, same as before this menu asked anyone.
         const change = changes.deleteItem(item);
         if (!change) return;
         void apply(change).then(() => handlers.onDelete?.(item));

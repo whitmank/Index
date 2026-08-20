@@ -28,6 +28,9 @@ export interface SettingsProps {
   tab: SettingsTab;
   onTabChange: (tab: SettingsTab) => void;
   onClose: () => void;
+  /** The type to land on when the Types tab opens — set when Settings was
+   * opened as a shortcut to one type's schema, rather than via ⌘,. */
+  selectedType?: string;
 }
 
 interface Binding {
@@ -102,7 +105,7 @@ const KEYBIND_GROUPS: BindingGroup[] = [
   },
 ];
 
-export function Settings({ tab, onTabChange, onClose }: SettingsProps) {
+export function Settings({ tab, onTabChange, onClose, selectedType }: SettingsProps) {
   // Caught here, not left to bubble: whatever is open behind Settings —
   // Focus, the command bar — must not also close. ⌘1, ⌘2, ⌘3… jump
   // straight to a tab by its position, the same shortcut the 0.1.5
@@ -156,7 +159,7 @@ export function Settings({ tab, onTabChange, onClose }: SettingsProps) {
 
         <div className="settings-body">
           {tab === "general" && <General />}
-          {tab === "types" && <SchemaEditor />}
+          {tab === "types" && <SchemaEditor initialSelectedName={selectedType} />}
           {tab === "files" && (
             <>
               <WatchedFolders />

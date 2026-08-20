@@ -7,14 +7,17 @@
 // schemas and owns its own open/confirm/parsing state, so a future
 // type-specific view only has to render `<FocusToolbar item={item}
 // onDismiss={...} onGoTo={...} />` and nothing else.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Item, Schema } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { ParseIcon } from "../../components/ParseIcon.tsx";
+import { SyncIcon } from "../../components/SyncIcon.tsx";
 import { isPublic } from "../../components/itemActions.ts";
+import { useAnswerKeys } from "../../hooks/useAnswerKeys.ts";
 import { sameTypeName } from "../../lib/derive.js";
 import { parseItems } from "../../lib/parseItems.js";
 import { isSystemId } from "../../lib/seeds.js";
+import { expandSpotifyAlbum, isSpotifyAlbumUrl } from "../../lib/spotify.js";
 import { pool, usePool } from "../../store/index.js";
 
 function typeOf(item: Item): string | undefined {
@@ -46,13 +49,38 @@ export interface FocusToolbarProps {
   /** The shell's one navigation primitive, so "go in" behaves exactly as
    * clicking the same item anywhere else would. */
   onGoTo: (item: { id: string }) => void;
+  /** Right-clicking the type chip's shortcut to that type's schema in
+   * Settings, rather than making you open Settings and hunt for it. */
+  onOpenTypeSettings: (typeName: string) => void;
 }
 
-export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
+export function FocusToolbar({ item, onDismiss, onGoTo, onOpenTypeSettings }: FocusToolbarProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
+
+  // Present only when a resource actually is a Spotify album link — the
+  // manual counterpart to `parse`, for the one source that isn't a local
+  // file `parse` can reread: refetching means asking Spotify again, not
+  // rereading anything already on disk.
+  const spotifyResource = item.resources.find((resource) => isSpotifyAlbumUrl(resource.uri));
+
+  const refetchSpotify = async (): Promise<void> => {
+    if (!spotifyResource) return;
+    setFetchingSpotify(true);
+    try {
+      const expansion = await expandSpotifyAlbum(item, spotifyResource);
+      if (!expansion) return;
+      await apply({
+        description: `Refresh '${expansion.albumName}' from Spotify`,
+        pairs: [{ before: item, after: { ...item, ...expansion.itemPatch } }, ...expansion.extraPairs],
+      });
+    } finally {
+      setFetchingSpotify(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -71,12 +99,58 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
   // the way in from here, rather than only from the home screen.
   const isPlace = usePool(() => pool.isPlace(item.id));
 
+  // Direct children (an album's tracks, say) — what makes the delete
+  // confirm ask "just this, or this and them" instead of a plain
+  // yes/no. Deleting without answering that would otherwise silently
+  // leave every child behind as its own orphaned item.
+  const children = usePool(() => pool.childrenOf(item.id));
+
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const deleteChildrenRef = useRef<HTMLButtonElement>(null);
+  const deleteJustThisRef = useRef<HTMLButtonElement>(null);
+
+  // The primary answer is what a fresh "Delete this item?" starts
+  // focused on, the same as the modal Confirm does — arriving here is
+  // already the deliberate keystroke; the prompt shouldn't cost another
+  // just to be answerable by keyboard.
+  useEffect(() => {
+    if (confirmingDelete) deleteJustThisRef.current?.focus();
+  }, [confirmingDelete]);
+
+  const deleteJustThis = (): void => {
+    const change = changes.deleteItem(item);
+    if (change) void apply(change).then(onDismiss);
+  };
+
+  const deleteWithChildren = (): void => {
+    const change = changes.deleteItem(item, { recursive: true });
+    if (change) void apply(change).then(onDismiss);
+  };
+
+  const onDeleteConfirmKeyDown = useAnswerKeys(
+    [
+      { ref: cancelDeleteRef, onChoose: () => setConfirmingDelete(false) },
+      ...(children.length > 0 ? [{ ref: deleteChildrenRef, onChoose: deleteWithChildren }] : []),
+      { ref: deleteJustThisRef, onChoose: deleteJustThis },
+    ],
+    {
+      onAlt: children.length > 0 ? deleteWithChildren : undefined,
+      onCancel: () => setConfirmingDelete(false),
+    },
+  );
+
   return (
     <div className="focus-toolbar">
       <div className="type-trigger-wrap">
         <button
           className="type-trigger"
           onClick={() => setTypeMenuOpen((open) => !open)}
+          onContextMenu={(event) => {
+            const typeName = typeOf(item);
+            if (!typeName) return;
+            event.preventDefault();
+            onOpenTypeSettings(typeName);
+          }}
           title={typeProvenance(item)}
           type="button"
         >
@@ -145,21 +219,23 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
       </div>
 
       {confirmingDelete ? (
-        <div className="focus-confirm">
-          <span>Delete this item?</span>
+        <div className="focus-confirm" onKeyDown={onDeleteConfirmKeyDown}>
+          <span>
+            {children.length > 0
+              ? `Delete just this, or with its ${children.length} ${children.length === 1 ? "child" : "children"} too?`
+              : "Delete this item?"}
+          </span>
           <div className="focus-confirm-actions">
-            <button onClick={() => setConfirmingDelete(false)} type="button">
+            <button onClick={() => setConfirmingDelete(false)} ref={cancelDeleteRef} type="button">
               cancel
             </button>
-            <button
-              className="danger"
-              onClick={() => {
-                const change = changes.deleteItem(item);
-                if (change) void apply(change).then(onDismiss);
-              }}
-              type="button"
-            >
-              confirm
+            {children.length > 0 && (
+              <button className="danger" onClick={deleteWithChildren} ref={deleteChildrenRef} type="button">
+                {`and ${children.length === 1 ? "the child" : `all ${children.length} children`}`}
+              </button>
+            )}
+            <button className="danger" onClick={deleteJustThis} ref={deleteJustThisRef} type="button">
+              {children.length > 0 ? "just this" : "confirm"}
             </button>
           </div>
         </div>
@@ -187,6 +263,24 @@ export function FocusToolbar({ item, onDismiss, onGoTo }: FocusToolbarProps) {
             />
             public
           </label>
+
+          {/* Asks Spotify for this album again — artist, date, duration,
+              and its songs, the same expansion an album link runs through
+              the first time it's attached. Manual, because nothing here
+              watches for the metadata changing on Spotify's end; this is
+              how you'd notice or correct it. */}
+          {spotifyResource && (
+            <button
+              aria-label="refetch from Spotify"
+              className="item-screen-icon-button"
+              disabled={fetchingSpotify}
+              onClick={() => void refetchSpotify()}
+              title="ask Spotify for this album's data again"
+              type="button"
+            >
+              <SyncIcon />
+            </button>
+          )}
 
           {/* Reads the file and fills in what this type declares.
               Available only once the item has a type, because the

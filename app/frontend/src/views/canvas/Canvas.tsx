@@ -56,6 +56,10 @@ export interface CanvasProps {
   /** The shell's one navigation primitive. `isNew` is true when this
    * gesture created the item it hands over. */
   onGoTo: (item: Item, isNew?: boolean) => void;
+  /** A node's context-menu "Delete" — asks the shell rather than deleting
+   * outright, so the same confirm dialog (and the same "delete its
+   * children too?" question) answers here as everywhere else. */
+  onDeleteRequested?: (item: Item) => void;
   /** The "what is this?" prompt (App.tsx's `useCapturePrompt`), asked of
    * a single-file drop before it becomes an item. */
   describe: DescribePrompt;
@@ -74,6 +78,7 @@ export function Canvas({
   date,
   active = true,
   onGoTo,
+  onDeleteRequested,
   describe,
   onMembersChanged,
 }: CanvasProps) {
@@ -520,7 +525,7 @@ export function Canvas({
       {menu && (
         <ContextMenu
           anchor={menu.anchor}
-          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, setId })}
+          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, onRequestDelete: onDeleteRequested, setId })}
           onDismiss={() => setMenu(null)}
         />
       )}

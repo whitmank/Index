@@ -43,12 +43,27 @@
 }
 
 .confirm-no,
+.confirm-alt,
 .confirm-yes {
   font: inherit;
   font-size: var(--text-sm);
   border-radius: 6px;
   padding: 0.35rem 0.8rem;
   cursor: pointer;
+}
+
+/* The second way of saying yes — still the destructive answer, so it
+   keeps the same ink, but outlined rather than filled: unmissable next
+   to `cancel`, without competing with `confirm-yes` for which one Enter
+   would mean. */
+.confirm-alt {
+  color: var(--danger);
+  background: none;
+  border: 1px solid var(--danger);
+}
+
+.confirm-alt:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .confirm-no {

@@ -41,6 +41,10 @@ export interface ListProps {
   itemIds: string[];
   /** The shell's one navigation primitive. */
   onGoTo: (item: Item, isNew?: boolean) => void;
+  /** A row's context-menu "Delete" — asks the shell rather than deleting
+   * outright, so the same confirm dialog (and the same "delete its
+   * children too?" question) answers here as everywhere else. */
+  onDeleteRequested?: (item: Item) => void;
   /** Someone left the set; who is in it has to be read again, since
    * membership is the union of a query and the arrows, and only the
    * backend knows the first half. */
@@ -69,7 +73,7 @@ interface VisibleRow extends Row {
   hasChildren: boolean;
 }
 
-export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
+export function List({ setId, itemIds, onGoTo, onDeleteRequested, onMembersChanged }: ListProps) {
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     key: "date_added",
     ascending: false,
@@ -417,7 +421,7 @@ export function List({ setId, itemIds, onGoTo, onMembersChanged }: ListProps) {
       {menu && (
         <ContextMenu
           anchor={menu.anchor}
-          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, setId })}
+          items={itemMenu(menu.item, { onGoTo, onRemoved: onMembersChanged, onRequestDelete: onDeleteRequested, setId })}
           onDismiss={() => setMenu(null)}
         />
       )}

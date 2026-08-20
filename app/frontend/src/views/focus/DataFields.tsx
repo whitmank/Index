@@ -20,11 +20,14 @@
 // together. There is still no kind picker; everything this control
 // writes is a plain string.
 import { useEffect, useState } from "react";
-import type { AttributeKind, DataEntry, Item, Schema } from "@index/database/types";
+import type { AttributeKind, DataEntry, DatePrecision, Item, Schema } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
+import { DateValueInput } from "../../components/DateValueInput.tsx";
+import { DurationValueInput } from "../../components/DurationValueInput.tsx";
 import { ListValueInput } from "../../components/ListValueInput.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { blankFieldValue } from "../../lib/data.js";
+import { dateFieldLabel } from "../../lib/dates.js";
 import { schemaFor } from "../../lib/derive.js";
 
 const RESERVED = new Set<string>(changes.RESERVED_DATA_KEYS);
@@ -36,6 +39,10 @@ interface Row {
   attribute: string;
   value: DataEntry["value"];
   kind: AttributeKind;
+  /** Only meaningful for a `date`-kind row, and only known when the
+   * schema declares it — a field the schema doesn't declare has no
+   * precision to look up, so it always shows in full. */
+  precision?: DatePrecision;
   prov: DataEntry["prov"];
   /** Whether `item.data` actually has this entry, as opposed to a
    * schema-declared field standing in for one that doesn't exist yet. */
@@ -62,6 +69,17 @@ export function DataFields({ item }: { item: Item }) {
   const [draftName, setDraftName] = useState("");
   const [draftValue, setDraftValue] = useState("");
 
+  // Which date row is revealing its full value — hovered or focused —
+  // and so has a label reading at full precision too ("Year" → "Date"),
+  // for exactly as long as the value beside it does.
+  const [revealedDateKey, setRevealedDateKey] = useState<string | null>(null);
+  const setDateRevealed = (key: string, revealed: boolean): void => {
+    setRevealedDateKey((current) => {
+      if (revealed) return key;
+      return current === key ? null : current;
+    });
+  };
+
   const dataEntries = Object.entries(item.data).filter(([key]) => !RESERVED.has(key));
 
   // The schema's own first attribute is the item's identity — already
@@ -77,8 +95,24 @@ export function DataFields({ item }: { item: Item }) {
       const key = attribute.attribute.toLowerCase();
       const existing = dataEntries.find(([entryKey]) => entryKey === key)?.[1];
       return existing
-        ? { key, attribute: existing.attribute ?? attribute.attribute, value: existing.value, kind: existing.kind, prov: existing.prov, exists: true }
-        : { key, attribute: attribute.attribute, value: blankFieldValue(attribute.kind), kind: attribute.kind, prov: "user", exists: false };
+        ? {
+            key,
+            attribute: existing.attribute ?? attribute.attribute,
+            value: existing.value,
+            kind: existing.kind,
+            precision: attribute.precision,
+            prov: existing.prov,
+            exists: true,
+          }
+        : {
+            key,
+            attribute: attribute.attribute,
+            value: blankFieldValue(attribute.kind),
+            kind: attribute.kind,
+            precision: attribute.precision,
+            prov: "user",
+            exists: false,
+          };
     }),
     // Named, but not something the schema declares — still a field, just
     // one the schema doesn't know to expect.
@@ -149,41 +183,69 @@ export function DataFields({ item }: { item: Item }) {
 
   return (
     <section className="fields-list">
-      {rows.map((row) => (
-        <div
-          className={row.prov === "auto" ? "fields-row is-auto" : "fields-row"}
-          key={row.key}
-          title={row.prov === "auto" ? "guessed — edit to confirm" : undefined}
-        >
-          <span className="known-fields-name">{row.attribute}</span>
-          <span className="fields-value-input">
-            {row.kind === "list" ? (
-              <ListValueInput
-                ariaLabel={row.attribute}
-                onCommit={(value) => setValue(row, value)}
-                value={Array.isArray(row.value) ? row.value : []}
-              />
+      {rows.map((row) => {
+        const dateLabel =
+          row.kind === "date"
+            ? dateFieldLabel(row.attribute, revealedDateKey === row.key ? undefined : row.precision)
+            : null;
+        return (
+          <div
+            className={row.prov === "auto" ? "fields-row is-auto" : "fields-row"}
+            key={row.key}
+            title={row.prov === "auto" ? "guessed — edit to confirm" : undefined}
+          >
+            {dateLabel !== null ? (
+              <span className="known-fields-name field-label-animated" key={dateLabel}>
+                {dateLabel}
+              </span>
             ) : (
-              <SettleInput
-                ariaLabel={row.attribute}
-                onCommit={(value) => setValue(row, value)}
-                placeholder={row.exists ? undefined : "add…"}
-                value={typeof row.value === "string" ? row.value : ""}
-              />
+              <span className="known-fields-name">{row.attribute}</span>
             )}
-          </span>
-          {row.exists && (
-            <button
-              aria-label={`remove ${row.attribute}`}
-              className="field-remove"
-              onClick={() => remove(row.key)}
-              type="button"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      ))}
+            <span className="fields-value-input">
+              {row.kind === "list" ? (
+                <ListValueInput
+                  ariaLabel={row.attribute}
+                  onCommit={(value) => setValue(row, value)}
+                  value={Array.isArray(row.value) ? row.value : []}
+                />
+              ) : row.kind === "date" ? (
+                <DateValueInput
+                  ariaLabel={row.attribute}
+                  onCommit={(value) => setValue(row, value)}
+                  onRevealChange={(revealed) => setDateRevealed(row.key, revealed)}
+                  placeholder={row.exists ? undefined : "add…"}
+                  precision={row.precision}
+                  value={typeof row.value === "string" ? row.value : ""}
+                />
+              ) : row.kind === "duration" ? (
+                <DurationValueInput
+                  ariaLabel={row.attribute}
+                  onCommit={(value) => setValue(row, value)}
+                  placeholder={row.exists ? undefined : "add…"}
+                  value={typeof row.value === "string" ? row.value : ""}
+                />
+              ) : (
+                <SettleInput
+                  ariaLabel={row.attribute}
+                  onCommit={(value) => setValue(row, value)}
+                  placeholder={row.exists ? undefined : "add…"}
+                  value={typeof row.value === "string" ? row.value : ""}
+                />
+              )}
+            </span>
+            {row.exists && (
+              <button
+                aria-label={`remove ${row.attribute}`}
+                className="field-remove"
+                onClick={() => remove(row.key)}
+                type="button"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        );
+      })}
 
       {tags.length > 0 && (
         <div className="fields-row">
