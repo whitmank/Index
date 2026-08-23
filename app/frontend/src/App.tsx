@@ -64,6 +64,7 @@ import {
 import { Canvas } from "./views/canvas/Canvas.tsx";
 import { Focus } from "./views/focus/Focus.tsx";
 import { List } from "./views/list/List.tsx";
+import { RuleBuilder } from "./views/space/RuleBuilder.tsx";
 import { Settings, type SettingsTab } from "./views/settings/Settings.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
@@ -71,6 +72,7 @@ import "./components/DescribeCapture.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/list/List.css";
+import "./views/space/RuleBuilder.css";
 // Settings' own Types tab is `SchemaEditor` from this file, not the
 // standalone `SchemaManager` the top bar used to open — but the styles
 // live here, and Settings.tsx doesn't import them itself.
@@ -113,6 +115,11 @@ export function App() {
     null,
   );
   const capturePrompt = useCapturePrompt();
+  // Whether the "edit rule" toolbar action is open for the Space on the
+  // stage — reset on every navigation so leaving one Space and entering
+  // another never carries the panel over. The bootstrap (no-rule-yet)
+  // state doesn't use this at all; it shows the builder unconditionally.
+  const [editingRule, setEditingRule] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   // Only set by the type badge's right-click shortcut, and cleared on
@@ -153,6 +160,7 @@ export function App() {
 
   /** The set on the stage — what "remove from" means. */
   const currentSet = usePool(() => pool.getItem(currentSetId) ?? null);
+  useEffect(() => setEditingRule(false), [currentSetId]);
 
   // The trail, resolved to records so the crumbs can name themselves.
   const crumbs = usePool(() =>
@@ -188,10 +196,11 @@ export function App() {
    * opened, or several at once when a crumb click or a jump truncates
    * back through some of both. Every way of getting somewhere ends here.
    *
-   * Anything that falls off the trail here and was a still-blank item
-   * opened by the very gesture that made it (`open: true, isNew: true`)
-   * is discarded, untracked — you looked at it and moved on, and there
-   * is nothing about an empty draft worth keeping. This used to live in
+   * Anything that falls off the trail here and was still blank when made
+   * by the very gesture that made it (`isNew: true` — opened, the way a
+   * fresh item is, or entered, the way a fresh Space now is via ⌘⇧N) is
+   * discarded, untracked — you looked at it and moved on, and there is
+   * nothing about an empty draft worth keeping. This used to live in
    * Focus's own dismiss handler, but a crumb click or a fresh `enter`
    * elsewhere can now drop such an entry without Focus's handler ever
    * firing, so the check belongs to the one place every trail change
@@ -202,7 +211,7 @@ export function App() {
       const surviving = new Set(trail.map((entry) => `${entry.id}:${entry.open}`));
       for (const entry of path) {
         if (surviving.has(`${entry.id}:${entry.open}`)) continue;
-        if (!entry.open || !entry.isNew) continue;
+        if (!entry.isNew) continue;
         const current = pool.getItem(entry.id);
         if (!current || !isBlankDraft(current)) continue;
         const discard = changes.deleteItem(current);
@@ -218,11 +227,13 @@ export function App() {
 
   /** Walk into a place: it becomes the last crumb. Going somewhere
    * already on the trail truncates back to it rather than pushing a
-   * second copy. */
+   * second copy. `isNew` mirrors `open`'s own — a Space minted by ⌘⇧N is
+   * entered, not opened, but still needs `arriveAt` to recognise it as
+   * abandonable if it's left still blank. */
   const enter = useCallback(
-    (id: string) => {
+    (id: string, isNew = false) => {
       const at = path.findIndex((entry) => entry.id === id && !entry.open);
-      const trail = at === -1 ? [...path, { id, open: false, isNew: false }] : path.slice(0, at + 1);
+      const trail = at === -1 ? [...path, { id, open: false, isNew }] : path.slice(0, at + 1);
       arriveAt(trail);
     },
     [arriveAt, path],
@@ -460,7 +471,7 @@ export function App() {
   const removePickedFromSet = useCallback(() => {
     const set = pool.getItem(currentSetId);
     if (!set) {
-      errors.surface("This set hasn't loaded yet — try again in a moment.");
+      errors.surface("This Space hasn't loaded yet — try again in a moment.");
       return;
     }
 
@@ -468,7 +479,7 @@ export function App() {
     // everything, some of these may well have arrows — carrying a canvas
     // position, say — and withdrawing one would look like nothing
     // happened, because the query would go on holding the item.
-    const name = captionOf(set) || "this set";
+    const name = captionOf(set) || "this Space";
     if (holdsEverything(set)) {
       errors.surface(`${name} holds everything, so nothing can be taken out of it.`);
       return;
@@ -613,9 +624,12 @@ export function App() {
   // two doors are mutually exclusive, so each closes the other rather
   // than leaving a second field open behind whichever one won the
   // keystroke. ⌘, opens Settings and ⌘/ goes straight to All
-  // (PRODUCT-SPEC §1.4's `~`) — all five work while typing, same as
+  // (PRODUCT-SPEC §1.4's `~`) — all six work while typing, same as
   // ⌘K/⌘F already did: reaching for one of these is exactly what you do
-  // when what is under your cursor is not what you wanted.
+  // when what is under your cursor is not what you wanted. ⌘⇧N mints a
+  // blank Space and enters it directly — a Space satisfies `isPlace` the
+  // instant `set: true` is written, so `enter` works immediately, no
+  // Focus/"About" detour needed the way a plain new item's ⌘N does.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (!(event.metaKey || event.ctrlKey)) return;
@@ -637,11 +651,17 @@ export function App() {
       } else if (key === "/") {
         event.preventDefault();
         goAll();
+      } else if (key === "n" && event.shiftKey) {
+        event.preventDefault();
+        const space = changes.blankSet("");
+        void apply(changes.createSet(space)).then((ok) => {
+          if (ok) enter(space.id, true);
+        });
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [goAll]);
+  }, [enter, goAll]);
 
   // Every crumb has to be able to name itself, however you arrived —
   // walked in, opened, forced by an env var, or restored on the trail.
@@ -760,13 +780,37 @@ export function App() {
           <span aria-hidden="true">{VIEW_MODE_GLYPH[viewMode]}</span>
         </button>
 
+        {/* Only a Space with an already-defined rule gets this — the
+            bootstrap state (no rule yet) is already showing the builder
+            in place of the empty state below, with nothing to toggle. */}
+        {currentSet && typeof currentSet.set === "object" && (
+          <button
+            aria-label="Edit this Space's rule"
+            aria-pressed={editingRule}
+            className="bar-icon"
+            onClick={() => setEditingRule((was) => !was)}
+            title="Edit rule"
+            type="button"
+          >
+            <span aria-hidden="true">✎</span>
+          </button>
+        )}
+
         <button aria-label="Settings" className="bar-icon" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)" type="button">
           <span aria-hidden="true">⚙</span>
         </button>
       </header>
 
       <div className="stage">
-        {viewMode === "canvas" && (
+        {currentSet && currentSet.set === true ? (
+          // The bootstrap state — a Space with no rule yet (⌘⇧N's landing
+          // spot): the builder replaces the ordinary empty state, in
+          // place of the canvas/list toggle, so there's nothing here yet
+          // to look at besides the rule waiting to be written.
+          <RuleBuilder item={currentSet} />
+        ) : currentSet && editingRule ? (
+          <RuleBuilder item={currentSet} onDone={() => setEditingRule(false)} />
+        ) : viewMode === "canvas" ? (
           <Canvas
             describe={capturePrompt.describe}
             itemIds={memberIds}
@@ -775,8 +819,7 @@ export function App() {
             onMembersChanged={readMembers}
             setId={currentSetId}
           />
-        )}
-        {viewMode === "list" && (
+        ) : (
           <List
             itemIds={memberIds}
             onDeleteRequested={askToDeleteOne}
@@ -866,14 +909,17 @@ function otherViewMode(mode: ViewMode): ViewMode {
  * decides whether a still-new item, once it falls off the trail, is
  * worth keeping (`arriveAt`) rather than discarded. Deliberately doesn't
  * look at `description`/`date_created`, same as before this moved into
- * `data`: neither ever counted toward "something has been said". */
+ * `data`: neither ever counted toward "something has been said". A Space
+ * with a real rule is never blank however sparse its name/data look —
+ * `set === true` (no rule yet, ⌘⇧N's bootstrap state) still can be. */
 function isBlankDraft(item: Item): boolean {
   const misc = Object.keys(item.data).filter((key) => key !== "name" && key !== "description" && key !== "date_created");
   return (
     (item.data.name.value as string).trim() === "" &&
     misc.length === 0 &&
     item.resources.length === 0 &&
-    pool.connectionsTouching(item.id).length === 0
+    pool.connectionsTouching(item.id).length === 0 &&
+    typeof item.set !== "object"
   );
 }
 

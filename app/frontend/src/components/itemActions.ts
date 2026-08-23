@@ -24,8 +24,8 @@ export function isPublic(item: Item): boolean {
  * put the item straight back.
  */
 function removableFrom(item: Item, set: Item | undefined): { can: boolean; why?: string } {
-  if (!set) return { can: false, why: "there is no set in view" };
-  const name = captionOf(set) || "this set";
+  if (!set) return { can: false, why: "there is no Space in view" };
+  const name = captionOf(set) || "this Space";
 
   // A set that holds everything holds this too, arrow or not.
   if (holdsEverything(set)) {
@@ -99,7 +99,7 @@ export function itemMenu(
     {
       // Taking something out of a set leaves the thing itself alone —
       // which is the whole difference between this entry and the next.
-      label: set ? `Remove from ${captionOf(set) || "this set"}` : "Remove from this set",
+      label: set ? `Remove from ${captionOf(set) || "this Space"}` : "Remove from this Space",
       tone: "warn",
       disabled: !removable.can,
       title: removable.why,

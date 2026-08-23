@@ -84,3 +84,15 @@ export async function loadSetDates(setId: string): Promise<string[]> {
   }
   return answer.ok;
 }
+
+/** Every attribute name worth suggesting while building a Space's rule
+ * — the rule builder's field-picker autocomplete. Not a pool merge:
+ * attribute names aren't records. */
+export async function loadDataAttributes(): Promise<string[]> {
+  const answer = await window.index.data.attributes.list();
+  if ("err" in answer) {
+    errors.surface(answer.err);
+    return [];
+  }
+  return answer.ok.attributes;
+}

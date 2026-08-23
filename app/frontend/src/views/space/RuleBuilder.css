@@ -1,0 +1,200 @@
+/* Authored by Karter Whitman using Claude Sonnet 5 */
+.rule-builder {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.rule-builder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.rule-builder-head .field-name input {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-medium);
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  width: 100%;
+}
+
+.rule-builder-done {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rule-builder-caption {
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+  margin: 0.5rem 0 1rem;
+}
+
+.rule-group {
+  border-left: 2px solid var(--line);
+  padding-left: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.rule-combinator {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.rule-combinator-option {
+  border: none;
+  background: var(--paper);
+  color: var(--ink-quiet);
+  font-size: var(--text-sm);
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.rule-combinator-option.is-active {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+.rule-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+}
+
+.rule-row.is-negated .rule-condition {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+
+.rule-not-toggle {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-faint);
+  border-radius: 0.3rem;
+  font-size: var(--text-xs);
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rule-row.is-negated .rule-not-toggle,
+.rule-not-toggle[aria-pressed="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--paper);
+}
+
+.rule-condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.rule-condition select,
+.rule-condition input {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  font-size: var(--text-sm);
+}
+
+.rule-attribute {
+  min-width: 8rem;
+}
+
+.rule-row-remove {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rule-row-remove:hover {
+  color: var(--danger);
+}
+
+.rule-group-add {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.rule-group-add button {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--ink-quiet);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.rule-arrow-picked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: var(--text-sm);
+}
+
+.rule-arrow-picked button {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.rule-arrow-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.rule-arrow-hits {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0.25rem;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 0.4rem;
+  box-shadow: var(--shadow-pop);
+  min-width: 12rem;
+}
+
+.rule-arrow-hits button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.4rem;
+  cursor: pointer;
+  border-radius: 0.3rem;
+  font-size: var(--text-sm);
+}
+
+.rule-arrow-hits button:hover {
+  background: var(--surface);
+}

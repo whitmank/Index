@@ -184,7 +184,7 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
 
   const hint = useMemo(() => {
     if (!staged) return "commands";
-    return term.trim() ? "search" : "sets";
+    return term.trim() ? "search" : "Spaces";
   }, [staged, term]);
 
   return (
@@ -233,7 +233,7 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
           </ul>
         ) : (
           <p className="command-empty">
-            {term.trim() ? "nothing by that name" : staged ? "no sets yet" : "no commands"}
+            {term.trim() ? "nothing by that name" : staged ? "no Spaces yet" : "no commands"}
           </p>
         )}
 
@@ -271,7 +271,7 @@ function markOf(row: Row): string {
 
 function nameOf(row: Row): string {
   if (row.kind === "command") return row.command.title;
-  if (row.kind === "create") return `make a set “${row.name}”`;
+  if (row.kind === "create") return `make a Space “${row.name}”`;
   return captionOf(row.item) || "untitled";
 }
 

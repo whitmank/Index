@@ -17,6 +17,7 @@ import type {
   Item,
   Position,
   Resource,
+  SetQuery,
 } from "@index/database/types";
 import { isBlankFieldValue } from "../lib/data.js";
 import { connectionId, itemId, ulid } from "../lib/ids.js";
@@ -107,6 +108,15 @@ export function createSet(set: Item): Change {
     description: name ? `Create set '${name}'` : "Create set",
     pairs: [{ before: null, after: set }],
   };
+}
+
+/** A Space's rule, replaced whole. The rule builder calls this once per
+ * settled edit — add/edit/remove a condition, restructure a group — same
+ * commit-on-settle discipline as every other field (DESIGN-CONCEPT §6):
+ * each edit is its own undoable Change, never one change for a whole
+ * editing session. */
+export function setQuery(item: Item, query: SetQuery): Change {
+  return swap(item, { ...item, set: query }, `Edit ${describe(item)}'s rule`);
 }
 
 export function rename(item: Item, name: string): Change {

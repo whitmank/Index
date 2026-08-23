@@ -9,6 +9,7 @@ export const CHANNELS = {
   setsDates: "sets:dates",
   itemsGet: "items:get",
   itemsSearch: "items:search",
+  dataAttributesList: "data:attributes:list",
   labelsList: "labels:list",
   labelsEnsure: "labels:ensure",
   schemasList: "schemas:list",

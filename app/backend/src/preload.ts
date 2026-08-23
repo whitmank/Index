@@ -22,6 +22,11 @@ const bridge: IndexBridge = {
     get: (id) => invoke(CHANNELS.itemsGet, id),
     search: (term, limit) => invoke(CHANNELS.itemsSearch, term, limit),
   },
+  data: {
+    attributes: {
+      list: () => invoke(CHANNELS.dataAttributesList),
+    },
+  },
   labels: {
     list: () => invoke(CHANNELS.labelsList),
     ensure: (name) => invoke(CHANNELS.labelsEnsure, name),

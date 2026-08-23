@@ -12,5 +12,8 @@ export { connectionId, itemId, labelId, ulid } from "./ids.js";
 export { deviceOf, devicePrefix, formatOf, formatOfResource, sameTypeName, schemaFor } from "./derive.js";
 
 export * from "./records/index.js";
+export * from "./query/index.js";
+export * from "./sets/index.js";
+export * from "./search/index.js";
 
 export * from "./types.js";

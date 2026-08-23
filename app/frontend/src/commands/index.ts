@@ -58,7 +58,7 @@ export function commandsFor({ picked, handlers }: CommandContext): Command[] {
     {
       id: "add-to",
       title: "add to…",
-      keywords: ["set", "put", "into", "member", "tag", "file"],
+      keywords: ["set", "space", "put", "into", "member", "tag", "file"],
       unavailable: nothingPicked,
       argument: {
         prompt: `add ${describe(picked)} to…`,

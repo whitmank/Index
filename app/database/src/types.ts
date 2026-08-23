@@ -89,12 +89,15 @@ export interface DataPredicate {
   /** Absent matches any attribute — useful for a freeform-tag search. */
   attribute?: string;
   kind: AttributeKind;
+  eq?: string;
+  /** Substring match, case-insensitive — what lets search be expressed
+   * as a SetQuery instead of its own separate mechanism. */
+  contains?: string;
   gte?: string;
   lte?: string;
-  eq?: string;
 }
 
-/** The v1 predicate grammar (PRODUCT-SPEC §1.5). */
+/** The predicate grammar (PRODUCT-SPEC §1.5, extended for Space). */
 export type Predicate =
   | { date: DateRange }
   | { device: string }
@@ -102,8 +105,19 @@ export type Predicate =
   | { arrowTo: string }
   | { data: DataPredicate };
 
-/** A stored query, on items playing the set role. */
-export type SetQuery = { all: true } | { and: Predicate[] };
+/**
+ * A stored query, on items playing the set role — a recursive boolean
+ * tree, not a flat AND-list. Each combinator's children are `SetQuery`
+ * itself, so grouping is syntactic (however deep the nesting) rather
+ * than relying on operator-precedence rules: `(A AND B) OR (C AND D)` is
+ * `{ or: [{ and: [A, B] }, { and: [C, D] }] }`, unambiguously.
+ */
+export type SetQuery =
+  | { all: true }
+  | { and: SetQuery[] }
+  | { or: SetQuery[] }
+  | { not: SetQuery }
+  | Predicate;
 
 /** An item's set-related state, in one field. `true` = deliberately
  * created as a set, no filter defined yet (the bootstrapping window

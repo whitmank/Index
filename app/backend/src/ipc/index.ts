@@ -8,6 +8,7 @@ import {
   ensureLabel,
   getItem,
   getItemDetail,
+  listDataAttributes,
   listLabels,
   listMemberDates,
   listMembers,
@@ -93,6 +94,8 @@ export function registerHandlers(): void {
     const items = await searchItems(asString(term, "term"), asOptionalNumber(limit, "limit") ?? 20);
     return { items, places: await listPlacesAmong(items.map((item) => item.id)) };
   });
+
+  handle(CHANNELS.dataAttributesList, async () => ({ attributes: await listDataAttributes() }));
 
   handle(CHANNELS.labelsList, async () => ({ labels: await listLabels() }));
 

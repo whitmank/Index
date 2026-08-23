@@ -5,8 +5,8 @@
 // first and either update the record they find or create a new one, so
 // `changes.apply` can stay a blind writer.
 import { getDb } from "../db.js";
-import type { Connection } from "../types.js";
-import { recordId, serializeConnection, type ConnectionRow } from "./serialize.js";
+import { MEMBER_OF_LABEL_ID, type Connection } from "../types.js";
+import { idToString, recordId, serializeConnection, type ConnectionRow } from "./serialize.js";
 
 const LIVE = "deleted_at IS NONE";
 
@@ -74,4 +74,58 @@ export async function listConnectionsAmong(ids: string[]): Promise<Connection[]>
     )
     .collect();
   return rows.map(serializeConnection);
+}
+
+/** The live arrows into a set, carrying the position and order opinions
+ * — sets/membership.ts's `listMembers` reads these for its arrow-side of
+ * the union. `createdOn` narrows to arrows made on one day, for a set
+ * that partitions its timeline by inclusion date (`public`). */
+export async function listArrowsInto(
+  setId: string,
+  options: { createdOn?: string } = {},
+): Promise<Connection[]> {
+  const db = getDb();
+  const clauses = ["out = $set", `label = ${MEMBER_OF_LABEL_ID}`, LIVE];
+  const bindings: Record<string, unknown> = { set: recordId(setId) };
+
+  if (options.createdOn !== undefined) {
+    clauses.push("string::slice(<string> created_at, 0, 10) = $createdOn");
+    bindings.createdOn = options.createdOn;
+  }
+
+  const [rows] = await db
+    .query<[ConnectionRow[]]>(
+      `SELECT * FROM connections WHERE ${clauses.join(" AND ")} ORDER BY created_at ASC`,
+      bindings,
+    )
+    .collect();
+  return rows.map(serializeConnection);
+}
+
+/** Every id that is the target of at least one live `member of` arrow —
+ * the arrow half of "does this item play the set role"
+ * (sets/membership.ts's `listSets`/`listPlacesAmong`), asked in bulk
+ * rather than once per candidate item. */
+export async function listMemberOfTargets(): Promise<string[]> {
+  const db = getDb();
+  const [rows] = await db
+    .query<[unknown[]]>(`SELECT VALUE out FROM connections WHERE label = ${MEMBER_OF_LABEL_ID} AND ${LIVE}`)
+    .collect();
+  return rows.map(idToString);
+}
+
+/** Source ids with a live `member of` arrow into `targetId` — what an
+ * `{ arrowTo }` predicate (query/context.ts) needs. Distinct from
+ * `listArrowsInto`, which returns full Connection records for
+ * position/order display; this returns just the ids a boolean
+ * membership check needs. */
+export async function listArrowSourcesInto(targetId: string): Promise<string[]> {
+  const db = getDb();
+  const [rows] = await db
+    .query<[unknown[]]>(
+      `SELECT VALUE in FROM connections WHERE out = $target AND label = ${MEMBER_OF_LABEL_ID} AND ${LIVE}`,
+      { target: recordId(targetId) },
+    )
+    .collect();
+  return rows.map(idToString);
 }

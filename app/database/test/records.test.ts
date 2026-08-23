@@ -18,9 +18,11 @@ import {
   invert,
   isSystemId,
   itemId,
+  listDataAttributes,
   listMembers,
   listSchemas,
   schemaFor,
+  searchItems,
   startDatabase,
   ulid,
   upsertSchema,
@@ -429,6 +431,119 @@ async function main(): Promise<void> {
       assert.ok(lowerAsked.items.some((found) => found.id === tome.id));
       // And the other direction: `PUBLISHED` asked for, `published` stored.
       assert.ok(upperAsked.items.some((found) => found.id === tome.id));
+    });
+
+    console.log("\nSpace: nested boolean queries (or/not/nesting)");
+
+    const anAlbum = blankItem({
+      name: "In Rainbows",
+      entries: [{ attribute: "type", value: "album", kind: "string", prov: "auto" }],
+    });
+    const aSong = blankItem({
+      name: "Bodysnatchers",
+      entries: [{ attribute: "type", value: "song", kind: "string", prov: "auto" }],
+    });
+    const anArtist = blankItem({
+      name: "Radiohead",
+      entries: [{ attribute: "type", value: "artist", kind: "string", prov: "auto" }],
+    });
+    const aBook = blankItem({
+      name: "Dune",
+      entries: [{ attribute: "type", value: "book", kind: "string", prov: "auto" }],
+    });
+    const aVideo = blankItem({
+      name: "a clip",
+      entries: [{ attribute: "type", value: "video", kind: "string", prov: "auto" }],
+    });
+    await applyChange({
+      description: "Seed a small music/media shelf",
+      pairs: [anAlbum, aSong, anArtist, aBook, aVideo].map((after) => ({ before: null, after })),
+    });
+
+    const musicSpace = blankItem({
+      name: "Music",
+      set: {
+        or: [
+          { data: { attribute: "type", kind: "string", eq: "album" } },
+          { data: { attribute: "type", kind: "string", eq: "song" } },
+          { data: { attribute: "type", kind: "string", eq: "artist" } },
+        ],
+      },
+    });
+    const notVideoSpace = blankItem({
+      name: "not video",
+      set: { not: { data: { attribute: "type", kind: "string", eq: "video" } } },
+    });
+    await applyChange({
+      description: "Seed the Music and not-video spaces",
+      pairs: [musicSpace, notVideoSpace].map((after) => ({ before: null, after })),
+    });
+
+    const musicMembers = await listMembers(musicSpace.id);
+    check("an OR across three data predicates matches any of them", () => {
+      const ids = musicMembers.items.map((item) => item.id);
+      assert.ok(ids.includes(anAlbum.id) && ids.includes(aSong.id) && ids.includes(anArtist.id));
+      assert.ok(!ids.includes(aBook.id) && !ids.includes(aVideo.id));
+    });
+
+    const notVideoMembers = await listMembers(notVideoSpace.id);
+    check("a bare NOT excludes exactly the matching item", () => {
+      const ids = notVideoMembers.items.map((item) => item.id);
+      assert.ok(!ids.includes(aVideo.id));
+      assert.ok(ids.includes(aBook.id) && ids.includes(anAlbum.id));
+    });
+
+    const jRockAlbum = blankItem({
+      name: "Kimi no Machi",
+      entries: [
+        { attribute: "genre", value: ["rock", "alternative"], kind: "list", prov: "auto" },
+        { attribute: "lang", value: "Japanese", kind: "string", prov: "auto" },
+      ],
+    });
+    const englishRock = blankItem({
+      name: "an english rock album",
+      entries: [
+        { attribute: "genre", value: ["rock"], kind: "list", prov: "auto" },
+        { attribute: "lang", value: "English", kind: "string", prov: "auto" },
+      ],
+    });
+    await applyChange({
+      description: "Seed a J-rock fixture and a decoy",
+      pairs: [jRockAlbum, englishRock].map((after) => ({ before: null, after })),
+    });
+
+    const jRockSpace = blankItem({
+      name: "J-rock",
+      set: {
+        and: [
+          { data: { attribute: "genre", kind: "list", eq: "rock" } },
+          { data: { attribute: "lang", kind: "string", eq: "Japanese" } },
+        ],
+      },
+    });
+    await applyChange({ description: "Seed the J-rock space", pairs: [{ before: null, after: jRockSpace }] });
+
+    const jRockMembers = await listMembers(jRockSpace.id);
+    check("a list-kind attribute matches on any element, nested inside an AND", () => {
+      const ids = jRockMembers.items.map((item) => item.id);
+      assert.ok(ids.includes(jRockAlbum.id));
+      assert.ok(!ids.includes(englishRock.id));
+    });
+
+    console.log("\nsearch and set matching agree (one shared evaluator)");
+
+    const bySearch = await searchItems("Radiohead");
+    check("searchItems finds by substring, case-insensitively", () => {
+      assert.ok(bySearch.some((item) => item.id === anArtist.id));
+    });
+
+    const attributes = await listDataAttributes();
+    check("listDataAttributes surfaces attributes actually in use", () => {
+      assert.ok(attributes.includes("type"));
+      assert.ok(attributes.includes("genre"));
+      assert.ok(attributes.includes("lang"));
+      // Freeform tags (attribute: null) never contribute a suggestion.
+      assert.ok(!attributes.includes(""));
     });
 
     console.log("\nschemas: attribute order is the naming order");

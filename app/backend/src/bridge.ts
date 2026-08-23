@@ -64,6 +64,14 @@ export interface IndexBridge {
      * open, and only the backend can say which. */
     search(term: string, limit?: number): Promise<Result<{ items: Item[]; places: string[] }>>;
   };
+  data: {
+    attributes: {
+      /** Every attribute name worth suggesting while building a Space's
+       * rule — every type's declared attributes, plus every named
+       * attribute actually in use on a live item. */
+      list(): Promise<Result<{ attributes: string[] }>>;
+    };
+  };
   labels: {
     list(): Promise<Result<{ labels: Label[] }>>;
     /** Mint-on-first-use; labels sit outside the change model. */

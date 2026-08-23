@@ -7,7 +7,7 @@ import { getDb } from "./db.js";
 import {
   TIMELINE_DIRECTION_FIELD,
   TIMELINE_PARTITION_FIELD,
-} from "./records/items.js";
+} from "./sets/membership.js";
 import { recordId } from "./records/serialize.js";
 import type { Data, SetState } from "./types.js";
 import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "./types.js";
@@ -59,9 +59,10 @@ export async function seed(): Promise<void> {
   }
 
   // The reserved structural label, seeded once with a well-known id —
-  // `PLAYS_SET_ROLE` (records/items.ts) reads it by that id directly
-  // rather than minting it on first tag, the same reason `~` and
-  // `public` are seeded rather than created lazily.
+  // the set-role check (sets/membership.ts, records/connections.ts)
+  // reads it by that id directly rather than minting it on first tag,
+  // the same reason `~` and `public` are seeded rather than created
+  // lazily.
   await db
     .query(
       `LET $existing = (SELECT VALUE id FROM $id);
