@@ -10,7 +10,7 @@ import {
 } from "./sets/membership.js";
 import { recordId } from "./records/serialize.js";
 import type { Data, SetState } from "./types.js";
-import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID } from "./types.js";
+import { HOME_SET_ID, MEMBER_OF_LABEL_ID, PUBLIC_SET_ID, SPACES_SET_ID } from "./types.js";
 
 const SEEDS: { id: string; set: SetState; data: Data }[] = [
   {
@@ -35,6 +35,18 @@ const SEEDS: { id: string; set: SetState; data: Data }[] = [
       name: { attribute: "name", value: "public", kind: "string", prov: "auto" },
       timeline_partition: { attribute: TIMELINE_PARTITION_FIELD, value: "created_at", kind: "string", prov: "auto" },
       timeline_direction: { attribute: TIMELINE_DIRECTION_FIELD, value: "backward", kind: "string", prov: "auto" },
+    },
+  },
+  {
+    id: SPACES_SET_ID,
+    // `~`'s complement: same "everything" query, filtered the other way
+    // by sets/membership.ts so this lists the Spaces themselves rather
+    // than the items they hold.
+    set: { all: true },
+    data: {
+      name: { attribute: "name", value: "Spaces", kind: "string", prov: "auto" },
+      timeline_partition: { attribute: TIMELINE_PARTITION_FIELD, value: "date_added", kind: "string", prov: "auto" },
+      timeline_direction: { attribute: TIMELINE_DIRECTION_FIELD, value: "forward", kind: "string", prov: "auto" },
     },
   },
 ];

@@ -15,7 +15,7 @@
 // completed, rather than living in some local-only draft state — visible
 // feedback that a row still needs finishing, not a bug.
 import { useEffect, useState } from "react";
-import type { AttributeKind, Format, Item, Predicate, SetQuery } from "@index/database/types";
+import type { AttributeKind, Format, Item, Predicate, Schema, SetQuery } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { SettleInput } from "../../components/SettleInput.tsx";
 import { FORMAT_GLYPH, captionOf } from "../../lib/derive.js";
@@ -27,10 +27,26 @@ type DataOp = "eq" | "contains" | "gte" | "lte";
 
 type PredicateDraft =
   | { field: "data"; attribute: string; kind: AttributeKind; op: DataOp; value: string }
+  | { field: "type"; value: string }
   | { field: "date"; op: "gte" | "lte"; value: string }
   | { field: "format"; value: Format }
   | { field: "device"; value: string }
   | { field: "arrowTo"; value: string };
+
+/** `type` is stored as an ordinary `data` predicate (there is no
+ * dedicated `Predicate` shape for it — PRODUCT-SPEC's grammar didn't
+ * carve one out, and adding one would mean two matching paths for the
+ * same query). This is the one shape the dedicated "type" field editor
+ * writes, so it's what earns the nicer editor back — anything looser
+ * (a `contains`, a range) stays in the generic attribute editor rather
+ * than silently narrowing to an `eq` it didn't ask for. */
+function typeValueOf(predicate: Predicate): string | null {
+  if (!("data" in predicate)) return null;
+  const { attribute, kind, eq, contains, gte, lte } = predicate.data;
+  if (attribute?.toLowerCase() !== "type" || kind !== "string") return null;
+  if (contains !== undefined || gte !== undefined || lte !== undefined) return null;
+  return eq ?? "";
+}
 
 interface ConditionRow {
   type: "condition";
@@ -62,6 +78,8 @@ function predicateToDraft(predicate: Predicate): PredicateDraft {
   if ("device" in predicate) return { field: "device", value: predicate.device };
   if ("format" in predicate) return { field: "format", value: predicate.format };
   if ("arrowTo" in predicate) return { field: "arrowTo", value: predicate.arrowTo };
+  const typeValue = typeValueOf(predicate);
+  if (typeValue !== null) return { field: "type", value: typeValue };
   const d = predicate.data;
   const attribute = d.attribute ?? "";
   if (d.eq !== undefined) return { field: "data", attribute, kind: d.kind, op: "eq", value: d.eq };
@@ -76,6 +94,7 @@ function predicateFromDraft(draft: PredicateDraft): Predicate {
   if (draft.field === "device") return { device: draft.value };
   if (draft.field === "format") return { format: draft.value };
   if (draft.field === "arrowTo") return { arrowTo: draft.value };
+  if (draft.field === "type") return { data: { attribute: "type", kind: "string", eq: draft.value } };
   return { data: { attribute: draft.attribute || undefined, kind: draft.kind, [draft.op]: draft.value } };
 }
 
@@ -160,8 +179,12 @@ export interface RuleBuilderProps {
 
 export function RuleBuilder({ item, onDone }: RuleBuilderProps) {
   const [attributes, setAttributes] = useState<string[]>([]);
+  const [schemas, setSchemas] = useState<Schema[]>([]);
   useEffect(() => {
     void loadDataAttributes().then(setAttributes);
+    void window.index.schemas.list().then((answer) => {
+      if ("ok" in answer) setSchemas(answer.ok.schemas);
+    });
   }, []);
 
   const root = queryToGroup(typeof item.set === "object" ? item.set : { all: true });
@@ -195,6 +218,7 @@ export function RuleBuilder({ item, onDone }: RuleBuilderProps) {
         onChange={commit}
         path={[]}
         root={root}
+        schemas={schemas}
       />
     </div>
   );
@@ -205,12 +229,14 @@ function RuleGroup({
   group,
   path,
   attributes,
+  schemas,
   onChange,
 }: {
   root: GroupRow;
   group: GroupRow;
   path: Path;
   attributes: string[];
+  schemas: Schema[];
   onChange: (next: GroupRow) => void;
 }) {
   // The root group's own combinator lives directly on `root`; a nested
@@ -272,9 +298,17 @@ function RuleGroup({
                 attributes={attributes}
                 onChange={(predicate) => onChange(updateRow(root, rowPath, (r) => ({ ...r, predicate })))}
                 predicate={row.predicate}
+                schemas={schemas}
               />
             ) : (
-              <RuleGroup attributes={attributes} group={row} onChange={onChange} path={rowPath} root={root} />
+              <RuleGroup
+                attributes={attributes}
+                group={row}
+                onChange={onChange}
+                path={rowPath}
+                root={root}
+                schemas={schemas}
+              />
             )}
 
             <button aria-label="remove this condition" className="rule-row-remove" onClick={remove} type="button">
@@ -298,6 +332,7 @@ function RuleGroup({
 
 const FIELD_LABELS: Record<PredicateDraft["field"], string> = {
   data: "attribute",
+  type: "type",
   date: "added",
   format: "format",
   device: "device",
@@ -307,10 +342,12 @@ const FIELD_LABELS: Record<PredicateDraft["field"], string> = {
 function ConditionEditor({
   predicate,
   attributes,
+  schemas,
   onChange,
 }: {
   predicate: PredicateDraft;
   attributes: string[];
+  schemas: Schema[];
   onChange: (next: PredicateDraft) => void;
 }) {
   const field = predicate.field;
@@ -323,6 +360,7 @@ function ConditionEditor({
         onChange={(event) => {
           const next = event.target.value as PredicateDraft["field"];
           if (next === "data") onChange(blankPredicate());
+          else if (next === "type") onChange({ field: "type", value: "" });
           else if (next === "date") onChange({ field: "date", op: "gte", value: "" });
           else if (next === "format") onChange({ field: "format", value: "bare" });
           else if (next === "device") onChange({ field: "device", value: "" });
@@ -339,6 +377,27 @@ function ConditionEditor({
 
       {predicate.field === "data" && (
         <DataConditionFields attributes={attributes} onChange={onChange} predicate={predicate} />
+      )}
+      {predicate.field === "type" && (
+        <select
+          aria-label="type"
+          className="rule-op"
+          onChange={(event) => onChange({ field: "type", value: event.target.value })}
+          value={predicate.value}
+        >
+          <option value="">{schemas.length === 0 ? "no types yet" : "choose a type…"}</option>
+          {schemas.map((schema) => (
+            <option key={schema.id} value={schema.name}>
+              {schema.name}
+            </option>
+          ))}
+          {/* A value that's real but not in the current schema list —
+              set before its type was formalized, or since renamed —
+              still has to render as itself rather than silently blank. */}
+          {predicate.value && !schemas.some((schema) => schema.name === predicate.value) && (
+            <option value={predicate.value}>{predicate.value}</option>
+          )}
+        </select>
       )}
       {predicate.field === "date" && (
         <>

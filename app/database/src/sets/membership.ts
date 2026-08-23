@@ -12,6 +12,7 @@ import {
   HOME_SET_ID,
   isSystemId,
   PUBLIC_SET_ID,
+  SPACES_SET_ID,
   type Item,
   type Members,
   type MembersOptions,
@@ -97,17 +98,15 @@ async function listByQuery(
         };
 
   const [items, ctx] = await Promise.all([listLiveItems(), buildContext(composed)]);
-  return items.filter(
-    (item) => item.id !== HOME_SET_ID && item.id !== PUBLIC_SET_ID && matches(composed, item, ctx),
-  );
+  return items.filter((item) => !isSystemId(item.id) && matches(composed, item, ctx));
 }
 
 /**
  * Members of a set = items matching its query ∪ items with a live arrow
  * into it (DESIGN-CONCEPT §3, the union rule). Query-matched membership
  * skips system items, so `~` — whose query is `{ all: true }` — does not
- * list itself and `public` alongside the user's things; an explicit arrow
- * still admits them.
+ * list itself, `public`, and `spaces` alongside the user's things; an
+ * explicit arrow still admits them.
  */
 export async function listMembers(setId: string, options: MembersOptions = {}): Promise<Members> {
   const set = await getItem(setId);
@@ -144,6 +143,16 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   // `listByQuery` already applied this for query-matched items above, so
   // this only needs to catch the arrow-admitted ones.
   let items = [...byId.values()];
+  // `~` and `spaces` are complements over the same "everything" query:
+  // `~` reads as "everything you've added," not "everything, including
+  // the Spaces you've built to organize it," and `spaces` is the mirror
+  // image — only those Spaces, none of the plain items. A Space's own
+  // arrows can still admit it elsewhere; not into either of these two.
+  if (setId === HOME_SET_ID) {
+    items = items.filter((item) => item.set === false);
+  } else if (setId === SPACES_SET_ID) {
+    items = items.filter((item) => item.set !== false);
+  }
   if (partition && partitionBy !== "created_at") {
     items = items.filter((item) => dateValueOf(item, itemDateField)?.slice(0, 10) === partition);
   }

@@ -29,6 +29,7 @@ import {
   HOME_SET_ID,
   MEMBER_OF_LABEL_ID,
   PUBLIC_SET_ID,
+  SPACES_SET_ID,
   type Change,
   type Connection,
   type Data,
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
     console.log("\nseeds");
     const home = await getItem(HOME_SET_ID);
     const publicSet = await getItem(PUBLIC_SET_ID);
+    const spacesSet = await getItem(SPACES_SET_ID);
     check("~ exists and is a system item", () => {
       assert.ok(home, "~ missing");
       assert.equal(home.id, HOME_SET_ID);
@@ -111,6 +113,13 @@ async function main(): Promise<void> {
       assert.equal(publicSet.id, PUBLIC_SET_ID);
       assert.ok(isSystemId(publicSet.id));
       assert.equal(publicSet.set, true);
+    });
+    check("spaces exists, ~'s complement over the same query", () => {
+      assert.ok(spacesSet, "spaces missing");
+      assert.equal(spacesSet.id, SPACES_SET_ID);
+      assert.equal(nameOf(spacesSet), "Spaces");
+      assert.ok(isSystemId(spacesSet.id));
+      assert.deepEqual(spacesSet.set, { all: true });
     });
 
     console.log("\ncreate");
@@ -528,6 +537,41 @@ async function main(): Promise<void> {
       const ids = jRockMembers.items.map((item) => item.id);
       assert.ok(ids.includes(jRockAlbum.id));
       assert.ok(!ids.includes(englishRock.id));
+    });
+
+    console.log("\n~ excludes Spaces (they're organizing tools, not entries)");
+
+    const allSpaces = [
+      rangeSet,
+      webSet,
+      linkSet,
+      yearSet,
+      shelfLower,
+      shelfUpper,
+      musicSpace,
+      notVideoSpace,
+      jRockSpace,
+    ];
+
+    const homeAfterSpaces = await listMembers(HOME_SET_ID);
+    check("~ hides every Space seeded above, but keeps the plain items", () => {
+      const ids = homeAfterSpaces.items.map((item) => item.id);
+      for (const space of allSpaces) {
+        assert.ok(!ids.includes(space.id), `${space.id} (a Space) should not be in ~`);
+      }
+      assert.ok(ids.includes(anAlbum.id) && ids.includes(tome.id) && ids.includes(jRockAlbum.id));
+    });
+
+    console.log("\nspaces: the mirror feed — only the Spaces, none of the plain items");
+
+    const spacesMembers = await listMembers(SPACES_SET_ID);
+    check("spaces lists every Space seeded above, and no plain item", () => {
+      const ids = spacesMembers.items.map((item) => item.id);
+      for (const space of allSpaces) {
+        assert.ok(ids.includes(space.id), `${space.id} (a Space) should be in spaces`);
+      }
+      assert.ok(!ids.includes(anAlbum.id) && !ids.includes(tome.id) && !ids.includes(jRockAlbum.id));
+      assert.ok(!ids.some((id) => isSystemId(id)), "spaces does not list ~, public, or itself");
     });
 
     console.log("\nsearch and set matching agree (one shared evaluator)");

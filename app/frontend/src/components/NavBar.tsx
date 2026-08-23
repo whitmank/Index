@@ -44,10 +44,15 @@ export interface NavBarProps {
   /** Whether the trail is standing on `~` right now — the home button
    * reads as "here" when it is. */
   atHome: boolean;
+  /** Whether the trail is standing on `spaces` right now — same "here"
+   * treatment as the home button. */
+  atSpaces: boolean;
   /** The trail, with `~` already said by ⌂ and left out if it leads it. */
   crumbs: Crumb[];
   /** ⌂ — the floor every trail starts and ends on. */
   onHome: () => void;
+  /** ◍ — every Space, in one feed (⌘⇧/). */
+  onSpaces: () => void;
   /** A crumb behind the current one, by its position on the trail: walk
    * back to exactly that position (a place and a thing can share an id,
    * so the index is what disambiguates which one was clicked). */
@@ -63,7 +68,7 @@ export interface NavBarProps {
 type Hit = { item: Item; place: boolean };
 
 export const NavBar = forwardRef<NavBarHandle, NavBarProps>(function NavBar(
-  { atHome, crumbs, onHome, onEnter, onOpenHere, onPick },
+  { atHome, atSpaces, crumbs, onHome, onSpaces, onEnter, onOpenHere, onPick },
   ref,
 ) {
   const [editing, setEditing] = useState(false);
@@ -160,6 +165,15 @@ export const NavBar = forwardRef<NavBarHandle, NavBarProps>(function NavBar(
         type="button"
       >
         ⌂
+      </button>
+
+      <button
+        className={atSpaces ? "bar-home is-here" : "bar-home"}
+        onClick={onSpaces}
+        title="Spaces (⌘⇧/)"
+        type="button"
+      >
+        {PLACE_GLYPH}
       </button>
 
       {/* One box, always on screen — the omni bar. Not editing, clicking

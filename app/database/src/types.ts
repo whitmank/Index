@@ -302,6 +302,10 @@ export const SCHEMAS_TABLE = "schemas";
 // different renderer, not a different id.)
 export const HOME_SET_ID = "items:⟨~⟩";
 export const PUBLIC_SET_ID = "items:public";
+/** Titled "Spaces" — the complement of `~`: every item that itself plays
+ * the set role, rather than one of the things held. Same `{ all: true }`
+ * shape as `~`, filtered the other way (sets/membership.ts). */
+export const SPACES_SET_ID = "items:spaces";
 
 /**
  * The one reserved, structural label. `member of` is the sole label-based
@@ -322,12 +326,12 @@ export function isConnection(record: StoredRecord): record is Connection {
   return record.id.startsWith(`${CONNECTIONS_TABLE}:`);
 }
 
-/** Whether an item is one of the two fixed, built-in seeds — `~` and
- * `public` — rather than something the user made. Computed from `id`,
- * not stored: both ids are known constants, so there's no bootstrapping
- * gap like `set`'s `true` state exists to cover, and storing this
- * redundantly on every row would drift from the one thing that actually
- * decides it. */
+/** Whether an item is one of the three fixed, built-in seeds — `~`,
+ * `public`, and `spaces` — rather than something the user made. Computed
+ * from `id`, not stored: all three ids are known constants, so there's no
+ * bootstrapping gap like `set`'s `true` state exists to cover, and storing
+ * this redundantly on every row would drift from the one thing that
+ * actually decides it. */
 export function isSystemId(id: string): boolean {
-  return id === HOME_SET_ID || id === PUBLIC_SET_ID;
+  return id === HOME_SET_ID || id === PUBLIC_SET_ID || id === SPACES_SET_ID;
 }

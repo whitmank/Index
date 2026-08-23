@@ -1,6 +1,6 @@
 // Authored by Karter Whitman using Claude Opus 4.8
 import type { Item } from "@index/database/types";
-import { HOME_SET_ID, PUBLIC_SET_ID } from "./seeds.js";
+import { HOME_SET_ID, PUBLIC_SET_ID, SPACES_SET_ID } from "./seeds.js";
 
 /** The mark a place wears, wherever one is drawn — a node, a row, a
  * search hit. Places no longer differ by *which* view they open into
@@ -21,9 +21,10 @@ export function holdsEverything(set: Item): boolean {
 }
 
 /** The order sets are offered in, wherever they are listed: `~` first —
- * the front door — then `public`, then the rest as they came. */
+ * the front door — then `spaces`, then `public`, then the rest as they
+ * came. */
 export function orderSets(sets: Item[]): Item[] {
-  const pinned = [HOME_SET_ID, PUBLIC_SET_ID];
+  const pinned = [HOME_SET_ID, SPACES_SET_ID, PUBLIC_SET_ID];
   const head = pinned.flatMap((id) => {
     const set = sets.find((candidate) => candidate.id === id);
     return set ? [set] : [];

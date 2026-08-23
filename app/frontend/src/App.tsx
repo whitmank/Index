@@ -44,7 +44,7 @@ import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
 import { parseItems } from "./lib/parseItems.js";
 import { captureFromPaths } from "./lib/intake.js";
-import { HOME_SET_ID, isSystemId } from "./lib/seeds.js";
+import { HOME_SET_ID, isSystemId, SPACES_SET_ID } from "./lib/seeds.js";
 import { holdsEverything } from "./lib/sets.js";
 import { homeEntry, readStoredPath, storePath, type PathEntry } from "./store/location.js";
 import {
@@ -303,6 +303,10 @@ export function App() {
    * (PRODUCT-SPEC §1.4); going there is this shell's whole notion of
    * "root", and the floor every trail now starts and ends on. */
   const goAll = useCallback(() => jump(HOME_SET_ID), [jump]);
+
+  /** ⌘⇧/ and ◍ — `spaces` is `~`'s complement: every Space in one feed,
+   * none of the plain items. */
+  const goSpaces = useCallback(() => jump(SPACES_SET_ID), [jump]);
 
   /** ← — one step back on the trail: the same place clicking the crumb
    * behind the current one would land you. `~` is the floor — back from
@@ -623,12 +627,13 @@ export function App() {
   // the spec gave it (§3.7). ⌘L opens the nav bar (destinations) — the
   // two doors are mutually exclusive, so each closes the other rather
   // than leaving a second field open behind whichever one won the
-  // keystroke. ⌘, opens Settings and ⌘/ goes straight to All
-  // (PRODUCT-SPEC §1.4's `~`) — all six work while typing, same as
-  // ⌘K/⌘F already did: reaching for one of these is exactly what you do
-  // when what is under your cursor is not what you wanted. ⌘⇧N mints a
-  // blank Space and enters it directly — a Space satisfies `isPlace` the
-  // instant `set: true` is written, so `enter` works immediately, no
+  // keystroke. ⌘, opens Settings, ⌘/ goes straight to All
+  // (PRODUCT-SPEC §1.4's `~`), and ⌘⇧/ goes to `spaces`, All's
+  // complement — all seven work while typing, same as ⌘K/⌘F already
+  // did: reaching for one of these is exactly what you do when what is
+  // under your cursor is not what you wanted. ⌘⇧N mints a blank Space
+  // and enters it directly — a Space satisfies `isPlace` the instant
+  // `set: true` is written, so `enter` works immediately, no
   // Focus/"About" detour needed the way a plain new item's ⌘N does.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -648,6 +653,12 @@ export function App() {
           if (open) setSettingsSelectedType(undefined);
           return !open;
         });
+      } else if (key === "?") {
+        // Shift+/ renders as "?" in `event.key` (US layout), not "/" —
+        // checked before the bare "/" branch would matter either way,
+        // since they're mutually exclusive keys.
+        event.preventDefault();
+        goSpaces();
       } else if (key === "/") {
         event.preventDefault();
         goAll();
@@ -661,7 +672,7 @@ export function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enter, goAll]);
+  }, [enter, goAll, goSpaces]);
 
   // Every crumb has to be able to name itself, however you arrived —
   // walked in, opened, forced by an env var, or restored on the trail.
@@ -758,11 +769,13 @@ export function App() {
             when a jump left it out of the trail. */}
         <NavBar
           atHome={currentSetId === HOME_SET_ID}
+          atSpaces={currentSetId === SPACES_SET_ID}
           crumbs={path[0]?.id === HOME_SET_ID ? crumbs.slice(1) : crumbs}
           onEnter={goToCrumb}
           onHome={goAll}
           onOpenHere={openHere}
           onPick={goToPicked}
+          onSpaces={goSpaces}
           ref={navBarRef}
         />
 
