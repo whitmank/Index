@@ -24,6 +24,8 @@ export const CHANNELS = {
   modelsScan: "models:scan",
   modelsSetActive: "models:setActive",
   itemClassifierClassify: "itemClassifier:classify",
+  classificationSettingsGet: "classification:settings:get",
+  classificationSettingsSet: "classification:settings:set",
   resourcesCheckMissing: "resources:checkMissing",
   resourcesLocate: "resources:locate",
   resourcesReseek: "resources:reseek",

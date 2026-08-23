@@ -11,11 +11,21 @@
 // over into a resource, and a pasted link is the same gesture as a
 // dropped file; overloading it beat inventing a second handler.
 import path from "node:path";
-import { listSchemas, schemaFor, type DataEntry, type Resource, type Schema } from "@index/database";
-import { selfDevice } from "../config.js";
+import { listSchemas, schemaFor, ulid, type DataEntry, type Item, type Resource, type Schema } from "@index/database";
+import {
+  classifyResource,
+  composeSchema,
+  extractClaims,
+  isMaterial,
+  DEFAULT_MAX_SOURCE_TEXT,
+  DEFAULT_MAX_SOURCES,
+  DEFAULT_TIMEOUT_MS,
+  type ClassificationStages,
+} from "@index/item-modeler";
+import { loadClassificationSettings, selfDevice } from "../config.js";
 import { deriveForResource } from "./derivations.js";
-import { classifyResource } from "./ingest/classify.js";
-import { extract } from "./ingest/extract.js";
+import { backendGateway } from "./ingest/backend-gateway.js";
+import { getActiveModel } from "./models.js";
 import { openProbe, type Probe } from "./ingest/probe.js";
 
 function isWebUrl(input: string): boolean {
@@ -63,7 +73,7 @@ export function pathToUri(absolutePath: string): string {
   return `${selfDevice()}://${absolutePath}`;
 }
 
-function nameFor(input: string): string {
+export function nameFor(input: string): string {
   if (!isWebUrl(input)) return path.basename(input);
   try {
     const url = new URL(input);
@@ -71,6 +81,80 @@ function nameFor(input: string): string {
   } catch {
     return input;
   }
+}
+
+/** A throwaway Item shaped only well enough for `composeSchema`'s
+ * ownership/naming checks — nothing here is ever persisted. Every field
+ * starts empty (ownership "empty", per `composer/application/
+ * ownership-policy.ts`), and the name starts as the resource's own so a
+ * found title can still replace it exactly as intake always allowed. */
+function draftItemFor(resource: Resource): Item {
+  return {
+    id: `items:${ulid()}`,
+    date_added: new Date().toISOString(),
+    layout: "default",
+    set: false,
+    data: { name: { attribute: "name", value: resource.name, kind: "string", prov: "auto" } },
+    resources: [resource],
+    deleted_at: null,
+  };
+}
+
+/**
+ * What this resource says about itself, joined onto `type`'s schema —
+ * intake's half of extraction, via item-modeler's extractor/composer
+ * (`@index/item-modeler`) rather than a bare join: grounded, junk-
+ * filtered, and optionally model-assisted, same as the Parse verb
+ * (`ipc/index.ts`'s `ingestParse` handler) now gets.
+ *
+ * Best-effort like every derivation: no type, or a type with no schema,
+ * means nothing to extract for — never an error.
+ */
+export async function extractEntries(
+  type: string | null,
+  schema: Schema | undefined,
+  resource: Resource,
+): Promise<{ name?: string; entries: DataEntry[] }> {
+  if (!type || !schema || !schema.attributes || schema.attributes.length === 0) return { entries: [] };
+
+  const extracted = await extractClaims({
+    resources: [resource],
+    schema,
+    gateway: backendGateway,
+    allowNetworkAccess: true,
+    maxSources: DEFAULT_MAX_SOURCES,
+    maxSourceTextLength: DEFAULT_MAX_SOURCE_TEXT,
+    languageModelMode: "fallback-only",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    now: () => new Date(),
+  });
+  if (extracted.sources.read === 0) return { entries: [] };
+
+  const composed = await composeSchema({
+    claims: extracted.claims,
+    evidenceText: extracted.evidenceText,
+    schema,
+    existing: draftItemFor(resource),
+    overwriteModeledValues: true,
+    conflictPolicy: "ignore",
+    userFields: [],
+    derivedName: resource.name,
+    includeProvenance: false,
+  });
+
+  const entries: DataEntry[] = [];
+  let name: string | undefined;
+  for (const change of composed.changes) {
+    if (!isMaterial(change)) continue;
+    if (change.target === "name") {
+      const value = composed.item.data.name.value;
+      if (typeof value === "string") name = value;
+      continue;
+    }
+    const entry = composed.item.data[change.field.toLowerCase()];
+    if (entry) entries.push(entry);
+  }
+  return { entries, ...(name ? { name } : {}) };
 }
 
 export interface IntakeResult {
@@ -111,6 +195,9 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
   // back to the format's own vocabulary, which is what it did before
   // schemas were consulted at all.
   const schemas = await listSchemas().catch(() => [] as Schema[]);
+  const types = schemas.map((entry) => ({ name: entry.name }));
+  const modelPath = getActiveModel("classification") ?? undefined;
+  const stages = loadClassificationSettings();
 
   return Promise.all(
     inputs.map(async (input) => {
@@ -121,12 +208,8 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       const cached = await deriveForResource(sniffed, probe);
       const derived = Object.keys(cached).length > 0 ? { ...sniffed, cached } : sniffed;
 
-      const type = await classifyResource(derived, probe);
-      const { name, entries } = await extract(
-        type,
-        probe,
-        schemaFor(schemas, type),
-      );
+      const { type } = await classifyResource({ resource: derived, source: probe, types, modelPath, stages });
+      const { name, entries } = await extractEntries(type, schemaFor(schemas, type), derived);
 
       return {
         resource: await withIdentity(derived, probe),
@@ -136,4 +219,22 @@ export async function pathsToResources(inputs: string[]): Promise<IntakeResult[]
       };
     }),
   );
+}
+
+/**
+ * The type guess for a uri that is already on an item — the reorder and
+ * detach paths, which have a resource but no intake pipeline around it.
+ * Opens its own probe and mints the same `cached.mime` intake would, so
+ * the answer does not silently depend on which door it came through.
+ */
+export async function classifyUri(
+  uri: string,
+  name: string,
+  options: { types: { name: string }[]; modelPath?: string; stages: ClassificationStages },
+): Promise<string | null> {
+  const probe = await openProbe(uri);
+  const mime = await probe?.mime();
+  const resource: Resource = mime ? { uri, name, cached: { mime } } : { uri, name };
+  const { type } = await classifyResource({ resource, source: probe, ...options });
+  return type;
 }

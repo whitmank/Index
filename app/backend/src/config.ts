@@ -219,3 +219,39 @@ export function saveModelSettings(settings: ModelSettings): void {
     console.error("[config] could not save model settings:", error);
   }
 }
+
+export const CLASSIFICATION_FILE = path.join(INDEX_DIR, "classification.json");
+
+export interface ClassificationSettings {
+  /** The deterministic ladder (media type, url host, schema.org markup) —
+   * free and instant, so on by default. */
+  trad: boolean;
+  /** The language-model fallback, asked only when trad has no opinion —
+   * also on by default, but a person without a model configured (or who
+   * doesn't want the latency/battery cost) can turn it off independently. */
+  ai: boolean;
+}
+
+const DEFAULT_CLASSIFICATION_SETTINGS: ClassificationSettings = { trad: true, ai: true };
+
+export function loadClassificationSettings(): ClassificationSettings {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(CLASSIFICATION_FILE, "utf8")) as Partial<ClassificationSettings>;
+    return {
+      trad: typeof parsed.trad === "boolean" ? parsed.trad : DEFAULT_CLASSIFICATION_SETTINGS.trad,
+      ai: typeof parsed.ai === "boolean" ? parsed.ai : DEFAULT_CLASSIFICATION_SETTINGS.ai,
+    };
+  } catch {
+    // No file yet, or a hand-edited one that no longer parses — both
+    // stages on is the reasonable fallback either way.
+    return { ...DEFAULT_CLASSIFICATION_SETTINGS };
+  }
+}
+
+export function saveClassificationSettings(settings: ClassificationSettings): void {
+  try {
+    fs.writeFileSync(CLASSIFICATION_FILE, `${JSON.stringify(settings, null, 2)}\n`);
+  } catch (error) {
+    console.error("[config] could not save classification settings:", error);
+  }
+}

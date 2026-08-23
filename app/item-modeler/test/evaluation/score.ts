@@ -20,9 +20,9 @@
 // a normalised verdict are recorded, and the gap between them is itself a
 // finding about normalization/.
 import type { Data, DataEntry, Item, Schema } from "@index/database/types";
-import { hintFor } from "../../src/normalization/field-hints.js";
-import { valuesAgree } from "../../src/normalization/compare-values.js";
-import { isBlank } from "../../src/normalization/normalize-value.js";
+import { hintFor } from "../../src/contracts/field-hints.js";
+import { valuesAgree } from "../../src/composer/normalization/compare-values.js";
+import { isBlank } from "../../src/composer/normalization/normalize-value.js";
 import type { FieldChange } from "../../src/contracts/index.js";
 
 export type FieldVerdict = "correct" | "missed" | "wrong" | "absent";

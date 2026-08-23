@@ -1,14 +1,16 @@
 // Authored by Karter Whitman using Claude Opus 5
 // The pipeline:
 //
-//   collect → basket → transcribe what is stated → synthesise the rest
-//           → verify → apply
+//   extract (collect → basket → transcribe → synthesise)
+//     → compose (verify → apply)
 //
-// Deliberately thin. Every decision it appears to make is made somewhere
-// else — what to gather in `extraction/collectors/`, what a file states
-// outright in `stated-facts.ts`, what is admissible in `validation/`,
-// what may be written in `application/` — and what is left here is the
-// *order*, which is the one thing that belongs in one readable place.
+// Deliberately thin. Every decision it appears to make is made in one of
+// the two submodules it calls — what to gather in
+// `extractor/collectors/`, what a file states outright in
+// `extractor/stated-facts.ts`, what is admissible in
+// `composer/validation/`, what may be written in `composer/application/`
+// — and what is left here is the *order* plus the Item-in/Item-out
+// contract, which is the one thing that belongs in one readable place.
 //
 // The division the whole module now rests on:
 //
@@ -26,7 +28,7 @@
 // an Item comes out, and nothing is saved.
 import crypto from "node:crypto";
 import type { Item, Schema } from "@index/database/types";
-import { applyModelingResult } from "./application/apply-modeling-result.js";
+import { composeSchema } from "./composer/index.js";
 import type {
   ItemModelingOutcome,
   ModelingFailure,
@@ -41,19 +43,9 @@ import {
   type ResolvedOptions,
 } from "./contracts/modeling-options.js";
 import { dedupeWarnings, type ModelingWarning } from "./contracts/warnings.js";
-import { groundingText, render } from "./evidence/basket.js";
-import {
-  collectItemEvidence,
-  evidenceFingerprint,
-} from "./evidence/collect-item-evidence.js";
-import { nodeGateway, offlineGateway } from "./evidence/source-resolution.js";
-import { collectBasket } from "./extraction/collect-basket.js";
-import { statedFacts } from "./extraction/stated-facts.js";
-import { extractWithModel } from "./extraction/language-model/extract-with-model.js";
-import { openModel, type ModelClient } from "./extraction/language-model/local-model-client.js";
-import { modelAvailable } from "./extraction/language-model/model-store.js";
-import { resolveValues, type Candidate } from "./validation/resolve-values.js";
-import { PROMPT_VERSION } from "./extraction/language-model/extraction-prompts.js";
+import { nodeGateway, offlineGateway } from "./extractor/evidence/source-resolution.js";
+import { extractClaims } from "./extractor/index.js";
+import { PROMPT_VERSION } from "./extractor/language-model/extraction-prompts.js";
 
 export function resolveOptions(options: ModelingOptions = {}): ResolvedOptions {
   const allowNetworkAccess = options.allowNetworkAccess ?? true;
@@ -188,179 +180,75 @@ async function runPipeline(
   settings: ResolvedOptions,
   started: number,
 ): Promise<ItemModelingOutcome> {
-  // 1 — read the sources, bounded.
-  const evidence = await collectItemEvidence(item, {
+  // 1–4: read the sources, gather the basket, transcribe, synthesise.
+  const extracted = await extractClaims({
+    resources: item.resources,
+    schema,
     gateway: settings.gateway,
+    allowNetworkAccess: settings.allowNetworkAccess,
     maxSources: settings.maxSources,
     maxSourceTextLength: settings.maxSourceTextLength,
-    allowNetworkAccess: settings.allowNetworkAccess,
+    languageModelMode: settings.languageModelMode,
+    ...(settings.model ? { model: settings.model } : {}),
+    // Whatever is left of the run's budget, so a slow model cannot
+    // overrun a caller's timeout on its own.
+    timeoutMs: Math.max(1000, settings.timeout - (Date.now() - started)),
+    now: settings.now,
   });
 
-  const fingerprint = fingerprintOf(evidenceFingerprint(evidence.sources), schema, settings);
+  const fingerprint = fingerprintOf(extracted.evidenceFingerprint, schema, settings);
   const meta = (extra: Partial<ModelingMeta> = {}): ModelingMeta => ({
     durationMs: Date.now() - started,
-    sources: {
-      attached: evidence.attached,
-      read: evidence.sources.length,
-      skipped: evidence.skipped,
-    },
-    evidenceBytes: evidence.bytes,
-    truncated: evidence.truncated,
+    sources: extracted.sources,
+    evidenceBytes: extracted.evidenceBytes,
+    truncated: extracted.truncated,
     claims: { total: 0, deterministic: 0, languageModel: 0, rejected: 0 },
     modelerVersion: MODELER_VERSION,
     fingerprint,
     ...extra,
   });
 
-  if (evidence.sources.length === 0) {
+  if (extracted.sources.read === 0) {
     return failed("no-evidence", "none of the attached sources could be read", meta());
   }
 
-  // 2 — gather everything into one basket. Collectors do not interpret.
-  const collected = await collectBasket(evidence.sources);
-  const warnings: ModelingWarning[] = [...evidence.warnings, ...collected.warnings];
-
-  // 3 — transcribe what a file states outright. No ranking, no
-  // arbitration: a short list of places where a format *declares* a
-  // field, copied.
-  const stated = statedFacts(collected.basket, schema, settings.now);
-  const candidates: Candidate[] = stated.map((fact) => ({
-    field: fact.field,
-    value: fact.value,
-    provenance: fact.provenance,
-  }));
-
-  // 4 — synthesise the rest, reading the whole basket at once. This is
-  // where a filename gets read apart using facts that live in *other*
-  // entries: the publisher ending `…-Harvard Business Review Press` is
-  // named outright in that book's own package document.
-  let modelAnswer: Record<string, unknown> | undefined;
-  const settledFields = stated.map((fact) => fact.field);
-  const wantsModel =
-    settings.languageModelMode !== "never" && settledFields.length < schema.attributes.length;
-
-  if (wantsModel) {
-    const client = settings.model ?? (await openModelSafely(warnings));
-    if (client) {
-      const extraction = await extractWithModel({
-        client,
-        basket: collected.basket,
-        schema,
-        already: settledFields,
-        // Whatever is left of the run's budget, so a slow model cannot
-        // overrun a caller's timeout on its own.
-        timeoutMs: Math.max(1000, settings.timeout - (Date.now() - started)),
-        now: settings.now,
-      });
-      warnings.push(...extraction.warnings);
-      modelAnswer = Object.fromEntries(
-        extraction.values.map((value) => [value.field, value.value]),
-      );
-      candidates.push(
-        ...extraction.values.map((value) => ({
-          field: value.field,
-          value: value.value,
-          provenance: value.provenance,
-        })),
-      );
-    }
-  }
-
-  // 5 — normalise, validate, and ground. The one gate a transcribed fact
-  // skips is grounding: it came from the evidence by construction, while
-  // a synthesised value has to prove it did.
-  const resolution = resolveValues({
-    candidates,
+  // 5–6: normalise, validate, ground, and apply under the ownership
+  // policy.
+  const composed = await composeSchema({
+    claims: extracted.claims,
+    evidenceText: extracted.evidenceText,
     schema,
-    evidence: groundingText(collected.basket),
-  });
-  warnings.push(...resolution.warnings);
-
-  // A field nothing spoke to is not an error — evidence was absent, which
-  // the spec says to prefer over invention.
-  for (const attribute of schema.attributes) {
-    if (resolution.values.some((value) => value.field === attribute.attribute)) continue;
-    warnings.push({
-      code: "field-unsupported",
-      field: attribute.attribute,
-      message: `nothing in the evidence established '${attribute.attribute}'`,
-    });
-  }
-
-  // 6 — apply, under the ownership policy.
-  const applied = applyModelingResult({
-    item,
-    schema,
-    resolved: resolution.values,
+    existing: item,
     userFields: settings.userFields,
     derivedName: settings.derivedName,
     overwriteModeledValues: settings.overwriteModeledValues,
     conflictPolicy: settings.conflictPolicy,
+    includeProvenance: settings.includeProvenance,
   });
-
-  const fromModel = resolution.values.filter(
-    (value) => value.provenance.origin === "language-model",
-  ).length;
 
   return {
     status: "modeled",
-    item: applied.item,
-    changes: settings.includeProvenance
-      ? applied.changes
-      : applied.changes.map(({ provenance: _provenance, ...rest }) => rest),
-    warnings: dedupeWarnings(warnings),
-    conflicts: applied.conflicts,
+    item: composed.item,
+    changes: composed.changes,
+    warnings: dedupeWarnings([...extracted.warnings, ...composed.warnings]),
+    conflicts: composed.conflicts,
     meta: meta({
       claims: {
-        total: resolution.values.length,
-        deterministic: resolution.values.length - fromModel,
-        languageModel: fromModel,
-        rejected: resolution.rejected,
+        total: composed.resolvedCount,
+        deterministic: composed.resolvedCount - composed.languageModelCount,
+        languageModel: composed.languageModelCount,
+        rejected: composed.rejected,
       },
     }),
     ...(settings.debugDiagnostics
       ? {
           diagnostics: {
-            basket: collected.basket.entries.map((entry) => ({
-              key: entry.key,
-              value: entry.value,
-            })),
-            ...(modelAnswer ? { modelAnswer } : {}),
+            basket: extracted.basketEntries,
+            ...(extracted.modelAnswer ? { modelAnswer: extracted.modelAnswer } : {}),
           },
         }
       : {}),
   };
-}
-
-/**
- * The model, or nothing — with the reason recorded either way.
- *
- * A missing model is a *degraded* run rather than a failed one: whatever
- * the file stated outright still stands, which for a well-formed epub is
- * most of the answer. What must never happen is silence, because "this
- * book has no publisher" and "nobody was able to look" are different
- * facts and only one of them is about the book.
- */
-async function openModelSafely(warnings: ModelingWarning[]): Promise<ModelClient | null> {
-  if (!modelAvailable()) {
-    warnings.push({
-      code: "reader-failed",
-      message:
-        "the local extraction model is not installed; only facts the file states outright were read",
-    });
-    return null;
-  }
-  try {
-    return await openModel();
-  } catch (error) {
-    warnings.push({
-      code: "reader-failed",
-      message: `the local extraction model could not be loaded: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    });
-    return null;
-  }
 }
 
 /** The whole-run budget. A partial answer from a timed-out run is not

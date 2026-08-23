@@ -31,6 +31,11 @@ export function asStringArray(value: unknown, what: string): string[] {
   return value as string[];
 }
 
+export function asBoolean(value: unknown, what: string): boolean {
+  if (typeof value !== "boolean") fail(`${what} must be a boolean`);
+  return value;
+}
+
 export function asOptionalNumber(value: unknown, what: string): number | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isFinite(value)) fail(`${what} must be a number`);

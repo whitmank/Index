@@ -54,6 +54,12 @@ const bridge: IndexBridge = {
   itemClassifier: {
     classify: (description) => invoke(CHANNELS.itemClassifierClassify, description),
   },
+  classification: {
+    settings: {
+      get: () => invoke(CHANNELS.classificationSettingsGet),
+      set: (trad, ai) => invoke(CHANNELS.classificationSettingsSet, trad, ai),
+    },
+  },
   resources: {
     checkMissing: (uris) => invoke(CHANNELS.resourcesCheckMissing, uris),
     locate: (itemId, uri) => invoke(CHANNELS.resourcesLocate, itemId, uri),

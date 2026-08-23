@@ -21,10 +21,10 @@ import JSZip from "jszip";
 import type { Data, Item, Schema, SchemaAttribute } from "@index/database/types";
 import { modelItem } from "../src/index.js";
 import type { ItemModelingOutcome, ModelingSuccess } from "../src/contracts/index.js";
-import type { ModelClient } from "../src/extraction/language-model/local-model-client.js";
-import { groundValue } from "../src/validation/validate-provenance.js";
-import { findIsbn, isIsbn } from "../src/normalization/normalize-identifiers.js";
-import { normalizePersonName } from "../src/normalization/normalize-names.js";
+import type { ModelClient } from "../src/extractor/language-model/local-model-client.js";
+import { groundValue } from "../src/composer/validation/validate-provenance.js";
+import { findIsbn, isIsbn } from "../src/contracts/normalize-identifiers.js";
+import { normalizePersonName } from "../src/composer/normalization/normalize-names.js";
 import { itemFor, type ItemOptions } from "./item.js";
 
 let passed = 0;

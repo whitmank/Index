@@ -23,26 +23,26 @@ import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
 import { classifyItemType } from "@index/item-modeler";
 import {
+  loadClassificationSettings,
   loadExcludedFolders,
   loadModelSettings,
   loadSpotifyCredentials,
   loadWatchedFolders,
+  saveClassificationSettings,
   saveExcludedFolders,
   saveModelSettings,
   saveSpotifyCredentials,
   saveWatchedFolders,
   selfDevice,
 } from "../config.js";
-import { classifyUri } from "../services/ingest/classify.js";
-import { extract } from "../services/ingest/extract.js";
 import { getActiveModel, scanForModels, setActiveModel } from "../services/models.js";
-import { openProbe } from "../services/ingest/probe.js";
-import { pathsToResources } from "../services/intake.js";
+import { classifyUri, extractEntries, nameFor, pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
 import { isLocalUri, resolve, resolveExistingFile } from "../services/resolver.js";
 import { fetchAlbum } from "../services/spotify.js";
 import { broadcast } from "../windowBehavior/index.js";
 import {
+  asBoolean,
   asChange,
   asMembersOptions,
   asOptionalNumber,
@@ -120,21 +120,35 @@ export function registerHandlers(): void {
   // The guess for a resource already sitting on an item — what the
   // reorder and detach paths ask when the primary changes under them.
   // Whether the answer may be used is the renderer's rule (lib/
-  // resources.ts): this only answers the question.
-  handle(CHANNELS.ingestClassify, async (uri, name) => ({
-    type: await classifyUri(asString(uri, "uri"), asString(name, "name")),
-  }));
+  // resources.ts): this only answers the question. Schemas, the active
+  // model and the stage toggles are loaded here rather than trusted from
+  // the renderer, same as ingestParse.
+  handle(CHANNELS.ingestClassify, async (uri, name) => {
+    const schemas = await listSchemas().catch(() => [] as Schema[]);
+    return {
+      type: await classifyUri(asString(uri, "uri"), asString(name, "name"), {
+        types: schemas.map((schema) => ({ name: schema.name })),
+        modelPath: getActiveModel("classification") ?? undefined,
+        stages: loadClassificationSettings(),
+      }),
+    };
+  });
 
   // `parse` — read a resource already on an item and fill in the fields
   // its settled type declares. The mirror image of classification: there
   // the file suggests the type, here the type is given and the file is
   // asked to fill it in. Schemas are loaded here rather than sent across
-  // the bridge, the same way intake does it.
+  // the bridge, the same way intake does it. Runs through the same
+  // extractor/composer pipeline as intake now (`services/intake.js`'s
+  // `extractEntries`), so this gets grounding against invented values and
+  // PDF producer-metadata filtering for free — blanks-only protection
+  // still lives client-side (`changes/catalog.ts`'s `parseItem`), which
+  // this leaves untouched.
   handle(CHANNELS.ingestParse, async (uri, type) => {
     const wanted = asString(type, "type");
-    const probe = await openProbe(asString(uri, "uri"));
+    const resourceUri = asString(uri, "uri");
     const schemas = await listSchemas().catch(() => [] as Schema[]);
-    return extract(wanted, probe, schemaFor(schemas, wanted), { keepUnmatched: false });
+    return extractEntries(wanted, schemaFor(schemas, wanted), { uri: resourceUri, name: nameFor(resourceUri) });
   });
 
   handle(CHANNELS.modelsLocationsList, async () => ({ locations: loadModelSettings().locations }));
@@ -193,6 +207,14 @@ export function registerHandlers(): void {
       modelPath: getActiveModel("classification") ?? undefined,
     });
     return { type: result.type };
+  });
+
+  handle(CHANNELS.classificationSettingsGet, async () => loadClassificationSettings());
+
+  handle(CHANNELS.classificationSettingsSet, async (trad, ai) => {
+    const settings = { trad: asBoolean(trad, "trad"), ai: asBoolean(ai, "ai") };
+    saveClassificationSettings(settings);
+    return settings;
   });
 
   handle(CHANNELS.intakePick, async () => {

@@ -17,6 +17,11 @@ interface FoundModel {
   sizeBytes: number;
 }
 
+interface ClassificationSettings {
+  trad: boolean;
+  ai: boolean;
+}
+
 function readableSize(bytes: number): string {
   return `${Math.round(bytes / 1_000_000)} MB`;
 }
@@ -33,6 +38,7 @@ export function Models() {
   const [found, setFound] = useState<FoundModel[]>([]);
   const [active, setActive] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const [stages, setStages] = useState<ClassificationSettings | null>(null);
 
   const refreshLocations = useCallback(async () => {
     const answer = await window.index.models.locations.list();
@@ -53,10 +59,33 @@ export function Models() {
     setActive(answer.ok.active[TASK]);
   }, []);
 
+  const refreshStages = useCallback(async () => {
+    const answer = await window.index.classification.settings.get();
+    if ("err" in answer) {
+      errors.surface(answer.err);
+      return;
+    }
+    setStages(answer.ok);
+  }, []);
+
   useEffect(() => {
     void refreshLocations();
     void refreshScan();
-  }, [refreshLocations, refreshScan]);
+    void refreshStages();
+  }, [refreshLocations, refreshScan, refreshStages]);
+
+  const setStage = async (stage: keyof ClassificationSettings, value: boolean): Promise<void> => {
+    if (!stages) return;
+    const next = { ...stages, [stage]: value };
+    setStages(next);
+    const answer = await window.index.classification.settings.set(next.trad, next.ai);
+    if ("err" in answer) {
+      errors.surface(answer.err);
+      void refreshStages();
+      return;
+    }
+    setStages(answer.ok);
+  };
 
   const addLocation = async (): Promise<void> => {
     setBusy(true);
@@ -99,6 +128,42 @@ export function Models() {
 
   return (
     <>
+      <section className="settings-section">
+        <h3 className="settings-section-title">Classification stages</h3>
+        <p className="settings-section-note">
+          What guesses an item's type when it's added: trad rules first, the model below as a fallback
+          when they have no opinion. Either can be turned off on its own.
+        </p>
+        <div className="settings-row">
+          <span className="settings-row-label">trad</span>
+          <span className="settings-row-value">
+            <label>
+              <input
+                checked={stages?.trad ?? true}
+                disabled={!stages}
+                onChange={(event) => void setStage("trad", event.target.checked)}
+                type="checkbox"
+              />{" "}
+              built-in format/URL rules
+            </label>
+          </span>
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">ai</span>
+          <span className="settings-row-value">
+            <label>
+              <input
+                checked={stages?.ai ?? true}
+                disabled={!stages}
+                onChange={(event) => void setStage("ai", event.target.checked)}
+                type="checkbox"
+              />{" "}
+              the model below, as a fallback
+            </label>
+          </span>
+        </div>
+      </section>
+
       <section className="settings-section">
         <h3 className="settings-section-title">Model locations</h3>
         <p className="settings-section-note">

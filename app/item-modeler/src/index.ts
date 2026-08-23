@@ -1,22 +1,33 @@
 // Authored by Karter Whitman using Claude Opus 5
 // The module's public surface.
 //
-// One verb — `modelItem` — plus the vocabulary needed to read what it
-// returns, the gateways that say how a source is reached, and the model
-// store, since installing the weights is the caller's decision and not
-// something a modeling run should start on anyone's behalf.
+// `modelItem` — plus the vocabulary needed to read what it returns — is
+// the Item-in/Item-out convenience wrapper. It is `extractClaims` then
+// `composeSchema` (item-modeler.ts), and both of those are exported here
+// too: a caller with a resource but no Item yet (intake, before anything
+// is saved) has no use for the wrapper's Item-shaped contract.
 export { modelItem, resolveOptions } from "./item-modeler.js";
 export * from "./contracts/index.js";
-export { nodeGateway, offlineGateway, type SourceGateway } from "./evidence/source-resolution.js";
-export type { SourceEvidence } from "./evidence/source-evidence.js";
-export type { BasketEntry, EvidenceBasket } from "./evidence/basket.js";
+export {
+  extractClaims,
+  type ExtractRequest,
+  type ExtractResult,
+} from "./extractor/index.js";
+export {
+  composeSchema,
+  type ComposeRequest,
+  type ComposeResult,
+} from "./composer/index.js";
+export { nodeGateway, offlineGateway, type SourceGateway } from "./extractor/evidence/source-resolution.js";
+export type { SourceEvidence } from "./extractor/evidence/source-evidence.js";
+export type { BasketEntry, EvidenceBasket } from "./extractor/evidence/basket.js";
 export {
   downloadModel,
   modelAvailable,
   modelPath,
   MODEL_FILE,
-} from "./extraction/language-model/model-store.js";
-export { closeModel } from "./extraction/language-model/local-model-client.js";
+} from "./extractor/language-model/model-store.js";
+export { closeModel } from "./extractor/language-model/local-model-client.js";
 export {
   countActions,
   countWarnings,
@@ -28,5 +39,20 @@ export {
   type ClassifyItemTypeRequest,
   type ClassifyItemTypeResult,
   type ItemType,
-} from "./item-classifier/classify.js";
-export { closeItemClassifierModel } from "./item-classifier/model-client.js";
+} from "./classification/ai/classify.js";
+export { closeItemClassifierModel } from "./classification/ai/model-client.js";
+export {
+  classifyResource,
+  type ClassificationStages,
+  type ClassifyResourceRequest,
+  type ClassifyResourceResult,
+} from "./classification/classify-resource.js";
+export { classifyTrad, type ClassificationSource } from "./classification/trad/trad-classifier.js";
+export {
+  PDF_MIME,
+  readPdf,
+  typeOfPdf,
+  type BinarySource,
+  type PdfMetadata,
+} from "./classification/trad/pdf-reader.js";
+export { declaresArticle, declaredTypes } from "./classification/trad/schema-org.js";

@@ -14,6 +14,7 @@ import type {
   StoredRecord,
 } from "@index/database/types";
 import type { SchemaInput } from "@index/database";
+import type { ClassificationSettings } from "./config.js";
 import type { IntakeResult } from "./services/intake.js";
 import type { FoundModel as ModelFile } from "./services/models.js";
 export type { IntakeResult, ModelFile };
@@ -132,6 +133,15 @@ export interface IndexBridge {
      * "user"; the caller decides whether and how the answer is used,
      * same rule `ingest.classify` follows. */
     classify(description: string): Promise<Result<{ type: string | null }>>;
+  };
+  classification: {
+    settings: {
+      /** Whether the trad (deterministic) and ai (model) stages are each
+       * allowed to run, for both `ingest.classify` and intake — both on
+       * by default. */
+      get(): Promise<Result<ClassificationSettings>>;
+      set(trad: boolean, ai: boolean): Promise<Result<ClassificationSettings>>;
+    };
   };
   resources: {
     /** Which of these uris currently 404 locally — drives the missing

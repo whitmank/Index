@@ -2,8 +2,11 @@
 // The vocabulary, in one import. Everything a caller needs to read a
 // result is here; nothing here knows how any of it is produced.
 export type { Origin, ExtractionMethod, FieldProvenance, ModelIdentity } from "./provenance.js";
+export type { FieldClaim } from "./field-claim.js";
 export type { ResolvedValue } from "./resolved-value.js";
 export { isNamingField } from "./resolved-value.js";
+export type { FieldHint } from "./field-hints.js";
+export { hintFor, fieldForConcept, namingField } from "./field-hints.js";
 export type { ChangeAction, FieldChange } from "./changes.js";
 export { isMaterial } from "./changes.js";
 export type { WarningCode, ModelingWarning } from "./warnings.js";
