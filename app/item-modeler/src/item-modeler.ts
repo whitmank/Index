@@ -6,8 +6,8 @@
 //
 // Deliberately thin. Every decision it appears to make is made in one of
 // the two submodules it calls — what to gather in
-// `extractor/collectors/`, what a file states outright in
-// `extractor/stated-facts.ts`, what is admissible in
+// `collector/formats/`, what a file states outright in
+// `collector/stated-facts.ts`, what is admissible in
 // `composer/validation/`, what may be written in `composer/application/`
 // — and what is left here is the *order* plus the Item-in/Item-out
 // contract, which is the one thing that belongs in one readable place.
@@ -43,9 +43,9 @@ import {
   type ResolvedOptions,
 } from "./contracts/modeling-options.js";
 import { dedupeWarnings, type ModelingWarning } from "./contracts/warnings.js";
-import { nodeGateway, offlineGateway } from "./extractor/evidence/source-resolution.js";
-import { extractClaims } from "./extractor/index.js";
-import { PROMPT_VERSION } from "./extractor/language-model/extraction-prompts.js";
+import { nodeGateway, offlineGateway } from "./collector/evidence/source-resolution.js";
+import { extractClaims } from "./collector/index.js";
+import { PROMPT_VERSION } from "./collector/language-model/extraction-prompts.js";
 
 export function resolveOptions(options: ModelingOptions = {}): ResolvedOptions {
   const allowNetworkAccess = options.allowNetworkAccess ?? true;

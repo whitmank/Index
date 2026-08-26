@@ -1,5 +1,5 @@
 // Authored by Karter Whitman using Claude Sonnet 5
-// The extractor: sources in, candidate field claims out.
+// The collector: sources in, candidate field claims out.
 //
 // Collect evidence, gather it into one basket without interpreting it
 // (collectors: find, never decide), transcribe what a format plainly
@@ -45,7 +45,7 @@ export interface ExtractRequest {
 export interface ExtractResult {
   claims: FieldClaim[];
   /** What a synthesised claim has to be found in to count as grounded —
-   * composer's job, but only the extractor can build it (it is the
+   * composer's job, but only the collector can build it (it is the
    * basket's own text). */
   evidenceText: string;
   /** For the run fingerprint: order-independent, so re-ordering resources

@@ -4,7 +4,7 @@
 // firing wrong and a model call costing time/battery are different things
 // to want control over.
 import type { Resource } from "@index/database/types";
-import type { ModelClient } from "../extractor/language-model/local-model-client.js";
+import type { ModelClient } from "../collector/language-model/local-model-client.js";
 import type { ModelingWarning } from "../contracts/warnings.js";
 import { classifyItemType, type ItemType } from "./ai/classify.js";
 import { classifyTrad, type ClassificationSource } from "./trad/trad-classifier.js";

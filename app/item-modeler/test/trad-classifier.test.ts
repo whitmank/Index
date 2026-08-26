@@ -11,8 +11,8 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import type { Resource } from "@index/database/types";
-import { classifyTrad, type ClassificationSource } from "../src/classification/trad/trad-classifier.js";
-import { PDF_MIME } from "../src/classification/trad/pdf-reader.js";
+import { classifyTrad, type ClassificationSource } from "../src/classifier/trad/trad-classifier.js";
+import { PDF_MIME } from "../src/classifier/trad/pdf-reader.js";
 
 let passed = 0;
 

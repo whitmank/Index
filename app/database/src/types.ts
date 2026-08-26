@@ -179,7 +179,8 @@ export interface SchemaAttribute {
  * the primary resource: ordered, and reordering is how the user says
  * which one it is. A book's title is what the book is called, so it
  * leads — the ingestor writes what it extracted there into `Item.data.name`
- * (ingest/extract.ts), since the name is already on screen above the
+ * (`@index/item-modeler`'s `composeSchema`, via backend's
+ * `services/intake.ts`), since the name is already on screen above the
  * rest of an item's fields.
  *
  * Positional rather than flagged because the word is no guide: a

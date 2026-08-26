@@ -24,7 +24,7 @@ import { applyModelingResult } from "./application/apply-modeling-result.js";
 export interface ComposeRequest {
   claims: FieldClaim[];
   /** What a synthesised claim must be found in to count as grounded —
-   * extractor's basket, joined (extractor/index.js's `evidenceText`). */
+   * collector's basket, joined (collector/index.js's `evidenceText`). */
   evidenceText: string;
   schema: Schema;
   /** Ownership, naming (`mayRename`), and conflict detection all read off

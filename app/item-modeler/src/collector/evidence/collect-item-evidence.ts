@@ -2,7 +2,7 @@
 // A resource list turned into evidence — step 2 of the spec's lifecycle,
 // and the only place in the module that touches a resource.
 //
-// Takes bare resources rather than an Item on purpose: the extractor runs
+// Takes bare resources rather than an Item on purpose: the collector runs
 // before an Item necessarily exists (intake classifies and extracts a
 // resource that has not been attached to anything yet), so this cannot
 // require more than the one thing it actually reads.

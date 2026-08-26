@@ -12,22 +12,22 @@ export {
   extractClaims,
   type ExtractRequest,
   type ExtractResult,
-} from "./extractor/index.js";
+} from "./collector/index.js";
 export {
   composeSchema,
   type ComposeRequest,
   type ComposeResult,
 } from "./composer/index.js";
-export { nodeGateway, offlineGateway, type SourceGateway } from "./extractor/evidence/source-resolution.js";
-export type { SourceEvidence } from "./extractor/evidence/source-evidence.js";
-export type { BasketEntry, EvidenceBasket } from "./extractor/evidence/basket.js";
+export { nodeGateway, offlineGateway, type SourceGateway } from "./collector/evidence/source-resolution.js";
+export type { SourceEvidence } from "./collector/evidence/source-evidence.js";
+export type { BasketEntry, EvidenceBasket } from "./collector/evidence/basket.js";
 export {
   downloadModel,
   modelAvailable,
   modelPath,
   MODEL_FILE,
-} from "./extractor/language-model/model-store.js";
-export { closeModel } from "./extractor/language-model/local-model-client.js";
+} from "./collector/language-model/model-store.js";
+export { closeModel } from "./collector/language-model/local-model-client.js";
 export {
   countActions,
   countWarnings,
@@ -39,20 +39,20 @@ export {
   type ClassifyItemTypeRequest,
   type ClassifyItemTypeResult,
   type ItemType,
-} from "./classification/ai/classify.js";
-export { closeItemClassifierModel } from "./classification/ai/model-client.js";
+} from "./classifier/ai/classify.js";
+export { closeItemClassifierModel } from "./classifier/ai/model-client.js";
 export {
   classifyResource,
   type ClassificationStages,
   type ClassifyResourceRequest,
   type ClassifyResourceResult,
-} from "./classification/classify-resource.js";
-export { classifyTrad, type ClassificationSource } from "./classification/trad/trad-classifier.js";
+} from "./classifier/classify-resource.js";
+export { classifyTrad, type ClassificationSource } from "./classifier/trad/trad-classifier.js";
 export {
   PDF_MIME,
   readPdf,
   typeOfPdf,
   type BinarySource,
   type PdfMetadata,
-} from "./classification/trad/pdf-reader.js";
-export { declaresArticle, declaredTypes } from "./classification/trad/schema-org.js";
+} from "./classifier/trad/pdf-reader.js";
+export { declaresArticle, declaredTypes } from "./classifier/trad/schema-org.js";

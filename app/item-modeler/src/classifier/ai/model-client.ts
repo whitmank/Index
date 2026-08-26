@@ -18,7 +18,7 @@
 // and the same test-stub pattern extraction already established.
 import fs from "node:fs";
 import type { Llama, LlamaContext, LlamaModel } from "node-llama-cpp";
-import type { ExtractionRequest, ModelClient } from "../../extractor/language-model/local-model-client.js";
+import type { ExtractionRequest, ModelClient } from "../../collector/language-model/local-model-client.js";
 
 /** Small on purpose: the whole prompt is a short list of type names plus
  * one line of user text, and the answer is one enum token. Extraction's

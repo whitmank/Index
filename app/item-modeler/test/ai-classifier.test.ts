@@ -9,7 +9,7 @@
 // posture, the timeout — is correct, not that a real model picks well.
 import assert from "node:assert/strict";
 import { classifyItemType } from "../src/index.js";
-import type { ModelClient } from "../src/extractor/language-model/local-model-client.js";
+import type { ModelClient } from "../src/collector/language-model/local-model-client.js";
 
 let passed = 0;
 

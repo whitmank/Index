@@ -5,8 +5,8 @@
 // defaults (§Modeling options). So every switch that changes what gets
 // written is here, named, with a documented default — and `resolveOptions`
 // is the one place those defaults live, so no call site invents its own.
-import type { SourceGateway } from "../extractor/evidence/source-resolution.js";
-import type { ModelClient } from "../extractor/language-model/local-model-client.js";
+import type { SourceGateway } from "../collector/evidence/source-resolution.js";
+import type { ModelClient } from "../collector/language-model/local-model-client.js";
 
 /**
  * When the language model may speak.

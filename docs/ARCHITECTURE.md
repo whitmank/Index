@@ -77,16 +77,25 @@ in the package.
 ```
 contracts/          -- claims, provenance, change set, warnings, conflicts,
                        options, result. The vocabulary a caller reads.
-evidence/           -- resources → bounded, normalized SourceEvidence;
-                       the SourceGateway port; the priority ladder
-extraction/         -- readers (epub, pdf, filename) reporting observations
-                       in each format's own words, and the mapper that
-                       joins those to a schema's declared fields
-reconciliation/     -- many claims about one field → one answer, or a
-                       recorded disagreement
-normalization/      -- one fact, one spelling: identifiers, dates, names
-validation/         -- may this be written at all?
-application/        -- ownership precedence, and the Item it produces
+classifier/         -- a resource's type: a deterministic trad/ ladder
+                       (mime, pdf signals, host/url rules, schema.org)
+                       first, an ai/ (LFM2) fallback only when trad has
+                       no opinion. A sibling entry point, called by the
+                       app at intake — not part of modelItem's own flow.
+collector/          -- evidence/: resources → bounded, normalized
+                       SourceEvidence, the SourceGateway port; formats/:
+                       readers (epub, pdf, filename) reporting
+                       observations in each format's own words, never
+                       deciding what they mean; stated-facts.ts:
+                       transcribing what a format declares outright;
+                       language-model/: LFM2 synthesis for whatever is
+                       still unsettled
+composer/           -- normalization/: one fact, one spelling
+                       (identifiers, dates, names); validation/: may
+                       this be written at all, including grounding a
+                       synthesized value against the evidence;
+                       application/: ownership precedence, and the Item
+                       and change set it produces
 ```
 
 Three properties are load-bearing:
@@ -102,8 +111,11 @@ Three properties are load-bearing:
   a value with no evidence behind it is not written, and a disagreement
   is recorded rather than resolved.
 
-Not yet built, and named in the spec rather than scaffolded: the local
-extraction model, and automatic type classification.
+Not yet built: `modelItem`'s own `inferType` option is still a hard error
+— an item arrives with the type its user chose, or is refused. The
+`classifier/` pipeline above answers a related but separate question (a
+bare resource's likely type, at intake, before an Item exists); the two
+have not been connected.
 
 ## app/backend — the Electron main process
 

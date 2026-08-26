@@ -11,10 +11,10 @@ import type { BasketEntry, EvidenceBasket } from "./evidence/basket.js";
 import { BASKET_MAX_ENTRIES } from "./evidence/basket.js";
 import type { SourceEvidence } from "./evidence/source-evidence.js";
 import type { ModelingWarning } from "../contracts/warnings.js";
-import type { Collector } from "./collectors/collector.js";
-import { epubCollector } from "./collectors/epub.js";
-import { filenameCollector } from "./collectors/filename.js";
-import { pdfCollector } from "./collectors/pdf.js";
+import type { Collector } from "./formats/collector.js";
+import { epubCollector } from "./formats/epub.js";
+import { filenameCollector } from "./formats/filename.js";
+import { pdfCollector } from "./formats/pdf.js";
 
 const COLLECTORS: Collector[] = [filenameCollector, epubCollector, pdfCollector];
 

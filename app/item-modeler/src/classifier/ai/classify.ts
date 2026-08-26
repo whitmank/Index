@@ -8,7 +8,7 @@
 // there because a value has to prove it came from the evidence; here
 // there is no evidence beyond the description itself; the enum grammar is
 // the entire admissibility check.
-import type { ModelClient } from "../../extractor/language-model/local-model-client.js";
+import type { ModelClient } from "../../collector/language-model/local-model-client.js";
 import type { ModelingWarning } from "../../contracts/warnings.js";
 import { openItemClassifierModel } from "./model-client.js";
 import { itemClassifierSystemPrompt, itemClassifierUserPrompt } from "./prompts.js";

@@ -1,12 +1,12 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The regression anchor for the composer as its own entry point — that it
-// accepts claims from any source, not just extractor's own output, and
+// accepts claims from any source, not just collector's own output, and
 // still enforces everything that makes a write trustworthy: grounding, a
 // field nothing spoke to being reported rather than invented, and a
 // user's value never being overwritten. `modeling.test.ts` already
 // exhaustively covers this machinery through `modelItem`; this file only
 // proves the split entry point works standing alone, fed hand-built
-// claims with no extractor involved at all.
+// claims with no collector involved at all.
 import assert from "node:assert/strict";
 import { ulid } from "@index/database";
 import type { Data, Item, Schema, SchemaAttribute } from "@index/database/types";
@@ -64,7 +64,7 @@ function baseRequest(overrides: Partial<ComposeRequest> = {}): ComposeRequest {
 }
 
 async function run(): Promise<void> {
-  console.log("\nclaims from anywhere, not just extractor's own output");
+  console.log("\nclaims from anywhere, not just collector's own output");
 
   await check("hand-built claims populate an empty item", async () => {
     const result = await composeSchema(

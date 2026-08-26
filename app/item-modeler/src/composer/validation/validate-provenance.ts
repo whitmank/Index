@@ -22,7 +22,7 @@
 // value must appear somewhere in the basket. Rearrangement passes,
 // trimming passes, and invention fails — because an invented value
 // carries tokens that are nowhere in the evidence.
-import { EXCERPT_MAX } from "../../extractor/evidence/content-limits.js";
+import { EXCERPT_MAX } from "../../collector/evidence/content-limits.js";
 
 /** Tokens too common to be evidence of anything. A value made entirely
  * of these is not grounded by them. */

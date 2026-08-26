@@ -15,7 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { readPdf, typeOfPdf, type BinarySource } from "../src/classification/trad/pdf-reader.js";
+import { readPdf, typeOfPdf, type BinarySource } from "../src/classifier/trad/pdf-reader.js";
 
 let passed = 0;
 

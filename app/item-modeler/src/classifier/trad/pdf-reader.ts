@@ -19,7 +19,7 @@
 // The keys are this module's own vocabulary: `title`, `author`,
 // `published`, `genre`, `publisher`, `publication`, `doi`, `isbn`,
 // `pages`, `description`. Used only for `typeOfPdf`'s ladder — real field
-// extraction reads a pdf through `extractor/collectors/pdf.ts` instead,
+// extraction reads a pdf through `collector/formats/pdf.ts` instead,
 // which shares nothing with this file. Two readers for one format is a
 // real duplication, tolerated here because the two callers need
 // genuinely different shapes: this one answers before any schema is

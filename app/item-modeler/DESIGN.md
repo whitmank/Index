@@ -69,18 +69,23 @@ sources │  epub       │        ┌── transcribe ──┐
 src/
   item-modeler.ts       the order of the steps, and nothing else
   contracts/            the vocabulary a caller reads a result in
-  evidence/             uris → bounded, normalised source evidence; the basket
-  extraction/
-    collectors/         epub, pdf, filename — find, never decide
-    stated-facts.ts     the narrow transcription map
-    language-model/     the local model, its schema, its prompt
-  normalization/        one fact, one spelling
-  validation/           may this be written at all?
-  application/          ownership precedence → the Item and its change set
+  classifier/           staged type guess: a deterministic trad/ ladder,
+                        an ai/ (LFM2) fallback when trad has no opinion —
+                        a sibling entry point, not part of modelItem's own
+                        pipeline below (see docs/ARCHITECTURE.md)
+  collector/
+    evidence/            uris → bounded, normalised source evidence; the basket
+    formats/             epub, pdf, filename — find, never decide
+    stated-facts.ts      the narrow transcription map
+    language-model/      the local model, its schema, its prompt
+  composer/
+    normalization/       one fact, one spelling
+    validation/          may this be written at all?
+    application/         ownership precedence → the Item and its change set
   observability/        counts, never values
 ```
 
-### `evidence/` — the filter
+### `collector/evidence/` — the filter
 
 Turns an Item's resources into bounded reads. Every limit is in
 `content-limits.ts` so cost stops depending on the file: a 64 KB head, a
@@ -93,7 +98,7 @@ lines, keys prefixed by where they came from (`filename`, `opf.dc:title`,
 language model, not a program, and a page of key/value lines is the shape
 these models read best.
 
-### `extraction/collectors/` — find, never decide
+### `collector/formats/` — find, never decide
 
 Each collector dumps what its format declares, under the source's own
 name for it. They do not curate: an earlier version kept a list of the
@@ -119,7 +124,7 @@ publisher ending `…Everyday Chaos…-Harvard Business Review Press` is
 named outright in that book's own package document, two lines away. No
 regex could ever see that.
 
-### `stated-facts.ts` — transcription
+### `collector/stated-facts.ts` — transcription
 
 A short list of places where a format *declares* a field, copied
 verbatim. No ranking, no arbitration.
@@ -145,7 +150,7 @@ Tantra Illuminated declares `2015-05-07`; it was published in 2013, which
 its filename knows. Choosing between them is exactly what synthesis is
 for, and it gets that one right.
 
-### `extraction/language-model/` — synthesis
+### `collector/language-model/` — synthesis
 
 `LFM2-1.2B-Extract` (Q4_K_M, ~730 MB) run in-process through
 `node-llama-cpp`, with the JSON schema generated from the item's own
@@ -172,7 +177,7 @@ entirely rather than sent for confirmation: a shorter schema is answered
 better, and a field absent from the grammar cannot be overwritten by a
 worse answer.
 
-### `validation/` — three gates, in an order that matters
+### `composer/validation/` — three gates, in an order that matters
 
 ```
 normalise → validate → ground
@@ -198,7 +203,7 @@ claimed value must appear somewhere in the basket — rearrangement
 passes, invention fails. Digits are held to the whole, because an
 identifier that is nearly in the evidence is a different identifier.
 
-### `application/` — unchanged by any of this
+### `composer/application/` — unchanged by any of this
 
 Ownership precedence is about the *user*, not about which reader spoke. A
 value the user entered is never overwritten whether the challenger came
@@ -216,7 +221,7 @@ comes out, and the caller decides whether to save it.
 | Failure | Stopped by |
 |---|---|
 | A value from **outside** the evidence — an invented ISBN | grounding (`validate-provenance.ts`) |
-| A value from the **wrong part** of the evidence — `publisher: Adobe InDesign CS6` | leaving it out of the basket (`collectors/pdf.ts`) |
+| A value from the **wrong part** of the evidence — `publisher: Adobe InDesign CS6` | leaving it out of the basket (`collector/formats/pdf.ts`) |
 | A value that is **another field said twice** — `subject: <the title>` | cross-field echo rejection (`resolve-values.ts`) |
 
 The middle and right-hand rows are the ones worth remembering, because
@@ -303,8 +308,11 @@ sources of values:  opf 50 · model 49 · checksum 12        ~2.2 s per book
   equivalent for a field — so provenance rides in the *result*.
   Persisting it is the cutover pass's decision, once there is a real
   shape to store.
-- **Backend cutover.** `app/backend/src/services/ingest/` and the `parse`
-  verb still run unchanged. This module is not wired into the app yet.
+- ~~**Backend cutover.**~~ Done: `app/backend/src/services/ingest/`'s old
+  join (`classify.ts`, `extract.ts`, `formats/book.ts`,
+  `signals/filename.ts`, `sources.ts`) is deleted, and intake and the
+  `parse` verb both run through this module via `backend-gateway.ts`'s
+  `SourceGateway` (see `docs/ARCHITECTURE.md`).
 
 ## Pinned
 

@@ -1,5 +1,5 @@
 // Authored by Karter Whitman using Claude Sonnet 5
-// The regression anchor for the extractor as its own entry point — that
+// The regression anchor for the collector as its own entry point — that
 // it runs from a bare resource list (no Item required, since intake
 // extracts a resource before it is ever attached to one), that an empty
 // read never pays for opening a model, that `languageModelMode: "never"`
@@ -14,9 +14,9 @@ import os from "node:os";
 import path from "node:path";
 import JSZip from "jszip";
 import type { Resource, Schema, SchemaAttribute } from "@index/database/types";
-import { extractClaims } from "../src/extractor/index.js";
-import { nodeGateway } from "../src/extractor/evidence/source-resolution.js";
-import type { ModelClient } from "../src/extractor/language-model/local-model-client.js";
+import { extractClaims } from "../src/collector/index.js";
+import { nodeGateway } from "../src/collector/evidence/source-resolution.js";
+import type { ModelClient } from "../src/collector/language-model/local-model-client.js";
 
 let passed = 0;
 
@@ -27,7 +27,7 @@ function check(what: string, assertion: () => void | Promise<void>): Promise<voi
   });
 }
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "item-modeler-extractor-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "item-modeler-collector-"));
 
 const field = (attribute: string): SchemaAttribute => ({ attribute, kind: "string", display: true });
 const BOOK: Schema = {

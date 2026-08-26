@@ -7,9 +7,9 @@
 // stub (the same port ai-classifier.test.ts stubs).
 import assert from "node:assert/strict";
 import type { Resource } from "@index/database/types";
-import { classifyResource } from "../src/classification/classify-resource.js";
-import type { ClassificationSource } from "../src/classification/trad/trad-classifier.js";
-import type { ModelClient } from "../src/extractor/language-model/local-model-client.js";
+import { classifyResource } from "../src/classifier/classify-resource.js";
+import type { ClassificationSource } from "../src/classifier/trad/trad-classifier.js";
+import type { ModelClient } from "../src/collector/language-model/local-model-client.js";
 
 let passed = 0;
 
