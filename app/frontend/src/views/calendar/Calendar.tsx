@@ -20,7 +20,7 @@ import type { Item } from "@index/database/types";
 import { CalendarPopover } from "../../components/CalendarPopover.tsx";
 import { useDayPager } from "../../hooks/useDayPager.js";
 import { adjacentDate, readableDate, todayISO } from "../../lib/dates.js";
-import type { DescribePrompt } from "../../lib/intake.js";
+import type { ItemCardPrompt } from "../../lib/intake.js";
 import { loadSet, loadSetDates, pool, usePool } from "../../store/index.js";
 import { Canvas } from "../canvas/Canvas.tsx";
 import { DayPager } from "./DayPager.tsx";
@@ -29,11 +29,11 @@ export interface CalendarProps {
   setId: string;
   /** The shell's one navigation primitive. */
   onGoTo: (item: Item, isNew?: boolean) => void;
-  /** The "what is this?" prompt, threaded down to every day's canvas. */
-  describe: DescribePrompt;
+  /** The item-creation card's prompt, threaded down to every day's canvas. */
+  prompt: ItemCardPrompt;
 }
 
-export function Calendar({ setId, onGoTo, describe }: CalendarProps) {
+export function Calendar({ setId, onGoTo, prompt }: CalendarProps) {
   const today = useMemo(() => todayISO(), []);
   const [selected, setSelected] = useState(today);
   const [populated, setPopulated] = useState<string[]>([]);
@@ -117,7 +117,6 @@ export function Calendar({ setId, onGoTo, describe }: CalendarProps) {
           <Canvas
             active={isActive}
             date={date}
-            describe={describe}
             itemIds={pages[date] ?? []}
             key={date}
             onGoTo={isActive ? onGoTo : () => undefined}
@@ -128,12 +127,13 @@ export function Calendar({ setId, onGoTo, describe }: CalendarProps) {
               void loadPage(date);
               void refreshDates();
             }}
+            prompt={prompt}
             setId={setId}
           />
         </div>
       </section>
     ),
-    [pages, onGoTo, setId, today, loadPage, refreshDates, describe],
+    [pages, onGoTo, setId, today, loadPage, refreshDates, prompt],
   );
 
   return (

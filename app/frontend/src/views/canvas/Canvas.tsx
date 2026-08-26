@@ -21,7 +21,7 @@ import { apply, changes } from "../../changes/index.js";
 import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, nodeImageUrl } from "../../lib/derive.js";
-import { captureFromPaths, type DescribePrompt } from "../../lib/intake.js";
+import { captureFromPaths, createBlankItemInteractive, type ItemCardPrompt } from "../../lib/intake.js";
 import { PIN_GLYPH, PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection } from "../../store/index.js";
 import {
@@ -63,9 +63,9 @@ export interface CanvasProps {
    * outright, so the same confirm dialog (and the same "delete its
    * children too?" question) answers here as everywhere else. */
   onDeleteRequested?: (item: Item) => void;
-  /** The "what is this?" prompt (App.tsx's `useCapturePrompt`), asked of
-   * a single-file drop before it becomes an item. */
-  describe: DescribePrompt;
+  /** The item-creation card (App.tsx's `useItemCard`), asked before a
+   * single-file drop or a manual `+` becomes an item. */
+  prompt: ItemCardPrompt;
   /** Someone left the set; who is in it has to be read again, since
    * membership is the union of a query and the arrows, and only the
    * backend knows the first half. */
@@ -83,7 +83,7 @@ export function Canvas({
   active = true,
   onGoTo,
   onDeleteRequested,
-  describe,
+  prompt,
   onMembersChanged,
 }: CanvasProps) {
   const pinnedSet = useMemo(() => new Set(pinnedIds ?? []), [pinnedIds]);
@@ -424,16 +424,15 @@ export function Canvas({
   }, []);
 
   const createHere = useCallback(() => {
-    const item = changes.blankItem(date);
-    void apply(changes.createItem(item)).then((ok) => {
-      if (!ok) return;
+    void createBlankItemInteractive(prompt, date).then((item) => {
+      if (!item) return;
       onGoTo(item, true);
       // A query-held set (like `~`) gains no arrow for a new item, so
       // nothing else notices this one belongs on the stage — without
       // this, it only shows up after something else reloads the set.
       onMembersChanged?.();
     });
-  }, [date, onGoTo, onMembersChanged]);
+  }, [date, onGoTo, onMembersChanged, prompt]);
 
   // OS file drop: one item per file, named from the basename, on this
   // page's date. Nothing is copied — intake records a pointer. Claiming
@@ -445,7 +444,7 @@ export function Canvas({
       const paths = [...event.dataTransfer.files].map((file) =>
         window.index.intake.pathForFile(file),
       );
-      void captureFromPaths(paths, describe, date).then((created) => {
+      void captureFromPaths(paths, prompt, date).then((created) => {
         const last = created[created.length - 1];
         if (last) onGoTo(last, true);
         // Same as `createHere`: a captured item gets no arrow into a
@@ -453,7 +452,7 @@ export function Canvas({
         if (created.length > 0) onMembersChanged?.();
       });
     },
-    [date, onGoTo, describe, onMembersChanged],
+    [date, onGoTo, prompt, onMembersChanged],
   );
 
   return (

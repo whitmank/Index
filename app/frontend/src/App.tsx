@@ -19,7 +19,7 @@ import { apply, applyUntracked, changes } from "./changes/index.js";
 import { commandsFor } from "./commands/index.js";
 import { CommandBar } from "./components/CommandBar.tsx";
 import { Confirm } from "./components/Confirm.tsx";
-import { DescribeCapture } from "./components/DescribeCapture.tsx";
+import { ItemIntakeCard } from "./components/ItemIntakeCard.tsx";
 import { NavBar, type NavBarHandle } from "./components/NavBar.tsx";
 import { DebugPanel } from "./debug/DebugPanel.tsx";
 import {
@@ -38,7 +38,7 @@ import {
   checkSelection,
 } from "./debug/uiChecks.js";
 import { useArrowNav } from "./hooks/useArrowNav.ts";
-import { useCapturePrompt } from "./hooks/useCapturePrompt.ts";
+import { useItemCard } from "./hooks/useItemCard.ts";
 import { useSelectionKeys } from "./hooks/useSelectionKeys.ts";
 import { isEditing, useUndoRedo } from "./hooks/useUndoRedo.ts";
 import { captionOf } from "./lib/derive.js";
@@ -68,7 +68,7 @@ import { RuleBuilder } from "./views/space/RuleBuilder.tsx";
 import { Settings, type SettingsTab } from "./views/settings/Settings.tsx";
 import "./components/CommandBar.css";
 import "./components/Confirm.css";
-import "./components/DescribeCapture.css";
+import "./components/ItemIntakeCard.css";
 import "./views/canvas/Canvas.css";
 import "./views/focus/Focus.css";
 import "./views/list/List.css";
@@ -120,7 +120,7 @@ export function App() {
   const [confirmingDelete, setConfirmingDelete] = useState<{ items: Item[]; clearSelection: boolean } | null>(
     null,
   );
-  const capturePrompt = useCapturePrompt();
+  const itemCard = useItemCard();
   // Whether the rule builder is on stage for the Space on the stage —
   // reset on every navigation so leaving one Space and entering another
   // never carries the panel over. A Space entered already bootstrap (no
@@ -397,7 +397,7 @@ export function App() {
       if (event.defaultPrevented) return;
       event.preventDefault();
       const paths = [...event.dataTransfer.files].map((file) => window.index.intake.pathForFile(file));
-      void captureFromPaths(paths, capturePrompt.describe).then((created) => {
+      void captureFromPaths(paths, itemCard.prompt).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
         // A captured item gets no arrow into a query-held set like `~`,
@@ -405,7 +405,7 @@ export function App() {
         if (created.length > 0) readMembers();
       });
     },
-    [goTo, capturePrompt.describe, readMembers],
+    [goTo, itemCard.prompt, readMembers],
   );
 
   /**
@@ -589,7 +589,7 @@ export function App() {
   // any of them is up, the surface underneath stops answering to keys
   // that would otherwise reach it.
   const overlayOpen =
-    opened !== null || commanding || confirmingDelete !== null || settingsOpen || capturePrompt.pending !== null;
+    opened !== null || commanding || confirmingDelete !== null || settingsOpen || itemCard.pending !== null;
 
   /**
    * Paste's counterpart to `onDropAnywhere`, for a gesture that has never
@@ -619,14 +619,14 @@ export function App() {
       if (paths.length === 0) return;
 
       event.preventDefault();
-      void captureFromPaths(paths, capturePrompt.describe).then((created) => {
+      void captureFromPaths(paths, itemCard.prompt).then((created) => {
         const last = created[created.length - 1];
         if (last) goTo(last, true);
         // Same as `onDropAnywhere`: no arrow means no automatic reload.
         if (created.length > 0) readMembers();
       });
     },
-    [overlayOpen, goTo, capturePrompt.describe, readMembers],
+    [overlayOpen, goTo, itemCard.prompt, readMembers],
   );
 
   // The selection's keys are live only while nothing is over the stage:
@@ -865,12 +865,12 @@ export function App() {
           />
         ) : viewMode === "canvas" ? (
           <Canvas
-            describe={capturePrompt.describe}
             itemIds={memberIds}
             onDeleteRequested={askToDeleteOne}
             onGoTo={goTo}
             onMembersChanged={readMembers}
             pinnedIds={pinnedIds}
+            prompt={itemCard.prompt}
             setId={currentSetId}
           />
         ) : (
@@ -931,11 +931,11 @@ export function App() {
         />
       )}
 
-      {capturePrompt.pending && (
-        <DescribeCapture
-          onCancel={capturePrompt.cancel}
-          onSubmit={capturePrompt.submit}
-          resource={capturePrompt.pending}
+      {itemCard.pending && (
+        <ItemIntakeCard
+          mode={itemCard.pending}
+          onCancel={itemCard.cancel}
+          onSubmit={itemCard.submit}
         />
       )}
 
