@@ -47,7 +47,7 @@ export function connectionId(): string {
   return `connections:${ulid()}`;
 }
 
-function slugify(name: string, fallback: string): string {
+export function slugify(name: string, fallback: string): string {
   const slug = name
     .trim()
     .toLowerCase()
@@ -68,4 +68,17 @@ export function labelId(name: string): string {
  * editing a type's fields always lands on the same row it started as. */
 export function schemaId(name: string): string {
   return `schemas:${slugify(name, "type")}`;
+}
+
+/** `items:type_book` — a type's dedicated Space, the same deterministic
+ * way `schemaId` names the type itself: creating the type "book" always
+ * looks for (and if absent, lands on) this same row, so ensuring the
+ * Space exists is a plain idempotent upsert rather than a search. Shares
+ * `schemaId`'s slug, prefixed (with `slugify`'s own separator, not a
+ * bare `-` — SurrealDB reads an unescaped hyphen in a bare record id as
+ * the start of a new token and silently truncates there, so `type-book`
+ * and `type-video` both land on the literal id `type`) to stay out of
+ * its own `schemas:` table — a Space is an ordinary item, not a schema. */
+export function typeSpaceId(name: string): string {
+  return `items:type_${slugify(name, "type")}`;
 }

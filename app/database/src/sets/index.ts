@@ -10,3 +10,4 @@ export {
   TIMELINE_PARTITION_FIELD,
   type TimelinePartition,
 } from "./membership.js";
+export { ensureTypeSpace, findDedicatedSpace, isDedicatedToType, typeQuery } from "./type-spaces.js";

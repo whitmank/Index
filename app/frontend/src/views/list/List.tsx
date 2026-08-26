@@ -31,7 +31,7 @@ import { itemMenu } from "../../components/itemActions.ts";
 import { isEditing } from "../../hooks/useUndoRedo.ts";
 import { captionOf, deviceKindOf, deviceOf, type DeviceKind, nodeImageUrl } from "../../lib/derive.js";
 import { MEMBER_OF_LABEL_ID } from "../../lib/seeds.js";
-import { PLACE_GLYPH } from "../../lib/sets.js";
+import { PIN_GLYPH, PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection, useSelfDevice } from "../../store/index.js";
 
 type SortKey = "name" | "date_added" | "device";
@@ -39,6 +39,9 @@ type SortKey = "name" | "date_added" | "device";
 export interface ListProps {
   setId: string;
   itemIds: string[];
+  /** Which of `itemIds` are here only by a pinned arrow, not this set's
+   * own rule — empty for a set with no rule. */
+  pinnedIds?: string[];
   /** The shell's one navigation primitive. */
   onGoTo: (item: Item, isNew?: boolean) => void;
   /** A row's context-menu "Delete" — asks the shell rather than deleting
@@ -63,6 +66,8 @@ interface Row {
   order: number | null;
   /** Whether this row is a place (enterable) rather than a thing (opens). */
   place: boolean;
+  /** Here by a pinned arrow the set's own rule wouldn't have matched. */
+  pinned: boolean;
 }
 
 /** A row as actually drawn: `depth` 1 is a child, nested under the
@@ -73,7 +78,8 @@ interface VisibleRow extends Row {
   hasChildren: boolean;
 }
 
-export function List({ setId, itemIds, onGoTo, onDeleteRequested, onMembersChanged }: ListProps) {
+export function List({ setId, itemIds, pinnedIds, onGoTo, onDeleteRequested, onMembersChanged }: ListProps) {
+  const pinnedSet = useMemo(() => new Set(pinnedIds ?? []), [pinnedIds]);
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     key: "date_added",
     ascending: false,
@@ -102,10 +108,11 @@ export function List({ setId, itemIds, onGoTo, onDeleteRequested, onMembersChang
         device: uri ? deviceOf(uri) : "—",
         kind: uri ? deviceKindOf(uri, selfDevice) : null,
         place: pool.isPlace(item.id),
+        pinned: pinnedSet.has(item.id),
         type: (item.data.type?.value as string | undefined) ?? null,
       };
     },
-    [selfDevice],
+    [selfDevice, pinnedSet],
   );
 
   const { rows, childrenByParent } = usePool(() => {
@@ -392,6 +399,11 @@ export function List({ setId, itemIds, onGoTo, onDeleteRequested, onMembersChang
             <span className="col-thumb">
               <Thumb item={row.item} />
               {row.place && <span className="row-place">{PLACE_GLYPH}</span>}
+              {row.pinned && (
+                <span className="row-pinned" title="pinned here by hand — this Space's rule wouldn't match it">
+                  {PIN_GLYPH}
+                </span>
+              )}
             </span>
             <span className="col-name">
               {row.hasChildren && (

@@ -11,7 +11,9 @@ import path from "node:path";
 import {
   applyChange,
   connectionId,
+  ensureTypeSpace,
   findConnection,
+  findDedicatedSpace,
   getItem,
   getItemDetail,
   getItemIncludingDeleted,
@@ -21,6 +23,7 @@ import {
   listDataAttributes,
   listMembers,
   listSchemas,
+  listSets,
   schemaFor,
   searchItems,
   startDatabase,
@@ -502,6 +505,78 @@ async function main(): Promise<void> {
       assert.ok(ids.includes(aBook.id) && ids.includes(anAlbum.id));
     });
 
+    console.log("\nSpace: type matching ignores case, and membership marks pinned members");
+
+    const bookSpace = blankItem({
+      name: "Books",
+      // Capitalised, the way a schema name is typically typed by hand —
+      // `aBook`'s own type entry above is the classifier's lowercase
+      // "book". The rule has to find it anyway (derive.ts's sameTypeName).
+      set: { data: { attribute: "type", kind: "string", eq: "Book" } },
+    });
+    await applyChange({ description: "Seed the Books space", pairs: [{ before: null, after: bookSpace }] });
+
+    const bookMembers = await listMembers(bookSpace.id);
+    check("a capitalised rule value still matches a lowercase classified type", () => {
+      assert.ok(bookMembers.items.some((item) => item.id === aBook.id));
+    });
+
+    const videoPinnedIntoMusic = blankArrow(aVideo.id, musicSpace.id, { label: MEMBER_OF_LABEL_ID });
+    await applyChange({
+      description: "Pin the video into Music by hand, against its own rule",
+      pairs: [{ before: null, after: videoPinnedIntoMusic }],
+    });
+
+    const musicAfterPin = await listMembers(musicSpace.id);
+    check("a member admitted only by a pinned arrow is flagged; one the rule matches isn't", () => {
+      assert.ok(musicAfterPin.items.some((item) => item.id === aVideo.id), "the pinned video shows up as a member");
+      assert.ok(musicAfterPin.pinnedIds.includes(aVideo.id), "…and is flagged pinned");
+      assert.ok(!musicAfterPin.pinnedIds.includes(anAlbum.id), "a plain rule match isn't flagged pinned");
+    });
+
+    console.log("\nSpace: a condition still being written doesn't veto the ones that aren't");
+
+    // The rule builder's own default draft — no attribute chosen, no
+    // value typed — round-tripped through the exact shape it compiles
+    // to (RuleBuilder.tsx's `blankPredicate`), ANDed onto a working
+    // condition the way "+ condition" appends a new row to an existing
+    // group.
+    const stillWritingSpace = blankItem({
+      name: "Books, mid-edit",
+      set: {
+        and: [
+          { data: { attribute: "type", kind: "string", eq: "book" } },
+          { data: { attribute: undefined, kind: "string", eq: "" } },
+        ],
+      },
+    });
+    await applyChange({
+      description: "Seed a Space with one finished condition and one still-blank",
+      pairs: [{ before: null, after: stillWritingSpace }],
+    });
+
+    const stillWritingMembers = await listMembers(stillWritingSpace.id);
+    check("an unfinished AND'd condition is inert, not a silent veto", () => {
+      assert.ok(
+        stillWritingMembers.items.some((item) => item.id === aBook.id),
+        "the finished condition alone should have been enough to match",
+      );
+    });
+
+    const blankDateSpace = blankItem({
+      name: "everything, mid-edit",
+      // Mirrors a freshly-added date row before a bound is typed in —
+      // RuleBuilder.tsx starts one at `{ gte: "" }`.
+      set: { date: { lte: "" } },
+    });
+    await applyChange({ description: "Seed a Space with only a blank date bound", pairs: [{ before: null, after: blankDateSpace }] });
+
+    const blankDateMembers = await listMembers(blankDateSpace.id);
+    check("a date bound with no value typed in yet excludes nothing", () => {
+      assert.ok(blankDateMembers.items.some((item) => item.id === aBook.id));
+      assert.ok(blankDateMembers.items.some((item) => item.id === anAlbum.id));
+    });
+
     const jRockAlbum = blankItem({
       name: "Kimi no Machi",
       entries: [
@@ -664,6 +739,52 @@ async function main(): Promise<void> {
         withHidden.attributes.map((attribute) => attribute.display),
         [true, true, false],
       );
+    });
+
+    console.log("\nevery type gets its own dedicated Space");
+
+    const bookDedicated = await findDedicatedSpace("book");
+    check("creating 'book' found the hand-built Books space rather than duplicating it", () => {
+      // `bookSpace` was hand-built earlier in this run (`type is Book`,
+      // capitalised) before the "book" schema — created just above — ever
+      // existed. The schema's own dedicated-Space step has to find that
+      // one, not mint a second.
+      assert.equal(bookDedicated?.id, bookSpace.id);
+    });
+
+    const songSpace = await findDedicatedSpace("Song");
+    check("a type with no pre-existing dedicated Space gets a fresh one", () => {
+      assert.ok(songSpace, "the 'Song' schema minted its own Space");
+    });
+
+    check("...named as the plural of the type, matching how hand-built ones are named", () => {
+      assert.equal(songSpace?.data.name.value, "Songs");
+    });
+
+    const songSpaceMembers = songSpace ? await listMembers(songSpace.id) : null;
+    check("...and that Space's rule actually matches items of the type", () => {
+      assert.ok(songSpaceMembers?.items.some((item) => item.id === aSong.id));
+    });
+
+    const beforeReupsert = (await listSets()).length;
+    await upsertSchema({ name: "Song", attributes: [{ attribute: "duration", kind: "duration", display: true }] });
+    const afterReupsert = (await listSets()).length;
+    check("editing an existing type's fields again doesn't mint a second Space", () => {
+      assert.equal(afterReupsert, beforeReupsert);
+    });
+
+    // Two types minted back to back, neither with a pre-existing Space —
+    // regression coverage for typeSpaceId's own bug (a bare `-` in a
+    // record id, silently truncated by SurrealDB, once collapsed every
+    // type's deterministic id onto the same row).
+    const firstCreated = await ensureTypeSpace("comic");
+    const secondCreated = await ensureTypeSpace("zine");
+    const comicSpace = await findDedicatedSpace("comic");
+    const zineSpace = await findDedicatedSpace("zine");
+    check("two distinct types each actually get their own Space, not one shared row", () => {
+      assert.ok(firstCreated && secondCreated, "both calls report having created something");
+      assert.ok(comicSpace && zineSpace, "both Spaces exist");
+      assert.notEqual(comicSpace?.id, zineSpace?.id);
     });
 
     console.log(`\n${passed} assertions passed\n`);

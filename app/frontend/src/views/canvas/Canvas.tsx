@@ -22,7 +22,7 @@ import { ContextMenu, type MenuAnchor } from "../../components/ContextMenu.tsx";
 import { itemMenu } from "../../components/itemActions.ts";
 import { captionOf, nodeImageUrl } from "../../lib/derive.js";
 import { captureFromPaths, type DescribePrompt } from "../../lib/intake.js";
-import { PLACE_GLYPH } from "../../lib/sets.js";
+import { PIN_GLYPH, PLACE_GLYPH } from "../../lib/sets.js";
 import { pool, selection, usePool, useSelection } from "../../store/index.js";
 import {
   createSimulation,
@@ -47,6 +47,9 @@ export interface CanvasProps {
   /** The set being viewed — the arrows that carry position point at it. */
   setId: string;
   itemIds: string[];
+  /** Which of `itemIds` are here only by a pinned arrow, not this set's
+   * own rule — empty for a set with no rule. */
+  pinnedIds?: string[];
   /** The day this canvas is a page of, if it is one; new items land here. */
   date?: string;
   /** Whether this canvas is the one being looked at. The timeline mounts
@@ -75,6 +78,7 @@ const MARQUEE_THRESHOLD = 6;
 export function Canvas({
   setId,
   itemIds,
+  pinnedIds,
   date,
   active = true,
   onGoTo,
@@ -82,6 +86,7 @@ export function Canvas({
   describe,
   onMembersChanged,
 }: CanvasProps) {
+  const pinnedSet = useMemo(() => new Set(pinnedIds ?? []), [pinnedIds]);
   const container = useRef<HTMLDivElement>(null);
   const elements = useRef(new Map<string, HTMLElement>());
   const edgeElements = useRef(new Map<string, { el: SVGLineElement; source: string; target: string }>());
@@ -506,6 +511,7 @@ export function Canvas({
             else elements.current.delete(item.id);
           }}
           onBox={(width, height) => simulation.current?.setBox(item.id, width, height)}
+          pinned={pinnedSet.has(item.id)}
         />
       ))}
 
@@ -603,6 +609,7 @@ function Node({
   onPointerEnter,
   onPointerLeave,
   register,
+  pinned,
 }: {
   /** A pending edge is dragged over this node — releasing now joins it. */
   armed: boolean;
@@ -614,6 +621,8 @@ function Node({
   onPointerEnter: () => void;
   onPointerLeave: () => void;
   register: (element: HTMLElement | null) => void;
+  /** Here by a pinned arrow the set's own rule wouldn't have matched. */
+  pinned: boolean;
 }) {
   const image = usePool(() => nodeImageUrl(item));
   const caption = captionOf(item);
@@ -683,6 +692,11 @@ function Node({
       {/* Outside the shape: it clips to a circle, and the mark rides the
           edge rather than sitting under it. */}
       {place && <span className="node-place">{PLACE_GLYPH}</span>}
+      {pinned && (
+        <span className="node-pinned" title="pinned here by hand — this Space's rule wouldn't match it">
+          {PIN_GLYPH}
+        </span>
+      )}
       {caption && <span className="node-caption">{caption}</span>}
     </div>
   );

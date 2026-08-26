@@ -4,6 +4,7 @@
 // there is nothing about one to undo, only the current shape of a type.
 import { getDb } from "../db.js";
 import { schemaId } from "../ids.js";
+import { ensureTypeSpace } from "../sets/type-spaces.js";
 import type { Schema, SchemaAttribute } from "../types.js";
 import { recordId, schemaContent, serializeSchema, type SchemaRow } from "./serialize.js";
 
@@ -31,16 +32,29 @@ export interface SchemaInput {
  * (`schemaId`), the same way a label's word is its id — so editing
  * always targets the same row a type started as, and there is no rename
  * path here (PRODUCT-SPEC has no precedent for one on labels either).
+ *
+ * Minting a type this way never existed before also mints its dedicated
+ * Space (`ensureTypeSpace` — sets/type-spaces.ts): a saved "type is X"
+ * query is meant to exist the moment the type does, not only once
+ * someone thinks to build one by hand. Editing an existing type's
+ * attributes takes the same path and is deliberately exempt — the type
+ * already has whatever Space it's going to have.
  */
 export async function upsertSchema(input: SchemaInput): Promise<Schema> {
   const db = getDb();
+  const id = recordId(schemaId(input.name));
+
+  const [existing] = await db.query<[{ id: unknown }[]]>("SELECT VALUE id FROM $id", { id }).collect();
+  const isNewType = existing.length === 0;
+
   const [rows] = await db
-    .query<[SchemaRow[]]>("UPSERT $id CONTENT $content RETURN AFTER", {
-      id: recordId(schemaId(input.name)),
-      content: schemaContent(input),
-    })
+    .query<[SchemaRow[]]>("UPSERT $id CONTENT $content RETURN AFTER", { id, content: schemaContent(input) })
     .collect();
   const row = rows[0];
   if (!row) throw new Error(`could not save type "${input.name}"`);
-  return serializeSchema(row);
+  const saved = serializeSchema(row);
+
+  if (isNewType) await ensureTypeSpace(saved.name);
+
+  return saved;
 }

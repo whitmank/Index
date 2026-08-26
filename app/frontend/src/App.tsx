@@ -105,6 +105,12 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  // Which of `memberIds` are here only by a pinned arrow, not the
+  // Space's own rule — reloaded alongside `memberIds` itself, never
+  // folded into the pool's forever-marked place ids, since whether an
+  // id is pinned is relative to *this* set and can stop being true the
+  // moment the rule changes (unlike being a place, which doesn't).
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [commanding, setCommanding] = useState(false);
   const navBarRef = useRef<NavBarHandle>(null);
   // Which items are pending a delete confirmation, and whether finishing
@@ -115,10 +121,14 @@ export function App() {
     null,
   );
   const capturePrompt = useCapturePrompt();
-  // Whether the "edit rule" toolbar action is open for the Space on the
-  // stage — reset on every navigation so leaving one Space and entering
-  // another never carries the panel over. The bootstrap (no-rule-yet)
-  // state doesn't use this at all; it shows the builder unconditionally.
+  // Whether the rule builder is on stage for the Space on the stage —
+  // reset on every navigation so leaving one Space and entering another
+  // never carries the panel over. A Space entered already bootstrap (no
+  // rule yet, e.g. fresh off ⌘⇧N) starts this true, so writing its first
+  // condition — which turns `set` from the bootstrap `true` into a real
+  // query — keeps the builder up instead of the stage swapping out from
+  // under whoever is mid-edit and over to List/Canvas showing a query
+  // that was only just typed.
   const [editingRule, setEditingRule] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
@@ -160,7 +170,13 @@ export function App() {
 
   /** The set on the stage — what "remove from" means. */
   const currentSet = usePool(() => pool.getItem(currentSetId) ?? null);
-  useEffect(() => setEditingRule(false), [currentSetId]);
+  useEffect(() => {
+    setEditingRule(currentSet?.set === true);
+    // Only ever meant to run on arrival at a set, off whatever its
+    // bootstrap-ness was at that moment — not on every edit to it
+    // afterwards, which would fight the effect this is here for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSetId]);
 
   // The trail, resolved to records so the crumbs can name themselves.
   const crumbs = usePool(() =>
@@ -186,7 +202,10 @@ export function App() {
   // Canvas and list both show the whole set at once; the actions below
   // need it too, since taking members out means reading who is left.
   const readMembers = useCallback(() => {
-    void loadSet(currentSetId).then(setMemberIds);
+    void loadSet(currentSetId).then(({ ids, pinnedIds: nextPinnedIds }) => {
+      setMemberIds(ids);
+      setPinnedIds(nextPinnedIds);
+    });
     // `membership` is not read here; it is a dependency so that a change
     // to who is in the set re-runs this, whoever made that change.
   }, [currentSetId, membership]);
@@ -815,14 +834,19 @@ export function App() {
       </header>
 
       <div className="stage">
-        {currentSet && currentSet.set === true ? (
-          // The bootstrap state — a Space with no rule yet (⌘⇧N's landing
-          // spot): the builder replaces the ordinary empty state, in
-          // place of the canvas/list toggle, so there's nothing here yet
-          // to look at besides the rule waiting to be written.
-          <RuleBuilder item={currentSet} />
-        ) : currentSet && editingRule ? (
-          <RuleBuilder item={currentSet} onDone={() => setEditingRule(false)} />
+        {currentSet && editingRule ? (
+          // Bootstrap (no rule yet, ⌘⇧N's landing spot) or an explicit
+          // edit: either way the builder replaces the canvas/list toggle,
+          // and it's the one thing that can turn `set` from bootstrap
+          // into a real query — so it stays up across that transition
+          // rather than the stage swapping to List/Canvas out from under
+          // a still-mid-edit rule (`editingRule`'s own effect explains
+          // why this covers bootstrap too).
+          <RuleBuilder
+            item={currentSet}
+            onChanged={readMembers}
+            onDone={typeof currentSet.set === "object" ? () => setEditingRule(false) : undefined}
+          />
         ) : viewMode === "canvas" ? (
           <Canvas
             describe={capturePrompt.describe}
@@ -830,6 +854,7 @@ export function App() {
             onDeleteRequested={askToDeleteOne}
             onGoTo={goTo}
             onMembersChanged={readMembers}
+            pinnedIds={pinnedIds}
             setId={currentSetId}
           />
         ) : (
@@ -838,6 +863,7 @@ export function App() {
             onDeleteRequested={askToDeleteOne}
             onGoTo={goTo}
             onMembersChanged={readMembers}
+            pinnedIds={pinnedIds}
             setId={currentSetId}
           />
         )}

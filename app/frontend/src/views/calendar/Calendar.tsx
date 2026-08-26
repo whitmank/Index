@@ -64,7 +64,7 @@ export function Calendar({ setId, onGoTo, describe }: CalendarProps) {
   /** Load one day's page into the pool and remember its member order. */
   const loadPage = useCallback(
     async (date: string) => {
-      const ids = await loadSet(setId, { partition: { date } });
+      const { ids } = await loadSet(setId, { partition: { date } });
       setPages((current) => ({ ...current, [date]: ids }));
     },
     [setId],

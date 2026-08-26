@@ -143,6 +143,27 @@
   z-index: 1;
 }
 
+/* Same mark, mirrored corner from `.node-place`: a member here by a
+   pinned arrow, not this Space's own rule. */
+.node-pinned {
+  position: absolute;
+  top: calc(var(--radius) * 0.68);
+  right: calc(var(--radius) * 0.68);
+  transform: translate(50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-quiet);
+  font-size: var(--text-xs);
+  line-height: var(--leading-none);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .node-caption {
   position: absolute;
   top: calc(var(--radius) + 0.5rem);

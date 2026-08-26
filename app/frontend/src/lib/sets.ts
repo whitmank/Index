@@ -8,6 +8,12 @@ import { HOME_SET_ID, PUBLIC_SET_ID, SPACES_SET_ID } from "./seeds.js";
  * mark, not one per kind. */
 export const PLACE_GLYPH = "◍";
 
+/** The mark a pinned member wears — one a Space's own rule wouldn't have
+ * matched, here only because a live arrow was tagged in by hand. A plain
+ * dingbat, not an emoji, so it inherits `color` the way PLACE_GLYPH does
+ * rather than carrying its own fixed colors. */
+export const PIN_GLYPH = "⌖";
+
 /**
  * Whether a set holds everything by description rather than by anyone
  * putting things in it. Nothing can be taken out of such a set: the

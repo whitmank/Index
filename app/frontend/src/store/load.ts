@@ -6,13 +6,21 @@ import type { Item, MembersOptions, StoredRecord } from "@index/database/types";
 import * as errors from "./errors.js";
 import * as pool from "./pool.js";
 
-/** One set, or one page of it. Returns the member ids in order, which is
- * what a view actually renders — the records themselves live in the pool. */
-export async function loadSet(setId: string, options?: MembersOptions): Promise<string[]> {
+/** One set, or one page of it. Returns the member ids in order — what a
+ * view actually renders, the records themselves live in the pool — plus
+ * which of those ids are only there by a pinned arrow, not the set's own
+ * rule (empty for a rule-less set). Unlike `places`, this isn't folded
+ * into the pool's forever-marked set: whether an id is pinned is relative
+ * to *this* set and can go either way as the rule changes, so it rides
+ * along with `ids` instead, fresh on every load. */
+export async function loadSet(
+  setId: string,
+  options?: MembersOptions,
+): Promise<{ ids: string[]; pinnedIds: string[] }> {
   const answer = await window.index.sets.members(setId, options);
   if ("err" in answer) {
     errors.surface(answer.err);
-    return [];
+    return { ids: [], pinnedIds: [] };
   }
 
   const records: StoredRecord[] = [
@@ -22,7 +30,7 @@ export async function loadSet(setId: string, options?: MembersOptions): Promise<
   ];
   pool.merge(records);
   pool.markPlaces(answer.ok.places);
-  return answer.ok.items.map((item) => item.id);
+  return { ids: answer.ok.items.map((item) => item.id), pinnedIds: answer.ok.pinnedIds };
 }
 
 /** One item and its connections, with the far-end items merged in so the

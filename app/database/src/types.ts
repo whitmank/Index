@@ -265,6 +265,16 @@ export interface Members {
    * wherever it is drawn.
    */
   places: string[];
+  /**
+   * Which of these members are here only by a live arrow, not by the
+   * set's own rule — empty when the set has no rule at all, since a
+   * plain manual folder has nothing for "not by the rule" to mean. The
+   * union of rule and arrows still decides membership either way
+   * (DESIGN-CONCEPT §3); this is only which half of the union each
+   * member owes itself to, so the shell can mark the ones the rule
+   * wouldn't have picked on its own.
+   */
+  pinnedIds: string[];
 }
 
 export interface ItemDetail {

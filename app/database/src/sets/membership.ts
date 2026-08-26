@@ -110,7 +110,7 @@ async function listByQuery(
  */
 export async function listMembers(setId: string, options: MembersOptions = {}): Promise<Members> {
   const set = await getItem(setId);
-  if (!set) return { items: [], arrows: [], connections: [], places: [] };
+  if (!set) return { items: [], arrows: [], connections: [], places: [], pinnedIds: [] };
 
   const partition = options.partition?.date;
   const partitionBy = timelinePartitionOf(set);
@@ -128,6 +128,10 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   }
 
   const query = queryOf(set);
+  // Tracked so a member admitted by both an arrow and the rule doesn't
+  // read as merely pinned — only members the rule wouldn't have picked
+  // on its own owe their place here to the arrow.
+  const queryMatchedIds = new Set<string>();
   if (query) {
     for (const item of await listByQuery(
       query,
@@ -135,6 +139,7 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
       itemDateField,
     )) {
       byId.set(item.id, item);
+      queryMatchedIds.add(item.id);
     }
   }
 
@@ -160,7 +165,14 @@ export async function listMembers(setId: string, options: MembersOptions = {}): 
   items.sort((a, b) => a.date_added.localeCompare(b.date_added));
   const ids = items.map((item) => item.id);
   const [places, connections] = await Promise.all([listPlacesAmong(ids), listConnectionsAmong(ids)]);
-  return { items, arrows, connections, places };
+
+  // Only meaningful once there is a rule to fall short of — a rule-less
+  // set is a plain manual folder, where every member is "pinned" and
+  // flagging all of them would say nothing.
+  const arrowSourceIds = new Set(arrows.map((arrow) => arrow.source));
+  const pinnedIds = query ? ids.filter((id) => arrowSourceIds.has(id) && !queryMatchedIds.has(id)) : [];
+
+  return { items, arrows, connections, places, pinnedIds };
 }
 
 /** The dates on which a set has members — the calendar popover's marks.

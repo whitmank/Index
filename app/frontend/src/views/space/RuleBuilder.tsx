@@ -175,9 +175,15 @@ export interface RuleBuilderProps {
    * already has a real query, so it can be dismissed; absent for the
    * bootstrap empty-state rendering, which has nothing to dismiss to. */
   onDone?: () => void;
+  /** Fired after every settled edit commits — the shell's cue to read
+   * the set's members again, the same way it does after an arrow
+   * changes. Without this, the query changes but whatever's already on
+   * screen (List/Canvas, once the shell stops showing this builder)
+   * keeps showing the membership from before the edit. */
+  onChanged?: () => void;
 }
 
-export function RuleBuilder({ item, onDone }: RuleBuilderProps) {
+export function RuleBuilder({ item, onDone, onChanged }: RuleBuilderProps) {
   const [attributes, setAttributes] = useState<string[]>([]);
   const [schemas, setSchemas] = useState<Schema[]>([]);
   useEffect(() => {
@@ -190,7 +196,9 @@ export function RuleBuilder({ item, onDone }: RuleBuilderProps) {
   const root = queryToGroup(typeof item.set === "object" ? item.set : { all: true });
 
   const commit = (next: GroupRow): void => {
-    void apply(changes.setQuery(item, groupToQuery(next)));
+    void apply(changes.setQuery(item, groupToQuery(next))).then((ok) => {
+      if (ok) onChanged?.();
+    });
   };
 
   return (

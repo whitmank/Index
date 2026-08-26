@@ -13,7 +13,7 @@
 // answered from the item and the MatchContext alone (built ahead of time
 // by context.ts). That's what lets sets/ and search/ share this one
 // evaluator instead of each growing their own matching logic.
-import { devicePrefix, formatOf } from "../derive.js";
+import { devicePrefix, formatOf, sameTypeName } from "../derive.js";
 import type { AttributeKind, DataEntry, DataPredicate, Item, Predicate, SetQuery } from "../types.js";
 
 export interface MatchContext {
@@ -38,19 +38,44 @@ function matchesPredicate(predicate: Predicate, item: Item, ctx: MatchContext): 
     // the intrinsic date_created is a `data` predicate instead (below).
     const day = item.date_added.slice(0, 10);
     const { gte, lte } = predicate.date;
-    return (gte === undefined || day >= gte) && (lte === undefined || day <= lte);
+    // An empty bound is a bound the rule builder hasn't been given a
+    // value for yet (RuleBuilder.tsx starts a fresh date row this way),
+    // not a real "on or after the beginning of time" — so it's read the
+    // same as the bound being absent, rather than compared literally
+    // (which would happen to work for `gte` and always fail for `lte`,
+    // by the accident of where "" sorts lexically).
+    return (isUnset(gte) || day >= gte) && (isUnset(lte) || day <= lte);
   }
 
   if ("device" in predicate) {
+    if (isUnset(predicate.device)) return true;
     const prefix = devicePrefix(predicate.device);
     return item.resources.some((resource) => resource.uri.startsWith(prefix));
   }
 
   if ("format" in predicate) return formatOf(item) === predicate.format;
 
-  if ("arrowTo" in predicate) return ctx.arrowSources.get(predicate.arrowTo)?.has(item.id) ?? false;
+  if ("arrowTo" in predicate) {
+    if (isUnset(predicate.arrowTo)) return true;
+    return ctx.arrowSources.get(predicate.arrowTo)?.has(item.id) ?? false;
+  }
 
   return matchesData(predicate.data, item);
+}
+
+/** Whether a predicate's value is one the rule builder hasn't actually
+ * been given yet — a row added but not finished, still showing its
+ * placeholder (RuleBuilder.tsx's own doc comment: stored as a real
+ * predicate rather than shadow draft state, so it survives a reload).
+ * Treating it as unset rather than as the literal value "" is what keeps
+ * a still-blank row from silently deciding an `and`/`or` it sits in —
+ * without this, one unfinished condition could zero out every other
+ * condition it's ANDed with, or something the searcher never asked for
+ * (an id, a device) could accidentally happen to compare true. No stored
+ * value is ever legitimately the empty string — clearing a field removes
+ * its entry (`withoutEntry`) rather than blanking it. */
+function isUnset(value: string | undefined): value is undefined | "" {
+  return value === undefined || value === "";
 }
 
 function matchesData(predicate: DataPredicate, item: Item): boolean {
@@ -82,12 +107,30 @@ function matchesEntry(predicate: DataPredicate, entry: DataEntry): boolean {
 /** Every operator actually present on the predicate has to hold — `eq`,
  * `contains`, `gte`, `lte` AND together when more than one is given. */
 function valueSatisfies(predicate: DataPredicate, kind: AttributeKind, value: string): boolean {
-  if (predicate.eq !== undefined && !compareBy(kind, value, predicate.eq, (a, b) => a === b)) return false;
-  if (predicate.contains !== undefined && !value.toLowerCase().includes(predicate.contains.toLowerCase())) {
+  // `type` is an ordinary `data` predicate (no dedicated Predicate shape
+  // — see RuleBuilder.tsx), but its value names a schema, whose identity
+  // is case-insensitive (derive.ts's `sameTypeName`): a schema created as
+  // `Song` and a classifier-written `song` are the same type, so `eq`
+  // has to compare them the same way every other type lookup does.
+  const isTypeAttribute = predicate.attribute?.toLowerCase() === "type";
+  // Each operator is skipped, not evaluated, once its own bound is
+  // unset (see `isUnset`) — a condition still being written (no value
+  // typed into it yet) has to hold no one's else back rather than
+  // silently comparing against a literal "", which for `eq`/`lte` is
+  // near-impossible to satisfy and for `contains`/a numeric `gte` is
+  // trivially satisfied by almost everything — neither is "not filled
+  // in yet," both are surprises.
+  if (!isUnset(predicate.eq)) {
+    const matchesEq = isTypeAttribute
+      ? sameTypeName(value, predicate.eq)
+      : compareBy(kind, value, predicate.eq, (a, b) => a === b);
+    if (!matchesEq) return false;
+  }
+  if (!isUnset(predicate.contains) && !value.toLowerCase().includes(predicate.contains.toLowerCase())) {
     return false;
   }
-  if (predicate.gte !== undefined && !compareBy(kind, value, predicate.gte, (a, b) => a >= b)) return false;
-  if (predicate.lte !== undefined && !compareBy(kind, value, predicate.lte, (a, b) => a <= b)) return false;
+  if (!isUnset(predicate.gte) && !compareBy(kind, value, predicate.gte, (a, b) => a >= b)) return false;
+  if (!isUnset(predicate.lte) && !compareBy(kind, value, predicate.lte, (a, b) => a <= b)) return false;
   return true;
 }
 
