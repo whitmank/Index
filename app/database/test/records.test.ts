@@ -787,6 +787,12 @@ async function main(): Promise<void> {
       assert.notEqual(comicSpace?.id, zineSpace?.id);
     });
 
+    await ensureTypeSpace("quiz");
+    const quizSpace = await findDedicatedSpace("quiz");
+    check("an irregular plural (quiz -> quizzes) is the pluralize package's job now, not a regex", () => {
+      assert.equal(quizSpace?.data.name.value, "Quizzes");
+    });
+
     console.log(`\n${passed} assertions passed\n`);
   } finally {
     await handle.stop();

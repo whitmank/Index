@@ -5,6 +5,7 @@
 // query without anyone having to build one by hand. Called from
 // records/schemas.ts the moment a *new* schema is minted — editing an
 // existing one's fields never touches this.
+import pluralizeWord from "pluralize";
 import { getDb } from "../db.js";
 import { sameTypeName } from "../derive.js";
 import { typeSpaceId } from "../ids.js";
@@ -12,17 +13,16 @@ import { listLiveItems } from "../records/items.js";
 import { recordId } from "../records/serialize.js";
 import type { Item, SetQuery } from "../types.js";
 
-/** A crude, good-enough English pluralization for a freshly minted
- * type Space's display name ("book" -> "Books", matching how Karter
- * names his own hand-built ones) — not linguistically complete, an
- * irregular plural ("child" -> "children") isn't covered, but every
- * type this app deals with is an ordinary noun, and a wrong guess is
- * one rename away from being fixed by hand. */
+/** A freshly minted type Space's display name ("book" -> "Books",
+ * matching how Karter names his own hand-built ones): a capitalized
+ * plural of the type. Irregulars (`child` -> `children`, `quiz` ->
+ * `quizzes`) are the `pluralize` package's job, not a hand-rolled
+ * regex's — English pluralization is a dictionary of exceptions on top
+ * of a few regular rules, not a derivation, and `pluralize` already
+ * carries that dictionary. */
 function pluralize(name: string): string {
   const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
-  if (/[sxz]$/i.test(capitalized) || /[cs]h$/i.test(capitalized)) return `${capitalized}es`;
-  if (/[^aeiou]y$/i.test(capitalized)) return `${capitalized.slice(0, -1)}ies`;
-  return `${capitalized}s`;
+  return pluralizeWord.plural(capitalized);
 }
 
 /** The rule a type's dedicated Space carries. Deliberately a bare
