@@ -324,6 +324,22 @@ export function setAttribute(item: Item, attribute: string, value: DataEntry["va
   );
 }
 
+/** Drop the same freeform tag onto many items at once, as a single
+ * change — the command bar's `tag` verb, batching what the Focus tag
+ * composer (`DataFields`) does one item at a time. Not `tagMany`: that
+ * one draws a connection into a set, this one just appends a value-only
+ * entry to `data`, so each item gets its own fresh generated key rather
+ * than sharing any name to collide on. */
+export function addTagMany(items: Item[], text: string): Change {
+  return {
+    description: `Tag ${countOf(items.length, "item")} '${text}'`,
+    pairs: items.map((item) => ({
+      before: item,
+      after: { ...item, data: { ...item.data, [ulid()]: { attribute: null, value: text, kind: "string", prov: "user" } } },
+    })),
+  };
+}
+
 export function addResource(item: Item, resource: Resource): Change {
   return swap(
     item,

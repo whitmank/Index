@@ -14,14 +14,16 @@ import type { Item } from "@index/database/types";
 import { captionOf } from "../lib/derive.js";
 
 /** What a command is given when it needs something named. */
-export type CommandTarget = { set: Item } | { newSetNamed: string };
+export type CommandTarget = { set: Item } | { newSetNamed: string } | { text: string };
 
 export interface CommandArgument {
   /** What the field asks for once the verb has been taken. */
   prompt: string;
-  /** Where the completions come from. Sets are the only kind so far. */
-  kind: "set";
-  /** Offer to make one by the typed name when nothing matches it. */
+  /** Where the completions come from: a set to find (or make), or bare
+   * text with nothing to look up — whatever's typed is the argument. */
+  kind: "set" | "text";
+  /** Offer to make one by the typed name when nothing matches it. Only
+   * meaningful for a `"set"` argument. */
   allowCreate?: boolean;
 }
 
@@ -31,6 +33,9 @@ export interface Command {
   title: string;
   /** Other words that should find it. */
   keywords: string[];
+  /** One line on what it does — never shown in the bar itself, only in
+   * the Settings tab that lists every verb by name. */
+  description: string;
   /** Present when it cannot run right now, and says why. */
   unavailable?: string;
   argument?: CommandArgument;
@@ -41,6 +46,8 @@ export interface CommandHandlers {
   addPickedTo: (target: Item, targetIsNew?: boolean) => void;
   addPickedToNew: (name: string) => void;
   parsePicked: () => void;
+  tagPicked: (text: string) => void;
+  openHelp: () => void;
 }
 
 export interface CommandContext {
@@ -58,7 +65,8 @@ export function commandsFor({ picked, handlers }: CommandContext): Command[] {
     {
       id: "add-to",
       title: "add to…",
-      keywords: ["set", "space", "put", "into", "member", "tag", "file"],
+      keywords: ["set", "space", "put", "into", "member", "file"],
+      description: "Add what's picked out into a Space, an existing one or a new one by name.",
       unavailable: nothingPicked,
       argument: {
         prompt: `add ${describe(picked)} to…`,
@@ -68,20 +76,65 @@ export function commandsFor({ picked, handlers }: CommandContext): Command[] {
       run: (target) => {
         if (!target) return;
         if ("set" in target) handlers.addPickedTo(target.set);
-        else handlers.addPickedToNew(target.newSetNamed);
+        else if ("newSetNamed" in target) handlers.addPickedToNew(target.newSetNamed);
+      },
+    },
+    {
+      id: "tag",
+      title: "tag",
+      keywords: ["label", "mark", "keyword", "freeform"],
+      description: "Drop a freeform tag onto what's picked out.",
+      unavailable: nothingPicked,
+      argument: {
+        prompt: `tag ${describe(picked)}…`,
+        kind: "text",
+      },
+      run: (target) => {
+        if (!target || !("text" in target)) return;
+        handlers.tagPicked(target.text);
       },
     },
     {
       id: "parse",
       title: "parse",
       keywords: ["read", "extract", "fill", "metadata", "fields", "scan", "index"],
+      description: "Fill in a typed item's fields by reading what it points to.",
       // A type is the question parsing answers against, so having none
       // is not a failure to report afterwards — it is a reason the verb
       // cannot be said yet, and the bar is where that belongs.
       unavailable: nothingPicked ?? nothingTyped(picked),
       run: () => handlers.parsePicked(),
     },
+    {
+      id: "help",
+      title: "help",
+      keywords: ["commands", "?", "shortcuts", "what"],
+      description: "List every command the bar knows, in Settings.",
+      // Names nothing and needs nothing picked out — the one verb that
+      // is always sayable.
+      run: () => handlers.openHelp(),
+    },
   ];
+}
+
+/** Every command's title and description, regardless of what happens to
+ * be picked out right now — what the Settings "Commands" tab lists.
+ * Built from the same array `commandsFor` returns rather than a second
+ * copy of it, so the reference can never drift from what the bar
+ * actually offers; the handlers are never called; only shown, never run. */
+export function describeCommands(): { title: string; description: string }[] {
+  const noop = (): void => undefined;
+  return commandsFor({
+    currentSet: null,
+    handlers: {
+      addPickedTo: noop,
+      addPickedToNew: noop,
+      parsePicked: noop,
+      tagPicked: noop,
+      openHelp: noop,
+    },
+    picked: [],
+  }).map((command) => ({ title: command.title, description: command.description }));
 }
 
 /** Why parsing can't run over this selection, when it can't. */

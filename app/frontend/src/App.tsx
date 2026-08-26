@@ -146,6 +146,10 @@ export function App() {
     setSettingsSelectedType(typeName);
     setSettingsOpen(true);
   };
+  const openHelpSettings = useCallback(() => {
+    setSettingsTab("commands");
+    setSettingsOpen(true);
+  }, []);
   const troubles = useTroubles();
 
   // The space actually on the stage — the nearest trailing entry that's a
@@ -461,6 +465,16 @@ export function App() {
     [addPickedTo],
   );
 
+  /** Drop the same freeform tag onto everything picked, as one change —
+   * the command bar's `tag` verb. Same "batch is done" release as
+   * `addPickedTo`. */
+  const tagPicked = useCallback(
+    async (text: string) => {
+      if (await apply(changes.addTagMany(pickedItems(), text))) selection.clear();
+    },
+    [pickedItems],
+  );
+
   /** How many things the verbs would act on, so the bar can say so. */
   const pickedCount = useSelection(() => selection.count());
 
@@ -476,12 +490,14 @@ export function App() {
           addPickedTo: (target, targetIsNew) => void addPickedTo(target, targetIsNew),
           addPickedToNew,
           parsePicked: () => void parseItems(pickedItems()),
+          tagPicked: (text) => void tagPicked(text),
+          openHelp: openHelpSettings,
         },
         picked: pickedItems(),
       }),
     // `pickedCount` stands in for the selection itself: the commands
     // describe what they would act on, so they are rebuilt when it moves.
-    [addPickedTo, addPickedToNew, currentSet, pickedCount, pickedItems],
+    [addPickedTo, addPickedToNew, currentSet, openHelpSettings, pickedCount, pickedItems, tagPicked],
   );
 
   /**

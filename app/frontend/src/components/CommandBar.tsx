@@ -31,11 +31,13 @@ export interface CommandBarProps {
   onClose: () => void;
 }
 
-/** One offer in the list. A verb, a destination, or a set you could make. */
+/** One offer in the list. A verb, a destination, a set you could make,
+ * or — for a verb whose argument is bare text — the text itself. */
 type Row =
   | { kind: "command"; command: Command }
   | { kind: "item"; item: Item; place: boolean }
-  | { kind: "create"; name: string };
+  | { kind: "create"; name: string }
+  | { kind: "text"; value: string };
 
 export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) {
   const [term, setTerm] = useState("");
@@ -71,6 +73,12 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
 
     // Saying a verb's argument: only what can answer it is offered.
     if (staged) {
+      // Bare text has nothing to look up — whatever's typed so far is
+      // the whole offer, one row, taken the same way any other is.
+      if (staged.argument?.kind === "text") {
+        return trimmed ? [{ kind: "text", value: trimmed }] : [];
+      }
+
       const found = (trimmed ? hitIds : setIds).flatMap<{ item: Item; place: boolean }>((id) => {
         const item = pool.getItem(id);
         return item ? [{ item, place: pool.isPlace(item.id) }] : [];
@@ -142,6 +150,12 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
         return;
       }
 
+      if (row.kind === "text") {
+        staged?.run({ text: row.value });
+        onClose();
+        return;
+      }
+
       // The only remaining kind is "item", and it is only ever offered
       // while a verb's argument is being said.
       staged?.run({ set: row.item });
@@ -184,6 +198,7 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
 
   const hint = useMemo(() => {
     if (!staged) return "commands";
+    if (staged.argument?.kind === "text") return "text";
     return term.trim() ? "search" : "Spaces";
   }, [staged, term]);
 
@@ -233,7 +248,13 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
           </ul>
         ) : (
           <p className="command-empty">
-            {term.trim() ? "nothing by that name" : staged ? "no Spaces yet" : "no commands"}
+            {staged?.argument?.kind === "text"
+              ? "type a tag…"
+              : term.trim()
+                ? "nothing by that name"
+                : staged
+                  ? "no Spaces yet"
+                  : "no commands"}
           </p>
         )}
 
@@ -249,13 +270,14 @@ export function CommandBar({ commands, pickedCount, onClose }: CommandBarProps) 
 function keyOf(row: Row): string {
   if (row.kind === "command") return `command:${row.command.id}`;
   if (row.kind === "create") return "create";
+  if (row.kind === "text") return "text";
   return row.item.id;
 }
 
 function rowClass(row: Row, current: boolean): string {
   const parts = ["command-row"];
   if (row.kind === "command") parts.push("is-verb");
-  if (row.kind === "create") parts.push("is-new");
+  if (row.kind === "create" || row.kind === "text") parts.push("is-new");
   if (current) parts.push("is-at");
   return parts.join(" ");
 }
@@ -265,18 +287,20 @@ function rowClass(row: Row, current: boolean): string {
  * read a word of it. */
 function markOf(row: Row): string {
   if (row.kind === "command") return "›";
-  if (row.kind === "create") return "＋";
+  if (row.kind === "create" || row.kind === "text") return "＋";
   return row.place ? PLACE_GLYPH : FORMAT_GLYPH[formatOf(row.item)];
 }
 
 function nameOf(row: Row): string {
   if (row.kind === "command") return row.command.title;
   if (row.kind === "create") return `make a Space “${row.name}”`;
+  if (row.kind === "text") return `“${row.value}”`;
   return captionOf(row.item) || "untitled";
 }
 
 function kindOf(row: Row): string {
   if (row.kind === "command") return row.command.unavailable ? "unavailable" : "command";
   if (row.kind === "create") return "new";
+  if (row.kind === "text") return "tag";
   return row.place ? "place" : formatOf(row.item);
 }

@@ -7,6 +7,7 @@
 // here: `~` already is the set of everything, so the alpha's "go to
 // root" and "go to home" collapse into the one ⌘/ binding below).
 import { useEffect } from "react";
+import { describeCommands } from "../../commands/index.js";
 import { SchemaEditor } from "../schemas/SchemaManager.tsx";
 import { ExcludedFolders } from "./ExcludedFolders.tsx";
 import { Models } from "./Models.tsx";
@@ -20,6 +21,7 @@ export const SETTINGS_TABS = [
   { id: "integrations", label: "Integrations" },
   { id: "models", label: "Models" },
   { id: "keybindings", label: "Keybindings" },
+  { id: "commands", label: "Commands" },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
@@ -169,6 +171,7 @@ export function Settings({ tab, onTabChange, onClose, selectedType }: SettingsPr
           {tab === "integrations" && <SpotifyCredentials />}
           {tab === "models" && <Models />}
           {tab === "keybindings" && <Keybindings />}
+          {tab === "commands" && <Commands />}
         </div>
       </div>
     </div>
@@ -229,6 +232,20 @@ function Keybindings() {
         </section>
       ))}
     </>
+  );
+}
+
+function Commands() {
+  return (
+    <section className="settings-section">
+      <h3 className="settings-section-title">Command bar</h3>
+      {describeCommands().map((command) => (
+        <div className="settings-row" key={command.title}>
+          <span className="settings-row-label">{command.title}</span>
+          <span className="settings-row-value">{command.description}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
