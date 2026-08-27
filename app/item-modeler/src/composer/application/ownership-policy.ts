@@ -12,6 +12,19 @@
 // `prov` does not capture, like a field the current run just modeled but
 // has not written yet — but the fallback below no longer has to guess
 // conservatively. It reads `prov` directly.
+//
+// `name` carries none of this — it used to (a `mayRename` lived here),
+// and every version of that policy broke on a real item: comparing
+// against a derived filename got stuck once an auto value stopped
+// matching its own re-derivation, and even reading `prov` directly still
+// left a *blank* user-provenance name permanently unfillable, since
+// clearing a name and typing one both write `prov: "user"`. The name a
+// person actually chooses now lives in `display_name`, which already has
+// clean presence/absence ownership (absent, or `RESERVED_DATA_KEYS`'s
+// own removal semantics) and is never written by this module. `name`
+// itself is left to `apply-modeling-result.ts` as the modeler's own,
+// unconditionally — there is nothing left of the user's for a policy
+// here to protect.
 import type { Item } from "@index/database/types";
 import { isBlank } from "../normalization/normalize-value.js";
 
@@ -61,21 +74,4 @@ export function ownershipOf(field: string, context: OwnershipContext): Ownership
 
 export function currentValue(item: Item, field: string): string | string[] | undefined {
   return valueOf(item, field);
-}
-
-/**
- * May the item's name be replaced?
- *
- * Only while it is still the one the item was minted with — its primary
- * resource's own filename. At that point nothing of the user's is at
- * stake, because nobody has chosen it. Once somebody has renamed the
- * item, the name is theirs and a book's internal title does not get to
- * argue with it.
- *
- * Without `derivedName` the caller has not said what the item was minted
- * with, and the safe reading of that is that the name is the user's.
- */
-export function mayRename(item: Item, derivedName: string | null): boolean {
-  if (derivedName === null) return false;
-  return (item.data.name.value as string).trim() === derivedName.trim();
 }

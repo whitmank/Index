@@ -65,10 +65,7 @@ async function survey(filepath: string): Promise<SourceReport> {
   const item = itemFor(filepath, { type: BOOK.name });
   const started = Date.now();
 
-  const outcome = await modelItem(item, BOOK, {
-    derivedName: item.data.name.value as string,
-    debugDiagnostics: true,
-  });
+  const outcome = await modelItem(item, BOOK, { debugDiagnostics: true });
 
   const base = {
     filename: path.basename(filepath),

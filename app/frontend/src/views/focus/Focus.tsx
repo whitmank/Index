@@ -25,7 +25,7 @@ import type { Item } from "@index/database/types";
 import { apply, changes } from "../../changes/index.js";
 import { CoverArt } from "../../components/CoverArt.tsx";
 import { SettleInput } from "../../components/SettleInput.tsx";
-import { sameTypeName } from "../../lib/derive.js";
+import { captionOf, sameTypeName } from "../../lib/derive.js";
 import { formatDurationRounded } from "../../lib/duration.js";
 import { attachResource } from "../../lib/resources.js";
 import { expandSpotifyAlbum } from "../../lib/spotify.js";
@@ -210,16 +210,16 @@ export function Focus({ itemId, isNew, onDismiss, onGoTo, onOpenTypeSettings }: 
         <SettleInput
           ariaLabel="name"
           autoFocus={isNew}
-          onCommit={(name) => void apply(changes.rename(item, name))}
+          onCommit={(name) => void apply(changes.setDisplayName(item, name))}
           placeholder="unnamed"
-          value={item.data.name.value as string}
+          value={captionOf(item)}
         />
       </label>
       <ChildrenList
         rows={children.map(({ connection, item: child }, index) => ({
           id: connection.id,
           index: index + 1,
-          primary: (child.data.name.value as string) || "untitled",
+          primary: captionOf(child) || "untitled",
           trailing: durationOf(child),
           // A song specifically (isSong, above) doesn't navigate —
           // clicking one is headed toward playback later, not toward

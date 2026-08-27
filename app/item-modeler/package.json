@@ -12,7 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/modeling.test.ts && tsx test/collector.test.ts && tsx test/composer.test.ts && tsx test/ai-classifier.test.ts && tsx test/trad-classifier.test.ts && tsx test/pdf-reader.test.ts && tsx test/classify-resource.test.ts",
+    "test": "tsx test/modeling.test.ts && tsx test/collector.test.ts && tsx test/youtube-collector.test.ts && tsx test/composer.test.ts && tsx test/ai-classifier.test.ts && tsx test/trad-classifier.test.ts && tsx test/pdf-reader.test.ts && tsx test/classify-resource.test.ts",
     "eval": "tsx test/evaluation/run.ts",
     "survey": "tsx test/survey.ts"
   },

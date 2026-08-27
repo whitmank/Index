@@ -4,10 +4,11 @@
 //
 // Every rule here is a decision about whose work is at stake, which is
 // exactly the kind that reads as arbitrary from the code alone: a field
-// you filled in is never overwritten, a name you chose is never
-// replaced, and a name the item merely inherited from its file is fair
-// game. Parsing an item also settles its type, because asking for a
-// book's fields is saying it is a book.
+// you filled in is never overwritten, `name` is always fair game (it's
+// the modeler's own field — what you actually chose to call the item
+// lives in `display_name`, which this verb never touches at all). Parsing
+// an item also settles its type, because asking for a book's fields is
+// saying it is a book.
 import assert from "node:assert/strict";
 import type { Change, Data, DataEntry, Item, Provenance, Resource } from "@index/database/types";
 
@@ -87,7 +88,7 @@ console.log("\nwhat parsing may write");
 
 await check("fills a field the item does not have", () => {
   const after = outcome(
-    changes.parseItem(item(), { entries: [text("author", "R. John Williams")] }, FILENAME),
+    changes.parseItem(item(), { entries: [text("author", "R. John Williams")] }),
   );
   assert.equal(valueOf(after.data, "author"), "R. John Williams");
 });
@@ -96,9 +97,7 @@ await check("fills the blank row a type's layout already drew", () => {
   // The schema's fields are drawn whether or not they carry anything, so
   // a found value has to land *in* the empty row rather than beside it.
   const blank = item({ entries: [text("author", ""), text("publisher", "")] });
-  const after = outcome(
-    changes.parseItem(blank, { entries: [text("author", "R. John Williams")] }, FILENAME),
-  );
+  const after = outcome(changes.parseItem(blank, { entries: [text("author", "R. John Williams")] }));
 
   assert.equal(Object.keys(after.data).length, 4); // name, type, author, publisher
   assert.equal(valueOf(after.data, "author"), "R. John Williams");
@@ -111,11 +110,7 @@ await check("never overwrites a value that is already there", () => {
     type: { value: "book", prov: "user" },
     entries: [text("author", "Williams, R. J.")],
   });
-  const change = changes.parseItem(
-    mine,
-    { entries: [text("author", "R. John Williams")] },
-    FILENAME,
-  );
+  const change = changes.parseItem(mine, { entries: [text("author", "R. John Williams")] });
 
   // Undo makes an overwrite recoverable, not acceptable: parsing an
   // item you curated is meant to finish it, not argue with it.
@@ -127,48 +122,43 @@ await check("matches an existing row whatever case it was typed in", () => {
     type: { value: "book", prov: "user" },
     entries: [text("Author", "Williams, R. J.")],
   });
-  assert.equal(
-    changes.parseItem(mine, { entries: [text("author", "R. John Williams")] }, FILENAME),
-    null,
-  );
+  assert.equal(changes.parseItem(mine, { entries: [text("author", "R. John Williams")] }), null);
 });
 
-console.log("\nthe name is only taken when it was never yours");
+console.log("\nnaming: `name` always updates; a chosen display_name never does");
 
-await check("replaces a name the item merely inherited from its file", () => {
-  const after = outcome(
-    changes.parseItem(item(), { name: "The Buddha in the Machine", entries: [] }, FILENAME),
-  );
+await check("takes the name parsing found, whatever the item's `name` currently says", () => {
+  // Not conditional on anything, unlike every other field: `name` is the
+  // modeler's own, so there is no "whose work is at stake" question to
+  // ask about it at all — only `display_name` (below) answers that one.
+  const renamed = item({ name: "Buddha (Williams)", type: { value: "book", prov: "user" } });
+  const after = outcome(changes.parseItem(renamed, { name: "The Buddha in the Machine", entries: [] }));
   assert.equal(after.data.name.value, "The Buddha in the Machine");
 });
 
-await check("leaves a name you chose alone", () => {
-  const renamed = item({ name: "Buddha (Williams)", type: { value: "book", prov: "user" } });
-  const change = changes.parseItem(
-    renamed,
-    { name: "The Buddha in the Machine", entries: [] },
-    FILENAME,
-  );
+await check("leaves a chosen display_name alone even as the underlying name updates", () => {
+  const named = item({
+    type: { value: "book", prov: "user" },
+    entries: [text("display_name", "Buddha (Williams)")],
+  });
+  const after = outcome(changes.parseItem(named, { name: "The Buddha in the Machine", entries: [] }));
 
-  // Nothing else to do here, so there is nothing to apply at all.
-  assert.equal(change, null);
+  assert.equal(after.data.name.value, "The Buddha in the Machine");
+  assert.equal(valueOf(after.data, "display_name"), "Buddha (Williams)");
 });
 
 await check("says so in the description", () => {
-  const change = changes.parseItem(
-    item(),
-    { name: "The Buddha in the Machine", entries: [text("author", "R. John Williams")] },
-    FILENAME,
-  );
+  const change = changes.parseItem(item(), {
+    name: "The Buddha in the Machine",
+    entries: [text("author", "R. John Williams")],
+  });
   assert.match(change?.description ?? "", /filled name and author$/);
 });
 
 console.log("\nparsing settles the type");
 
 await check("takes ownership of a guess", () => {
-  const after = outcome(
-    changes.parseItem(item(), { entries: [text("author", "R. John Williams")] }, FILENAME),
-  );
+  const after = outcome(changes.parseItem(item(), { entries: [text("author", "R. John Williams")] }));
 
   // Asking for a book's fields to be filled in is saying it is a book —
   // the same thing choosing a type by hand already says.
@@ -176,7 +166,7 @@ await check("takes ownership of a guess", () => {
 });
 
 await check("confirms the type even when the file had nothing to add", () => {
-  const after = outcome(changes.parseItem(item(), { entries: [] }, FILENAME));
+  const after = outcome(changes.parseItem(item(), { entries: [] }));
   assert.equal(after.data.type?.prov, "user");
   assert.match(after.data.type ? "book" : "", /book/);
 });
@@ -186,10 +176,7 @@ await check("has nothing to do once the type is yours and the fields are full", 
     type: { value: "book", prov: "user" },
     entries: [text("author", "R. John Williams")],
   });
-  assert.equal(
-    changes.parseItem(settled, { entries: [text("author", "R. John Williams")] }, FILENAME),
-    null,
-  );
+  assert.equal(changes.parseItem(settled, { entries: [text("author", "R. John Williams")] }), null);
 });
 
 console.log("\nrunning the verb");

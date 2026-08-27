@@ -105,7 +105,6 @@ async function model(
   options: Parameters<typeof modelItem>[2] = {},
 ): Promise<ItemModelingOutcome> {
   return modelItem(item, BOOK, {
-    derivedName: item.resources[0]?.name ?? null,
     now: () => new Date("2026-08-16T00:00:00Z"),
     ...options,
   });
@@ -562,13 +561,19 @@ async function run(): Promise<void> {
     assert.equal(result.conflicts.length, 0);
   });
 
-  await check("the name is taken only while it is still the resource's", async () => {
+  await check("`name` always tracks the evidence — a person's own title lives in display_name", async () => {
+    // `name` is the modeler's field, full stop; there is no longer an
+    // ownership question to ask about it. Whatever a person actually
+    // chose belongs in `display_name`, which this module never writes
+    // and which `captionOf` (`display_name ?? name`) reads ahead of it
+    // everywhere the app draws a title — so a chosen title is never at
+    // stake here even though `name` itself keeps moving.
     const filepath = await writeEpub("dune-renamed.epub");
     const renamed = itemWith(filepath, { name: "My favourite book" });
     const result = modeled(await model(renamed, { languageModelMode: "never" }));
 
-    assert.equal(nameOf(result.item), "My favourite book");
-    assert.equal(result.changes.find((change) => change.target === "name")?.action, "skipped");
+    assert.equal(nameOf(result.item), "Dune");
+    assert.equal(result.changes.find((change) => change.target === "name")?.action, "normalized");
   });
 
   console.log("\nrefusing to invent");
@@ -624,12 +629,7 @@ async function run(): Promise<void> {
   await check("re-modeling an unchanged item populates nothing", async () => {
     const filepath = await writeEpub("dune-idempotent.epub");
     const first = modeled(await model(itemWith(filepath), { languageModelMode: "never" }));
-    const second = modeled(
-      await model(first.item, {
-        derivedName: path.basename(filepath),
-        languageModelMode: "never",
-      }),
-    );
+    const second = modeled(await model(first.item, { languageModelMode: "never" }));
 
     assert.equal(
       second.changes.filter((change) => change.action === "populated").length,

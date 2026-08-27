@@ -138,7 +138,6 @@ export async function extractEntries(
     overwriteModeledValues: true,
     conflictPolicy: "ignore",
     userFields: [],
-    derivedName: resource.name,
     includeProvenance: false,
   });
 

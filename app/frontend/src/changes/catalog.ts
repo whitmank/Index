@@ -119,6 +119,12 @@ export function setQuery(item: Item, query: SetQuery): Change {
   return swap(item, { ...item, set: query }, `Edit ${describe(item)}'s rule`);
 }
 
+/** Names a record directly — the whole of naming for anything that is
+ * never auto-modeled, a Space among them (RuleBuilder.tsx). An *item*
+ * with resources is different: its `name` belongs to the modeler
+ * (item-modeler's `apply-modeling-result.ts` writes it unconditionally,
+ * every run), so a person retitling one uses `setDisplayName` below
+ * instead — this stays the plain, unprotected writer underneath it. */
 export function rename(item: Item, name: string): Change {
   return swap(
     item,
@@ -127,10 +133,23 @@ export function rename(item: Item, name: string): Change {
   );
 }
 
+/**
+ * How a person retitles an *item* (Focus.tsx's title field) — as
+ * distinct from `rename`, which writes the modeler's own `name` field
+ * directly and is for records nothing ever auto-titles.
+ *
+ * Writing to `display_name` rather than `name` is what makes this safe
+ * to call freely, without asking whether the modeler has ever touched
+ * the item: `display_name` is never written by anything but a person,
+ * read ahead of `name` everywhere the app draws a title (`captionOf`,
+ * lib/derive.ts), and — the property `name` itself could never quite
+ * offer — genuinely *absent* when nobody has set one, rather than a
+ * blank value that still has to answer whose it is.
+ */
 export function setDisplayName(item: Item, displayName: string): Change {
   const next = displayName.trim();
   const data = next ? withEntry(item.data, "display_name", next, "string") : withoutEntry(item.data, "display_name");
-  return swap(item, { ...item, data }, next ? `Show as '${next}'` : "Clear the display name");
+  return swap(item, { ...item, data }, next ? `Rename to '${next}'` : "Clear the name");
 }
 
 /** What the user said this is, in their own words — usually captured
@@ -227,20 +246,18 @@ export function confirmType(item: Item): Change {
  * `parse` — what the item's resource says about itself, written into the
  * fields its type declares.
  *
- * Four rules, and each is a decision about whose work is at stake:
+ * Three rules, and each is a decision about whose work is at stake:
  *
- * - **Blanks only.** A field carrying a value is left exactly as it is.
- *   Undo makes an overwrite recoverable, not acceptable: the point of
- *   parsing an item you already curated is to finish it, not to argue
- *   with it.
- * - **The name, only if it was never yours.** When the item is still
- *   called what its resource is called, nothing of the user's is at
- *   stake and a book's real title beats the filename it was saved
- *   under. The moment you have renamed it, the name is a decision and
- *   this stops touching it. (PRODUCT-SPEC pinned "extraction never runs
- *   against one that already exists" precisely to protect a name; this
- *   keeps that promise while letting the verb do the obvious thing on a
- *   fresh import.)
+ * - **Blanks only**, for every field but the name. A field carrying a
+ *   value is left exactly as it is. Undo makes an overwrite recoverable,
+ *   not acceptable: the point of parsing an item you already curated is
+ *   to finish it, not to argue with it.
+ * - **The name is always taken when parsing found one.** Nothing of the
+ *   user's is ever at stake here: `name` is the modeler's own field
+ *   (item-modeler's `apply-modeling-result.ts` writes it the same
+ *   unconditional way), and what a person actually chose to call the
+ *   item lives in `display_name` — read ahead of `name` everywhere a
+ *   title is drawn (`captionOf`), never touched by this function.
  * - **The type becomes yours.** Asking for a book's fields to be filled
  *   in is saying it is a book, so parsing confirms the guess the same
  *   way choosing a type by hand does. Nothing gets filled from a guess
@@ -248,11 +265,7 @@ export function confirmType(item: Item): Change {
  * - **Nothing to do is null**, not an empty change — a verb that always
  *   reports success teaches you to stop reading it.
  */
-export function parseItem(
-  item: Item,
-  found: { name?: string; entries: DataEntry[] },
-  derivedName: string,
-): Change | null {
+export function parseItem(item: Item, found: { name?: string; entries: DataEntry[] }): Change | null {
   const has = (attribute: string) => {
     const entry = item.data[attribute.toLowerCase()];
     return entry !== undefined && !isBlankFieldValue(entry.value);
@@ -260,7 +273,7 @@ export function parseItem(
 
   // Extraction-produced entries are never null-attribute.
   const filled = found.entries.filter((entry) => !has(entry.attribute as string));
-  const takesName = Boolean(found.name) && nameOf(item) === derivedName;
+  const takesName = Boolean(found.name) && found.name !== item.data.name.value;
   const confirms = Boolean(item.data.type) && item.data.type?.prov !== "user";
   if (filled.length === 0 && !takesName && !confirms) return null;
 

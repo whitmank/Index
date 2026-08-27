@@ -57,6 +57,7 @@ export interface FocusToolbarProps {
 export function FocusToolbar({ item, onDismiss, onGoTo, onOpenTypeSettings }: FocusToolbarProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [modeling, setModeling] = useState(false);
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [schemas, setSchemas] = useState<Schema[]>([]);
@@ -79,6 +80,31 @@ export function FocusToolbar({ item, onDismiss, onGoTo, onOpenTypeSettings }: Fo
       });
     } finally {
       setFetchingSpotify(false);
+    }
+  };
+
+  // Same pipeline `parse` runs, called directly and shown in full: every
+  // field decision (populated, confirmed, skipped, conflicted — with
+  // why) plus the whole evidence basket the collector produced, logged
+  // to the console rather than reduced to blanks-only field entries.
+  // For seeing why the pipeline said what it said, not for everyday use.
+  const runModel = async (): Promise<void> => {
+    setModeling(true);
+    try {
+      const answer = await window.index.ingest.model(item.id);
+      if ("err" in answer) {
+        console.error(`[item-modeler] ${item.data.name.value}:`, answer.err);
+        return;
+      }
+      const { applied, changes, warnings, diagnostics } = answer.ok;
+      console.group(`item-modeler: ${item.data.name.value}`);
+      console.log(applied ? "applied" : "nothing to apply");
+      console.table(changes);
+      if (diagnostics) console.table(diagnostics.basket);
+      if (warnings.length > 0) console.warn(warnings);
+      console.groupEnd();
+    } finally {
+      setModeling(false);
     }
   };
 
@@ -302,6 +328,24 @@ export function FocusToolbar({ item, onDismiss, onGoTo, onOpenTypeSettings }: Fo
             type="button"
           >
             <ParseIcon />
+          </button>
+
+          {/* The item-modeler itself, applied the same as `parse` but
+              with every field decision and the whole evidence basket
+              logged to the console — for seeing why, not everyday use. */}
+          <button
+            aria-label="model"
+            className="item-screen-icon-button"
+            disabled={!item.data.type || modeling}
+            onClick={() => void runModel()}
+            title={
+              item.data.type
+                ? "run the item-modeler and log the basket, claims and decisions to the console"
+                : "give it a type first"
+            }
+            type="button"
+          >
+            🔍
           </button>
 
           <button

@@ -25,19 +25,13 @@ import type { ResolvedValue } from "../../contracts/resolved-value.js";
 import { hintFor } from "../../contracts/field-hints.js";
 import { valuesAgree } from "../normalization/compare-values.js";
 import { isBlank } from "../normalization/normalize-value.js";
-import {
-  currentValue,
-  mayRename,
-  ownershipOf,
-  type OwnershipContext,
-} from "./ownership-policy.js";
+import { currentValue, ownershipOf, type OwnershipContext } from "./ownership-policy.js";
 
 export interface ApplyRequest {
   item: Item;
   schema: Schema;
   resolved: ResolvedValue[];
   userFields: string[];
-  derivedName: string | null;
   overwriteModeledValues: boolean;
   conflictPolicy: ConflictPolicy;
 }
@@ -62,7 +56,7 @@ export function applyModelingResult(request: ApplyRequest): Applied {
     const hint = hintFor(entry.field);
 
     if (naming) {
-      const change = applyName(item, entry, request.derivedName);
+      const change = applyName(item, entry);
       if (change.action === "populated" || change.action === "normalized") {
         name = change.after as string;
       }
@@ -170,7 +164,14 @@ export function applyModelingResult(request: ApplyRequest): Applied {
   return { item: writeFields(item, name, writes), changes, conflicts };
 }
 
-function applyName(item: Item, entry: ResolvedValue, derivedName: string | null): FieldChange {
+/**
+ * `name` is the modeler's own field, unconditionally — there is no
+ * ownership check here at all. A person's chosen title lives in
+ * `display_name` (`captionOf`/`display_name ?? name` at every place the
+ * app draws a title), which this module never writes; `name` is free to
+ * track whatever the evidence currently says.
+ */
+function applyName(item: Item, entry: ResolvedValue): FieldChange {
   const found = Array.isArray(entry.value) ? entry.value.join(", ") : entry.value;
   const current = (item.data.name.value as string) ?? "";
 
@@ -181,18 +182,6 @@ function applyName(item: Item, entry: ResolvedValue, derivedName: string | null)
       action: "confirmed",
       before: current,
       provenance: entry.provenance,
-    };
-  }
-
-  if (!mayRename(item, derivedName)) {
-    return {
-      field: entry.field,
-      target: "name",
-      action: "skipped",
-      before: current,
-      after: found,
-      provenance: entry.provenance,
-      reason: "the item has a name of its own",
     };
   }
 
@@ -216,7 +205,11 @@ function applyName(item: Item, entry: ResolvedValue, derivedName: string | null)
 function writeFields(item: Item, name: string, writes: Map<string, DataEntry>): Item {
   if (writes.size === 0 && name === item.data.name.value) return item;
 
-  const data: Data = { ...item.data, name: { ...item.data.name, value: name } };
+  // Always "auto": whatever wrote here before, this module just did,
+  // and `name`'s provenance has no reader left that cares — the field a
+  // person's own choice lives in is `display_name`, untouched by this
+  // write.
+  const data: Data = { ...item.data, name: { ...item.data.name, value: name, prov: "auto" } };
   for (const [attribute, entry] of writes) data[attribute.toLowerCase()] = entry;
 
   return { ...item, data };

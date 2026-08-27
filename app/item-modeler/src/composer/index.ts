@@ -34,7 +34,6 @@ export interface ComposeRequest {
   overwriteModeledValues: boolean;
   conflictPolicy: ConflictPolicy;
   userFields: string[];
-  derivedName: string | null;
   includeProvenance: boolean;
 }
 
@@ -72,7 +71,6 @@ export async function composeSchema(request: ComposeRequest): Promise<ComposeRes
     schema: request.schema,
     resolved: resolution.values,
     userFields: request.userFields,
-    derivedName: request.derivedName,
     overwriteModeledValues: request.overwriteModeledValues,
     conflictPolicy: request.conflictPolicy,
   });

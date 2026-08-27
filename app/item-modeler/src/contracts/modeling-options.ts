@@ -72,19 +72,6 @@ export interface ModelingOptions {
    */
   userFields?: string[];
 
-  /**
-   * The name the item was minted with — its primary resource's own.
-   *
-   * The name may be replaced only while the item still carries this,
-   * because at that point nothing of the user's is at stake. Once
-   * somebody has renamed the item, the name is theirs.
-   *
-   * Null is meaningful and is the safe default: a caller that does not
-   * know what the item was minted with has not established that the name
-   * is anyone's but the user's.
-   */
-  derivedName?: string | null;
-
   /** How sources are read. Defaults to `nodeGateway`; the Electron main
    * process passes one backed by its own resolver so device-aware uris
    * resolve the way they do everywhere else in the app. */
@@ -107,9 +94,8 @@ export interface ModelingOptions {
 }
 
 export interface ResolvedOptions
-  extends Required<Omit<ModelingOptions, "userFields" | "derivedName" | "gateway" | "model">> {
+  extends Required<Omit<ModelingOptions, "userFields" | "gateway" | "model">> {
   userFields: string[];
-  derivedName: string | null;
   gateway: SourceGateway;
   model: ModelClient | null;
 }

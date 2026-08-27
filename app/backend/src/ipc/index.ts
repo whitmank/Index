@@ -15,6 +15,7 @@ import {
   listPlacesAmong,
   listSchemas,
   listSets,
+  nameOf,
   schemaFor,
   searchItems,
   upsertSchema,
@@ -22,7 +23,7 @@ import {
 import type { Schema } from "@index/database/types";
 import type { Result } from "../bridge.js";
 import { CHANNELS } from "./channels.js";
-import { classifyItemType } from "@index/item-modeler";
+import { classifyItemType, isMaterial, isModeled, modelItem } from "@index/item-modeler";
 import {
   loadClassificationSettings,
   loadExcludedFolders,
@@ -36,6 +37,7 @@ import {
   saveWatchedFolders,
   selfDevice,
 } from "../config.js";
+import { backendGateway } from "../services/ingest/backend-gateway.js";
 import { getActiveModel, scanForModels, setActiveModel } from "../services/models.js";
 import { classifyUri, extractEntries, nameFor, pathsToResources } from "../services/intake.js";
 import { findByHash, refreshWatchList, relinkOne, runNow } from "../services/relink.js";
@@ -152,6 +154,47 @@ export function registerHandlers(): void {
     const resourceUri = asString(uri, "uri");
     const schemas = await listSchemas().catch(() => [] as Schema[]);
     return extractEntries(wanted, schemaFor(schemas, wanted), { uri: resourceUri, name: nameFor(resourceUri) });
+  });
+
+  // The pipeline itself, applied and shown in full — same code path as
+  // `parse` (extractClaims then composeSchema), just called directly as
+  // `modelItem` against the item's own current data rather than a
+  // throwaway draft, and always asking for `debugDiagnostics` so the
+  // whole evidence basket comes back too. `parse`'s blanks-only
+  // protection is redundant here: `modelItem`'s own ownership policy
+  // already never overwrites a field whose `prov` isn't "auto".
+  handle(CHANNELS.ingestModel, async (id) => {
+    const item = await getItem(asString(id, "id"));
+    if (!item) throw new Error("no such item");
+    if (!item.data.type) throw new Error("give it a type first");
+
+    const schemas = await listSchemas().catch(() => [] as Schema[]);
+    const schema = schemaFor(schemas, item.data.type.value as string);
+    if (!schema) throw new Error("no schema for this type");
+
+    const outcome = await modelItem(item, schema, {
+      gateway: backendGateway,
+      debugDiagnostics: true,
+    });
+    if (!isModeled(outcome)) throw new Error(outcome.message);
+
+    const applied = outcome.changes.some(isMaterial);
+    if (applied) {
+      const change = {
+        description: `Model ${nameOf(item)}`,
+        pairs: [{ before: item, after: outcome.item }],
+      };
+      const records = await applyChange(change);
+      broadcast("records:changed", change, records);
+    }
+
+    return {
+      applied,
+      item: outcome.item,
+      changes: outcome.changes,
+      warnings: outcome.warnings,
+      ...(outcome.diagnostics ? { diagnostics: outcome.diagnostics } : {}),
+    };
   });
 
   handle(CHANNELS.modelsLocationsList, async () => ({ locations: loadModelSettings().locations }));

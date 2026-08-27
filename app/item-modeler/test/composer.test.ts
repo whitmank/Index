@@ -30,7 +30,12 @@ const BOOK: Schema = {
 };
 
 function emptyItem(name = "dune.epub"): Item {
-  const data: Data = { name: { attribute: "name", value: name, kind: "string", prov: "user" } };
+  // "auto": a freshly-minted item's name is its resource's own, nobody
+  // has chosen it yet — the same provenance `draftItemFor` (intake.ts)
+  // gives a real one. A test that wants to simulate a user's own name
+  // sets `prov: "user"` explicitly, the way the ownership test below
+  // does for `author`.
+  const data: Data = { name: { attribute: "name", value: name, kind: "string", prov: "auto" } };
   return {
     id: `items:${ulid()}`,
     date_added: "2026-08-13T00:00:00Z",
@@ -57,7 +62,6 @@ function baseRequest(overrides: Partial<ComposeRequest> = {}): ComposeRequest {
     overwriteModeledValues: true,
     conflictPolicy: "record",
     userFields: [],
-    derivedName: null,
     includeProvenance: true,
     ...overrides,
   };
@@ -70,7 +74,6 @@ async function run(): Promise<void> {
     const result = await composeSchema(
       baseRequest({
         claims: [claim("title", "Dune"), claim("author", "Frank Herbert")],
-        derivedName: "dune.epub",
       }),
     );
     // `title` is BOOK's leading attribute — the naming field, per
@@ -82,6 +85,57 @@ async function run(): Promise<void> {
     // an existing (non-blank) value, so `normalized`, not `populated`.
     assert.equal(result.changes.find((change) => change.target === "name")?.action, "normalized");
     assert.equal(result.changes.find((change) => change.field === "author")?.action, "populated");
+  });
+
+  console.log("\nnaming: `name` is the modeler's field, unconditionally");
+
+  // A person's own title lives in `display_name` — never written here,
+  // read ahead of `name` everywhere the app draws a title (`captionOf`).
+  // `name` itself carries no ownership question any more: three attempts
+  // at protecting it (comparing against a re-derived filename, reading
+  // `prov` directly, reading `prov` but exempting a blank value) each
+  // broke on a real item, because each one still tried to answer "did a
+  // person choose this" from a field a person was never meant to choose
+  // through in the first place.
+
+  await check("replaces whatever `name` currently says, whatever its provenance", async () => {
+    const existing = emptyItem();
+    const data: Data = {
+      ...existing.data,
+      name: { attribute: "name", value: "My favourite video", kind: "string", prov: "user" },
+    };
+    const result = await composeSchema(
+      baseRequest({ claims: [claim("title", "Dune")], existing: { ...existing, data } }),
+    );
+
+    assert.equal(result.item.data.name.value, "Dune");
+    assert.equal(result.changes.find((change) => change.target === "name")?.action, "normalized");
+  });
+
+  await check("fills a blank name and marks it auto, regardless of the prov it carried", async () => {
+    const existing = emptyItem();
+    const data: Data = { ...existing.data, name: { attribute: "name", value: "", kind: "string", prov: "user" } };
+    const result = await composeSchema(
+      baseRequest({ claims: [claim("title", "Dune")], existing: { ...existing, data } }),
+    );
+
+    assert.equal(result.item.data.name.value, "Dune");
+    assert.equal(result.item.data.name.prov, "auto");
+    assert.equal(result.changes.find((change) => change.target === "name")?.action, "populated");
+  });
+
+  await check("a display_name is left untouched — this module never writes it", async () => {
+    const existing = emptyItem();
+    const data: Data = {
+      ...existing.data,
+      display_name: { attribute: "display_name", value: "Buddha (Williams)", kind: "string", prov: "user" },
+    };
+    const result = await composeSchema(
+      baseRequest({ claims: [claim("title", "Dune")], existing: { ...existing, data } }),
+    );
+
+    assert.equal(result.item.data.name.value, "Dune");
+    assert.equal(result.item.data.display_name?.value, "Buddha (Williams)");
   });
 
   console.log("\nownership: a user's value is never overwritten");

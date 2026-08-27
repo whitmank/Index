@@ -64,7 +64,6 @@ export function resolveOptions(options: ModelingOptions = {}): ResolvedOptions {
     timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
     debugDiagnostics: options.debugDiagnostics ?? false,
     userFields: options.userFields ?? [],
-    derivedName: options.derivedName ?? null,
     gateway: options.gateway ?? (allowNetworkAccess ? nodeGateway : offlineGateway),
     model: options.model ?? null,
     now: options.now ?? (() => new Date()),
@@ -115,7 +114,6 @@ function fingerprintOf(evidence: string, schema: Schema, options: ResolvedOption
         options.maxSources,
         options.maxSourceTextLength,
         [...options.userFields].sort(),
-        options.derivedName,
       ]),
     )
     .digest("hex")
@@ -220,7 +218,6 @@ async function runPipeline(
     schema,
     existing: item,
     userFields: settings.userFields,
-    derivedName: settings.derivedName,
     overwriteModeledValues: settings.overwriteModeledValues,
     conflictPolicy: settings.conflictPolicy,
     includeProvenance: settings.includeProvenance,

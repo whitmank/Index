@@ -56,10 +56,7 @@ async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string):
   }
 
   const item = blankItem(entry, source, corpus);
-  const outcome = await modelItem(item, corpus.schema, {
-    derivedName: item.data.name.value as string,
-    debugDiagnostics: true,
-  });
+  const outcome = await modelItem(item, corpus.schema, { debugDiagnostics: true });
 
   if (outcome.status === "failed") {
     return { ...base, durationMs: Date.now() - started, failure: `${outcome.reason}: ${outcome.message}` };
@@ -68,7 +65,7 @@ async function scoreEntry(entry: CorpusEntry, corpus: Corpus, manifest: string):
 
   // The spec's idempotency test, run per source rather than asserted
   // once: model the answer again and require that nothing is populated.
-  const again = await modelItem(result.item, corpus.schema, { derivedName: item.data.name.value as string });
+  const again = await modelItem(result.item, corpus.schema);
   const idempotent =
     again.status === "modeled" &&
     again.changes.every((change) => change.action !== "populated" && change.action !== "replaced");

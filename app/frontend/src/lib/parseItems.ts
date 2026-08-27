@@ -55,10 +55,7 @@ export async function parseItems(items: Item[]): Promise<ParseOutcome> {
       continue;
     }
 
-    // The name the item was minted with is the resource's own; if it
-    // still carries that, nothing of the user's is at stake in replacing
-    // it (changes/catalog.ts explains the rule).
-    const change = changes.parseItem(item, answer.ok, resource.name);
+    const change = changes.parseItem(item, answer.ok);
     if (!change) {
       outcome.unchanged += 1;
       continue;

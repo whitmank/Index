@@ -36,7 +36,14 @@ export function itemFor(uri: string, overrides: ItemOptions = {}): Item {
   const derivedName = /^[a-z]+:\/\//i.test(uri) ? uri : path.basename(uri);
   const name = overrides.name ?? derivedName;
 
-  const data: Data = { name: { attribute: "name", value: name, kind: "string", prov: "user" } };
+  // "auto" for the default (untouched, resource-derived) name, matching
+  // a freshly-minted item's real provenance (intake.ts's `draftItemFor`)
+  // — that is what makes it eligible for `mayRename` (ownership-policy.ts)
+  // to replace. An explicit `overrides.name` is a test *simulating* a
+  // user's own choice, so it carries "user" the same way a real rename
+  // would (changes/catalog.ts's `rename`), and stays put.
+  const prov = overrides.name !== undefined ? "user" : "auto";
+  const data: Data = { name: { attribute: "name", value: name, kind: "string", prov } };
   if (overrides.type !== null) {
     data.type = { attribute: "type", value: overrides.type ?? "book", kind: "string", prov: "user" };
   }

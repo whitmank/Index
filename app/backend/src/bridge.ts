@@ -14,6 +14,7 @@ import type {
   StoredRecord,
 } from "@index/database/types";
 import type { SchemaInput } from "@index/database";
+import type { FieldChange, ModelingWarning } from "@index/item-modeler";
 import type { ClassificationSettings } from "./config.js";
 import type { IntakeResult } from "./services/intake.js";
 import type { FoundModel as ModelFile } from "./services/models.js";
@@ -27,6 +28,26 @@ export interface Sweep {
   items: number;
   connections: number;
   derivations: number;
+}
+
+/**
+ * What one run of the item-modeler (`@index/item-modeler`'s `modelItem`)
+ * did to an item, in full — every field decision it made and why, not
+ * just the ones that changed something. `parse` already applies the
+ * reliable half of this same pipeline; this is the pipeline itself,
+ * surfaced for someone trying to see why it said what it said.
+ */
+export interface ModelDebugResult {
+  /** Whether anything was actually written — a run of nothing but
+   * `confirmed`/`skipped` decisions leaves the item untouched. */
+  applied: boolean;
+  item: Item;
+  changes: FieldChange[];
+  warnings: ModelingWarning[];
+  /** Present because this always asks for `debugDiagnostics` — the whole
+   * evidence basket the collector produced, and the model's raw answer
+   * when one was consulted. */
+  diagnostics?: { basket: { key: string; value: string }[]; modelAnswer?: Record<string, unknown> };
 }
 
 /** The channels the main process pushes on. */
@@ -117,6 +138,17 @@ export interface IndexBridge {
      * Finding nothing is an empty list, never an error.
      */
     parse(uri: string, type: string): Promise<Result<{ name?: string; entries: DataEntry[] }>>;
+    /**
+     * Runs the item-modeler over an item's own resources against its
+     * current type — the same pipeline `parse` calls, applied and shown
+     * in full rather than reduced to blanks-only field entries. Applies
+     * whatever it found, exactly as `parse` would, and hands back every
+     * field decision (populated, confirmed, skipped, conflicted — with
+     * why) plus the evidence basket the collector produced, for a
+     * caller that wants to see the pipeline's work rather than only its
+     * result.
+     */
+    model(id: string): Promise<Result<ModelDebugResult>>;
   };
   models: {
     /** Directories to look for `.gguf` files in — a person's own model

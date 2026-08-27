@@ -46,6 +46,7 @@ const bridge: IndexBridge = {
   ingest: {
     classify: (uri, name) => invoke(CHANNELS.ingestClassify, uri, name),
     parse: (uri, type) => invoke(CHANNELS.ingestParse, uri, type),
+    model: (id) => invoke(CHANNELS.ingestModel, id),
   },
   models: {
     locations: {

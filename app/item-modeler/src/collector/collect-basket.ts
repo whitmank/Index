@@ -15,8 +15,9 @@ import type { Collector } from "./formats/collector.js";
 import { epubCollector } from "./formats/epub.js";
 import { filenameCollector } from "./formats/filename.js";
 import { pdfCollector } from "./formats/pdf.js";
+import { youtubeCollector } from "./formats/youtube.js";
 
-const COLLECTORS: Collector[] = [filenameCollector, epubCollector, pdfCollector];
+const COLLECTORS: Collector[] = [filenameCollector, epubCollector, pdfCollector, youtubeCollector];
 
 export interface Collected {
   basket: EvidenceBasket;

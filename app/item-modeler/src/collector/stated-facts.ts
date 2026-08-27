@@ -24,12 +24,33 @@
 // on those PDFs the model, reading the whole basket, did better than the
 // file did. So EPUBs are transcribed and PDFs are synthesised.
 //
-// **Why `published` is not here.** It is the one field where a file
-// routinely lies: an ebook's `dc:date` is often when somebody converted
-// it, not when the work was published. Tantra Illuminated declares
-// `2015-05-07`; it was published in 2013, which its filename knows.
-// Deciding between those two is exactly the cross-referencing the model
-// is for.
+// **Why `published` is not here for epub.** It is the one field where a
+// file routinely lies: an ebook's `dc:date` is often when somebody
+// converted it, not when the work was published. Tantra Illuminated
+// declares `2015-05-07`; it was published in 2013, which its filename
+// knows. Deciding between those two is exactly the cross-referencing the
+// model is for.
+//
+// **Why YouTube's three are here, and measured rather than assumed.**
+// `youtube.title`/`.channel`/`.datePublished` (collector/formats/
+// youtube.ts) are the same kind of fact `opf.dc:title` is — the page's
+// own declaration, not a guess — but they were *not* stated on first
+// write: the plan was to let the model read them off the basket like
+// everything else a source doesn't declare through this file. Two real
+// videos changed that. On one, the model reported `published: "2022"`
+// pulled from a keyword tag reading "Rick Astley 2022", while
+// `youtube.datePublished: 2009-10-24…` sat in the same basket unused. On
+// another, it swapped the title and the channel outright — the item's
+// name became "Interface Studies" (the channel) and `author` became
+// "Thomas Malone", a name that appears nowhere but a keywords list,
+// while `youtube.title` and `youtube.channel` held the right answers a
+// line apart. `published` not being trusted for epub was a reasoned
+// call about what a file's *date* can mean; this is a different fact
+// pattern — YouTube's `datePublished` is the platform's own record of
+// when *this* upload went up, not a conversion timestamp standing in for
+// some earlier original — and the failures above are what a small model
+// does with plain, correct evidence sitting in a basket next to a
+// dozen tag strings shaped just like it.
 import type { Schema } from "@index/database/types";
 import type { EvidenceBasket } from "./evidence/basket.js";
 import type { FieldProvenance } from "../contracts/provenance.js";
@@ -53,6 +74,9 @@ const STATED: [key: string, concept: FieldHint][] = [
   // book's several declared identifiers is the ISBN, and nothing a model
   // infers should override a number that verifies.
   ["verified_isbn13", "isbn"],
+  ["youtube.title", "title"],
+  ["youtube.channel", "author"],
+  ["youtube.datePublished", "published"],
 ];
 
 export function statedFacts(
@@ -78,7 +102,11 @@ export function statedFacts(
         origin: "deterministic",
         sourceIds: [entry.sourceId],
         location: key,
-        method: key.startsWith("verified") ? "checksum" : "epub-opf",
+        method: key.startsWith("verified")
+          ? "checksum"
+          : key.startsWith("youtube.")
+            ? "youtube-microdata"
+            : "epub-opf",
         excerpt: entry.value,
         confidence: 1,
         at: now().toISOString(),

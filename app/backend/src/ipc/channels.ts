@@ -19,6 +19,7 @@ export const CHANNELS = {
   intakePick: "intake:pick",
   ingestClassify: "ingest:classify",
   ingestParse: "ingest:parse",
+  ingestModel: "ingest:model",
   modelsLocationsList: "models:locations:list",
   modelsLocationsAdd: "models:locations:add",
   modelsLocationsRemove: "models:locations:remove",
