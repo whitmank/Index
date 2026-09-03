@@ -23,7 +23,7 @@
 // single spring is a dozen lines, so this runs its own rAF loop and the
 // dependency is gone.
 
-export const NODE_RADIUS = 72;
+export const NODE_RADIUS = 48;
 
 /** Kept in step with the hover preview's cap in Canvas.css. */
 export const PREVIEW_MAX_WIDTH = 230;
@@ -86,9 +86,19 @@ function clamp(value: number, margin: number, extent: number): number {
   return Math.max(margin, Math.min(extent - margin, value));
 }
 
+/** The turn between successive seeds in a phyllotactic spiral — the angle
+ * that keeps any two spiral arms from ever lining up radially. */
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 /**
- * Give every node a home on a ring around the centre, so nothing stacks
- * at the origin, then let a saved position override it.
+ * Give every node a home on a phyllotactic spiral around the centre —
+ * a sunflower's seed pattern, node `i` at radius `c*sqrt(i)` turned by
+ * the golden angle each step — so nothing stacks at the origin, then let
+ * a saved position override it.
+ *
+ * A plain ring only ever grows its rim, so a large set reads as a big
+ * empty circle with everything on the edge. The spiral fills the disc,
+ * so it stays legible as the node count grows.
  *
  * The parent repo laid the ring out over only the *unplaced* nodes. Here
  * every node gets a slot, placed or not, so that a node always has
@@ -100,13 +110,16 @@ export function seedPositions(
   placed: ReadonlyMap<string, { x: number; y: number }>,
   viewport: Viewport,
 ): void {
-  const spacing = (NODE_RADIUS + 28) * 2;
-  const ringRadius = nodes.length > 1 ? Math.max(220, (spacing * nodes.length) / (2 * Math.PI)) : 0;
+  const spacing = NODE_RADIUS * 2 + 20;
+  // Vogel's model: this scale keeps the average gap between neighbouring
+  // seeds at roughly `spacing`, whatever the count.
+  const scale = spacing / Math.sqrt(Math.PI);
 
   nodes.forEach((node, slot) => {
-    const angle = (slot / Math.max(nodes.length, 1)) * 2 * Math.PI - Math.PI / 2;
-    node.rx = ringRadius * Math.cos(angle);
-    node.ry = ringRadius * Math.sin(angle);
+    const radius = scale * Math.sqrt(slot);
+    const angle = slot * GOLDEN_ANGLE;
+    node.rx = radius * Math.cos(angle);
+    node.ry = radius * Math.sin(angle);
 
     const saved = placed.get(node.id);
     node.ox = saved ? saved.x : node.rx;
