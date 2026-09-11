@@ -179,9 +179,18 @@ export function Canvas({
     if (!box) return;
 
     const viewport = { width: box.clientWidth, height: box.clientHeight };
+    // Alphabetical by caption, so the ring `seedPositions` lays out reads
+    // A→Z clockwise from the top.
+    const byId = new Map(items.map((item) => [item.id, item]));
     const nodes: SimNode[] = membership
       .split(" ")
       .filter(Boolean)
+      .sort((a, b) => {
+        const itemA = byId.get(a);
+        const itemB = byId.get(b);
+        if (!itemA || !itemB) return 0;
+        return captionOf(itemA).localeCompare(captionOf(itemB));
+      })
       .map((id) => ({ id, ox: 0, oy: 0, rx: 0, ry: 0, x: 0, y: 0, vx: 0, vy: 0 }));
 
     seedPositions(nodes, placed, viewport);
@@ -484,6 +493,21 @@ export function Canvas({
           />
         )}
       </svg>
+
+      {placed.size > 0 && (
+        <div className="canvas-manual">
+          <span className="chip">
+            arranged manually
+            <button
+              aria-label="reset layout"
+              onClick={() => void apply(changes.resetLayout(setId))}
+              type="button"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
 
       {items.map((item) => (
         <Node

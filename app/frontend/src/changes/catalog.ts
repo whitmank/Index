@@ -624,6 +624,17 @@ export function place(item: Item, setId: string, position: Position): Change {
   };
 }
 
+/** Clearing every saved position returns a canvas to its computed layout —
+ * the ✕ on the "arranged manually" chip, one change. */
+export function resetLayout(setId: string): Change {
+  const pairs = pool
+    .arrowsInto(setId)
+    .filter((arrow) => arrow.position !== null)
+    .map((arrow) => ({ before: arrow, after: { ...arrow, position: null } }));
+
+  return { description: "Reset layout", pairs };
+}
+
 /**
  * Manual ordering in a list of a set. Moving one row renumbers the rows
  * it displaced, inside the same change — so one undo puts the whole list
