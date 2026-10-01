@@ -1,7 +1,7 @@
 ---
 title: About Index
 version: 0.5
-date: 2026-03-26
+date: 2026-04-17
 author: Claude Sonnet 4.6
 ---
 
@@ -68,7 +68,7 @@ Edges replace all previous join tables. LIVE SELECT subscriptions run on all fiv
 
 ## Frontend State
 
-Single Zustand store (`useIndexStore`) owns: `objects` (all records — both spaces and leaves), `tags`, `tagTypes` (sorted `tag_types` records), `typedEdges`, `devices` (all device records), `rootObjects` (evaluated membership of `objects:⟨~⟩`), `activeSpaceObjects` (evaluated membership of the active space), `objectTags` cache, and navigation history.
+Single Zustand store (`useIndexStore`) owns: `objects` (all records — both spaces and leaves), `tags`, `tagTypes` (sorted `tag_types` records), `typedEdges`, `taggedEdges` (flat array of all `tagged` edge records — used for per-object type icon resolution), `devices` (all device records), `rootObjects` (evaluated membership of `objects:⟨~⟩`), `activeSpaceObjects` (evaluated membership of the active space), `objectTags` cache, and navigation history.
 
 ---
 
@@ -87,14 +87,18 @@ Single Zustand store (`useIndexStore`) owns: `objects` (all records — both spa
 | `electron/main/ipc/db-handlers.js` | Full database API (objects, tags, tag types, spaces, edges, devices) |
 | `electron/main/domain/tag-types.js` | System tag type registry (`SYSTEM_TAG_TYPES`); `seedTagTypes()` |
 | `electron/preload/index.js` | Context bridge (secure IPC surface) |
-| `src/icons/index.jsx` | Shared icon module — `ObjectIcon`, `SpaceIcon`, `MonadIcon`; golden-ratio geometry |
+| `src/icons/index.jsx` | Shared icon module — `ObjectIcon`, `SpaceIcon`, `MonadIcon`, `TypeIcon`; golden-ratio geometry |
 | `src/store/index.js` | `useIndexStore` — unified state + LIVE SELECT wiring |
 | `src/App.jsx` | Root component, mount sequencing, view routing, filter/sort pref persistence |
 | `src/components/ObjectListView.jsx` | List view — two-bit filter state, sort, backtick toggle, per-space pref callbacks |
 | `src/components/ObjectDetailPane.jsx` | Detail sidebar — name editing, TypeField, TypeSchemaSection, tag assignment, space rules, pin button, source badge |
-| `src/components/TagAssignmentSection.jsx` | Tag assignment UI — `typedEdges` pattern, `TagAddInput` flexible form |
+| `src/components/TagAssignmentSection.jsx` | Tag assignment UI — `typedEdges` pattern |
+| `src/components/TagAddInput.jsx` | Flexible typed/untyped tag input with autocomplete; shared between detail pane and CMD+E modal |
+| `src/components/TagEditModal.jsx` | CMD+E modal — space rules, object tag edit, or batch tag edit depending on selection |
+| `src/components/ObjectSourceView.jsx` | Dispatches to PdfViewer or webview by source type |
+| `src/components/PdfViewer.jsx` | Canvas-based PDF renderer (pdfjs-dist), RAF-based continuous scroll |
 | `src/components/SpaceRulesSection.jsx` | Inline space rule editor — tag and device rule groups |
-| `src/components/AddressBar.jsx` | Navigation strip + integrated CMD+L space navigator |
+| `src/components/AddressBar.jsx` | Navigation strip + CMD+L general search (spaces + objects) |
 | `src/components/CommandPalette.jsx` | CMD+K command interface |
 | `src/components/TagsView.jsx` | Tag management — Types pinned first, schema editor panel, grouped by type |
 | `src/components/TypeSchemaSection.jsx` | Guided schema field rows in detail pane, driven by type definition `schema` field |
@@ -139,9 +143,9 @@ Single Zustand store (`useIndexStore`) owns: `objects` (all records — both spa
 
 ## Built vs Not Yet Built
 
-**Built:** Object CRUD, tagging via edges, spaces (query + explicit contains/excludes + device rules), tag types as first-class records, D3 force graph (●/○ nodes, click-to-select, physics, zoom/drag, live position reconciliation), capture to active space, device identity, v0.3 migration, async export, LIVE SELECT reactivity on all five edge tables + objects + tag definitions, command palette, address bar navigation, `ObjectDetailPane` (name editing, TypeField, TypeSchemaSection, tag assignment with autocomplete, space rules inline editor, pin button, source badge), shared icon module (`src/icons/index.jsx`), per-space filter/sort state persisted in `localStorage`, `devices` table + `sourced_from` edges, Settings "Devices" tab (live device list), keybinds tab in Settings, nav state persistence across refresh, case-insensitive tag dedup (casing preserved), appearance settings persisted to `~/.index/appearance.json`, Finder import flow (`FinderSyncExtension/`, `ImportModal`, `fs:readFolder` IPC), type system with schema (`kind` → `type`, `seedTypeSchemas`, `TypeSchemaSection`).
+**Built:** Object CRUD, tagging via edges, spaces (query + explicit contains/excludes + device rules), tag types as first-class records, D3 force graph (●/○ nodes, click-to-select, physics, zoom/drag, live position reconciliation), capture to active space, device identity, v0.3 migration, async export, LIVE SELECT reactivity on all five edge tables + objects + tag definitions, command palette, CMD+L general search (spaces + objects), objects as navigable locations, `ObjectDetailPane` (name editing, TypeField, TypeSchemaSection, tag assignment with autocomplete, space rules inline editor, pin button, source badge, thumbnail badge), CMD+E context-sensitive modal (space rules / object tags / batch tag editing), shared icon module (`src/icons/index.jsx` — `ObjectIcon`, `SpaceIcon`, `MonadIcon`, `TypeIcon`), type icons (geometric SVG key string on `tag_definitions.icon`; icon picker in TypeSchemaEditor; icons in TypeField badge, Types list, schema header, object list rows), per-space filter/sort state persisted in `localStorage`, `devices` table + `sourced_from` edges, Settings "Devices" tab (live device list), keybinds tab in Settings, nav state persistence across refresh, case-insensitive tag dedup (casing preserved), appearance settings persisted to `~/.index/appearance.json`, Finder import flow (`FinderSyncExtension/`, `ImportModal`, `fs:readFolder` IPC), type system with schema (`kind` → `type`, `seedTypeSchemas`, `TypeSchemaSection`), thumbnails (`fs:thumbnail` via `nativeImage`/Quick Look for images + PDFs; `fs:epubCover` via `qlmanage` for epub covers; cached in ObjectListView), keyboard nav (W/S up/down, A/D back/forward, Shift multi-select, CMD+A select all), Kind column in list view (file type/URL), drag-drop + CMD+V to add objects to active space, PDF viewer (`PdfViewer.jsx`, continuous RAF scroll).
 
-**Not yet built:** Undo system (archived), graph edge rendering (`contains`/`tagged`/`sourced_from` data exists; GraphView renders nodes only), full-screen object view (detail sidebar exists; no full-focus view), `medium` auto-assignment (type seeded; nothing assigns it at capture), capture per-type profiles, full-text search, multi-device sync.
+**Not yet built:** Undo system (archived), graph edge rendering (`contains`/`tagged`/`sourced_from` data exists; GraphView renders nodes only), in-app relational object view (entering a leaf object shows empty graph; ego-graph requires edge rendering), `medium` auto-assignment (type seeded; nothing assigns it at capture), capture per-type profiles, full-text search, multi-device sync.
 
 **Dead code (not yet removed):** `CreateSpaceModal` — orphaned; `SpaceRulesSection` + inline create flow replace it. Stale `.space-rules` CSS in `ObjectDetailPane.css`.
 
@@ -190,6 +194,17 @@ Single Zustand store (`useIndexStore`) owns: `objects` (all records — both spa
 - Nav state (space, view, detail object) persisted to localStorage; restored after `loadAll` (session 012)
 - Finder Sync Extension (`FinderSyncExtension/`) + `IndexSync.app` host; `index://` URL scheme; `fs:readFolder` IPC handler; `ImportModal` (session 014)
 - Type system redesign: `kind` → `type` at all layers; `schema` field on type tag_definitions; `TypeSchemaSection`; `TagAssignmentSection` store unification; TagsView Types tab; `seedTypeSchemas` on boot (session 015)
+- Drag-and-drop + CMD+V paste to add files/URLs to active space; `addUrisToSpace()` shared path; dedup by URI (session 016)
+- Thumbnail infrastructure: `fs:thumbnail` IPC via `nativeImage`, `fs:epubCover` via `qlmanage`; CSP fix (`img-src 'self' data:`); images + PDFs in list rows + detail badge; epub covers (sessions 017, 019)
+- Navigation keyboard model unified: W/S up/down, A/D back/forward, no CMD for directional keys; Shift multi-select (Finder anchor/cursor); CMD+A select all; `user-select: none` on list (session 019)
+- CMD+L expanded to general search — spaces (○) + objects (●); selecting object navigates to it as location (session 019)
+- Objects as navigable locations — `activeSpace` lookup type-agnostic; nav history works for objects (session 019)
+- CMD+E context-sensitive modal — single space → rules; single object → tags; multiple → batch (session 019)
+- `TagAddInput` extracted to own file; shared between detail pane and CMD+E modal (session 019)
+- PDF continuous scroll: RAF loop at 5px/frame; D/→ three-state behavior; `selectFirst()` imperative handle (session 020)
+- Type icons: geometric SVG key strings on `tag_definitions.icon`; `TypeIcon` + `TYPE_ICON_KEYS` in icons module; icon picker in TypeSchemaEditor; `taggedEdges` flat array in store (session 021)
+- Kind column in list view: 56px; uppercase extension or "URL" (session 021)
+- Epub viewer built then removed — file viewing deferred to external apps; Index shows thumbnails only (session 021)
 
 ### Future
 

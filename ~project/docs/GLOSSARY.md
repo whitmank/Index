@@ -104,6 +104,7 @@ A label applied to objects. Tags are globally defined and can be assigned to any
   description?: string,
   system: boolean,      // true for auto-assigned system tags
   schema?: string[],    // Ordered list of tag type IDs; present on type tag_definition records only
+  icon?: string,        // Geometric icon key (e.g. "square", "diamond"); present on type records
   created_at: string,
 }
 ```
@@ -120,7 +121,7 @@ A first-class record in the `tag_types` table that categorizes tags. Type member
 ```javascript
 {
   id: string,         // "tag_types:medium", "tag_types:kind", etc.
-  name: string,       // Internal key ('medium', 'kind', 'file', 'origin', or user-defined)
+  name: string,       // Internal key ('medium', 'type', 'file', 'origin', or user-defined)
   label: string,      // Display label ('Medium', 'Kind', etc.)
   description?: string,
   system: boolean,    // true for system-defined types
@@ -226,7 +227,7 @@ The process of adding an object to Index. When you index a file or URL, Index:
 1. Constructs a `sources` array entry with URI, device origin, and timestamp
 2. Normalizes the URI (`cleanUri`)
 3. Creates an object record in SurrealDB
-4. Auto-assigns system tags (`kind`, `file`, `origin`) via `RELATE` edges
+4. Auto-assigns system tags (`type`, `file`, `origin`) via `RELATE` edges
 5. Schedules an async export to `~/.index/export/` (debounced, 5 seconds)
 
 ---
@@ -319,6 +320,8 @@ All renderer↔main communication goes through `window.electronAPI` (context bri
 - `fs.pickFile()` — Open native file picker
 - `fs.getPathForFile(file)` — Get filesystem path from a File object
 - `fs.readFolder(path)` — Read folder tree recursively; returns flat list with `path`, `name`, `type`, `relativePath`; dirs before contents; dotfiles skipped
+- `fs.thumbnail(filePath, size)` — Return a `data:image/png;base64,...` thumbnail for a local image or PDF. Uses `nativeImage.createThumbnailFromPath` (macOS Quick Look). Returns `null` on failure. Results are cached module-level in ObjectListView.
+- `fs.epubCover(filePath, size)` — Return a data URL of an epub book cover. Uses `qlmanage` (macOS QuickLook Books plugin). Returns `null` on failure.
 - `app.openSource(uri)` — Open file or URL in native app
 
 **Window:**
@@ -348,7 +351,7 @@ Shows objects explicitly pinned to `objects:⟨~⟩` via `contains` edges, rende
 
 ### ObjectListView
 
-List of objects inside the active space. Handles both spaces (double-click to enter) and leaf objects (double-click to open source URI). Single-click selects and opens `ObjectDetailPane`. Type indicated by ●/○ icon (object/space) in the first grid column. Filter button (top-left) cycles `filterSide` (objects/spaces) on click and toggles `filterCombined` on hold (300 ms); bound to `` ` `` key with the same tap/hold logic.
+List of objects inside the active space. Handles both spaces (double-click to enter) and leaf objects (double-click to enter as active location). Single-click selects and opens `ObjectDetailPane`. Grid columns: type icon (28px) / name (1fr) / file type/Kind (56px) / date (90px). Local image and PDF objects show a thumbnail in the type column (loaded async via IPC, module-level cache). Keyboard: W/↑ up, S/↓ down, Shift+W/S/↑/↓ extend selection (Finder anchor/cursor), CMD+A selects all, A/← navigate back, D/→ enter selected or select first. Filter button cycles `filterSide` (objects/spaces) on click and toggles `filterCombined` on hold (300 ms); bound to `` ` `` key with the same tap/hold logic.
 
 ### ObjectDetailPane
 
@@ -360,7 +363,7 @@ D3 force-directed visualization. Nodes use ●/○ visual language matching the 
 
 ### AddressBar
 
-Persistent navigation strip. Shows the current location (`~`, space name, or `/`). CMD+L focuses an in-place navigation input with Tab/Arrow/Enter keyboard navigation. `+` dropdown creates Object or Space in the active context.
+Persistent navigation strip. Shows the current location (`~`, name of active space or object, or `/`). CMD+L focuses an in-place search input. Empty query shows spaces only; typed query shows matching spaces (○ prefix) then matching objects (● prefix). Selecting a space navigates to it; selecting an object navigates to it as the active location and opens the detail pane. `+` dropdown creates Object or Space in the active context.
 
 ### Command Palette (CMD+K)
 
@@ -383,14 +386,19 @@ Opened with CMD+,. Tabs: Devices (live list of all device records; current devic
 | Cmd+/ | Navigate to `/` (all objects) |
 | Cmd+I | Capture frontmost browser tab |
 | Cmd+K | Open command palette |
-| Cmd+L | Focus address bar / space navigator |
+| Cmd+L | Focus address bar / general search |
+| Cmd+E | Edit tags / rules for selected object(s) |
 | Cmd+, | Open settings |
 | V | Toggle list / graph view |
 | `` ` `` | Cycle list filter (hold 300 ms for combined) |
-| Cmd+A / Cmd+← | Navigate back |
-| Cmd+D / Cmd+→ | Navigate forward |
+| W / ↑ | Move selection up in list |
+| S / ↓ | Move selection down in list |
+| A / ← | Navigate back |
+| D / → | Navigate forward / enter selected |
+| Shift+W/S/↑/↓ | Extend list selection (Finder range) |
+| Cmd+A | Select all objects in current view |
 | Escape | Close / restore prior context |
 
 ---
 
-*Glossary v0.5 — Updated 2026-04-03*
+*Glossary v0.5 — Updated 2026-04-17*

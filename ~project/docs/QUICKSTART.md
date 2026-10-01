@@ -60,8 +60,13 @@ Produces a distributable in `dist-electron/`.
 | Cmd+, | Open settings |
 | V | Toggle list / graph view |
 | `` ` `` | Cycle list filter (hold 300 ms for combined) |
-| Cmd+A / Cmd+← | Navigate back |
-| Cmd+D / Cmd+→ | Navigate forward |
+| Cmd+E | Edit tags / rules for selected object(s) |
+| W / ↑ | Move selection up in list |
+| S / ↓ | Move selection down in list |
+| A / ← | Navigate back |
+| D / → | Navigate forward / enter selected |
+| Shift+W/S/↑/↓ | Extend list selection (Finder range) |
+| Cmd+A | Select all objects in current view |
 | Escape | Close / restore prior context |
 
 **Cmd+I capture** requires Automation permission on macOS: System Settings → Privacy & Security → Automation.
@@ -85,6 +90,7 @@ All data lives in `~/.index/` on the user's machine.
 │   └── typed_edges.json
 ├── .device-id                 # Device UUID and name
 ├── .version                   # Written on first v0.4 boot; gates v0.3 migration
+├── appearance.json            # Appearance settings (IPC-backed; localStorage is in-session cache)
 └── window-settings.json       # Window geometry and profile
 ```
 
@@ -126,19 +132,24 @@ src/
   icons/
     index.jsx             # Shared icons: ObjectIcon (●), SpaceIcon (○), MonadIcon (◎)
   components/
-    ObjectListView.jsx    # List view — two-bit filter, sort, per-space pref callbacks
-    ObjectDetailPane.jsx  # Detail sidebar — name, source, tags, rules, pin
-    TagAssignmentSection.jsx # Tag assignment with typedEdges pattern + TagAddInput
+    ObjectListView.jsx    # List view — two-bit filter, sort, thumbnails, kind column, multi-select
+    ObjectDetailPane.jsx  # Detail sidebar — name, source, tags, rules, pin, thumbnail badge
+    TagAssignmentSection.jsx # Tag assignment with typedEdges pattern
+    TagAddInput.jsx       # Flexible typed/untyped tag input with autocomplete (shared)
+    TagEditModal.jsx      # CMD+E modal — space rules / object tags / batch tag editing
     SpaceRulesSection.jsx # Inline space rule editor (tag + device groups)
-    AddressBar.jsx        # Navigation strip + integrated CMD+L navigator + create dropdown
+    TypeSchemaSection.jsx # Guided schema field rows, driven by type definition schema
+    ObjectSourceView.jsx  # Dispatches to PdfViewer or webview by source type
+    PdfViewer.jsx         # Canvas-based PDF renderer (pdfjs-dist), continuous scroll
+    AddressBar.jsx        # Navigation strip + CMD+L general search (spaces + objects)
     CommandPalette.jsx    # CMD+K command interface
-    TagsView.jsx          # Tag management, grouped by type
+    TagsView.jsx          # Tag management — Types pinned first, icon picker, schema editor
     GraphView.jsx         # D3 force-directed graph — ●/○ nodes, click-to-select
-    SettingsView.jsx      # Settings — appearance, keybinds tab
+    SettingsView.jsx      # Settings — appearance, devices, keybinds tab
     AppearanceSettings.jsx # HSLA appearance controls
+    ImportModal.jsx       # Finder import UI — per-folder tags, space creation
     CreateSpaceModal.jsx  # ORPHANED — replaced by SpaceRulesSection + inline create
-    CalendarView.jsx      # Archived — not active
-    DayView.jsx           # Archived — not active
+    _archive/             # CalendarView, DayView, UndoToast (not active)
   hooks/                  # useKeyboardShortcuts, useAppearance
   store/
     index.js              # useIndexStore — unified state + LIVE SELECT wiring

@@ -1,6 +1,6 @@
 ---
-updated: 2026-04-06
-session: "020"
+updated: 2026-04-17
+session: "032"
 author: Claude Sonnet 4.6
 ---
 
@@ -83,8 +83,9 @@ edges, root objects, active space objects, devices, nav history, active view.
   hide pin/dates
 - GraphView: ●/○ visual language for nodes; click-to-select opens `ObjectDetailPane` sidebar;
   simulation lifecycle split (mount/data/resize); position reconciliation on live data updates
-- `src/icons/index.jsx` — canonical icon module: `ObjectIcon`, `SpaceIcon`, `MonadIcon`;
-  golden-ratio geometry (inner dot `r=1`, outer ring `r=φ`), `vectorEffect="non-scaling-stroke"`
+- `src/icons/index.jsx` — canonical icon module: `ObjectIcon`, `SpaceIcon`, `MonadIcon`, `TypeIcon`;
+  golden-ratio geometry (inner dot `r=1`, outer ring `r=φ`), `vectorEffect="non-scaling-stroke"`;
+  `TypeIcon` + `TYPE_ICON_KEYS` added in session 021 (8 geometric shapes)
 - `escId()` utility in `surreal-utils.js` for safe raw SurrealQL interpolation
 - Hotkeys: `cmd+shift+space` toggle window; `cmd+/` navigate to `/`; `cmd+\`` navigate to `~`;
   `V` toggle list/graph; `` ` `` list filter toggle; Escape from Settings restores prior context
@@ -95,6 +96,26 @@ edges, root objects, active space objects, devices, nav history, active view.
   migrates legacy `source.origin` strings to edges
 - Nav state (space, view, selected object) persisted to localStorage; restored after loadAll on refresh
 - Case-insensitive tag dedup — `string::lowercase()` in SurrealDB; original casing preserved on write
+- **Thumbnails** — `fs:thumbnail` IPC handler via `nativeImage.createThumbnailFromPath`; exposed in preload;
+  rendered in `ObjectListView` (20px inline) and `ObjectDetailPane` badge (72px). Supported types: images
+  (jpg/png/gif/webp/bmp/tiff/heic/heif), PDF (first page via Quick Look). CSP fix in `index.html` was the
+  root cause of session 017 failure (`img-src 'self' data:` required). Epub covers via `fs:epubCover`
+  IPC handler using `qlmanage`. All thumbnail calls cached at module level in `ObjectListView`.
+- **Navigation keyboard model** — W/S up/down, A/D back/forward, arrow keys as aliases; no CMD for
+  directional nav. Shift+W/S/arrows extend selection (Finder anchor/cursor pattern). CMD+A selects all.
+  `user-select: none` on list view. D/→ three-state: no selection → `selectFirst()`; single → navigate;
+  multi → no-op.
+- **Objects as navigable locations** — any object can be the active location; `activeSpace` lookup is
+  type-agnostic; address bar label resolves for non-space objects; nav history works for objects.
+- **CMD+L general search** — empty query shows spaces only; typed query shows matching spaces (○) then
+  objects (●); selecting an object navigates to it as location in graph view.
+- **CMD+E context-sensitive modal** — single space → `SpaceRulesSection`; single object →
+  `TagAssignmentSection` (auto-focuses input); multiple → batch tag UI (universal/partial groups).
+  `TagAddInput` extracted to own file, shared between detail pane and modal.
+- **Kind column in list view** — 56px column shows uppercase file extension or "URL"; grid `28px 1fr 56px 90px`.
+- **Type icons** — geometric SVG key string stored as `icon` on `tag_definitions`; icon picker in
+  `TypeSchemaEditor`; icons appear in TypeField badge, Types list, schema header, and object list rows;
+  `taggedEdges` flat array in store for per-object icon resolution.
 - **Finder import flow** — right-click any folder/file in Finder → "Add to Index" in top-level
   context menu (Finder Sync Extension, `FinderSyncExtension/`); opens `index://import?path=...`;
   Electron reads folder tree recursively (`fs:readFolder`), sends to renderer; `ImportModal`
@@ -107,13 +128,13 @@ edges, root objects, active space objects, devices, nav history, active view.
   `TagAssignmentSection` unified to store state (`store.objectTags` + `loadTagsForObject`)
 
 **Not built (active backlog):**
-- Object full/dedicated view — double-click opens source URI externally; no in-app object view
+- Object full/dedicated view — entering an object as a location shows an empty graph (no `contains` edges for leaf objects); in-app relational view deferred pending graph edge rendering
 - Graph edge rendering (nodes only; `contains`, `tagged`, `sourced_from` data exists and is live)
 - Undo system (`useHistoryStore` + `UndoToast` in `_archive/`, not wired)
 - Manual pin affordance — pin button in detail pane implemented; no affordance outside detail pane
 - Multi-browser capture (Safari + default; Chrome/Arc/Firefox fall through)
 - `medium` tag type defined but never auto-assigned at capture time
-- **Thumbnails in list view and detail pane** — IPC handler (`fs:thumbnail`), preload, and renderer wiring built in session 017; broken image icons appear at runtime; `nativeImage` data URL output suspected invalid; root cause unconfirmed; requires diagnosis on next attempt
+- Epub cover thumbnails via `qlmanage` — Books.app QuickLook plugin required; behavior on machines without Books.app untested
 
 **Dead code (not yet removed):**
 - `CreateSpaceModal` — fully orphaned; inline create flow + `SpaceRulesSection` replace it entirely
@@ -190,6 +211,39 @@ comment policy. Sessions 003–004 extended the schema (system space ID migratio
   store; adds `contains` edge. Empty state updated to "Drop files or links to add". URL stored raw (no OG fetch
   on drop); full URL used as default object name. OG enrichment deferred to a future session.
 
+- **017** — Thumbnail infrastructure built (`fs:thumbnail` IPC handler via `nativeImage`, preload, renderer wiring
+  in `ObjectListView` + `ObjectDetailPane`). Feature broken at runtime — broken image icons appear. Root cause
+  not diagnosed this session; multiple `nativeImage` approaches attempted. Code left in codebase.
+
+- **018** — Null session. No work produced.
+
+- **019** — Largest single-session feature batch. Six distinct items shipped:
+  (1) Thumbnail pipeline unblocked: one-line CSP fix (`img-src 'self' data:` in `index.html`) — all session 017
+  code was correct; CSP was silently blocking `data:` URIs. PDF thumbnails added same pass.
+  (2) Navigation keyboard model unified: W/S up/down, A/D back/forward, no CMD for directional nav; case
+  sensitivity fix for shift+key (`e.key` uppercases on shift, normalized with `.toLowerCase()`).
+  (3) Shift+W/S/arrows multi-select (Finder anchor/cursor pattern); CMD+A selects all objects; `user-select:
+  none` on list prevents native text highlight on click.
+  (4) CMD+L expanded to general search: spaces first (○), then objects (●); selecting an object navigates to
+  it as the active location in graph view.
+  (5) Objects are navigable locations: `activeSpace` lookup drops `&& o.space` filter; double-click any object
+  enters it via `onEnterSpace(id)`; nav history works for objects.
+  (6) CMD+E context-sensitive edit modal: single space → `SpaceRulesSection`; single object →
+  `TagAssignmentSection`; multiple → batch tag UI with universal/partial tag display. `selectedIds` lifted to
+  App.jsx. `TagAddInput` extracted to own file, shared between detail pane and modal.
+
+- **020** — PDF continuous scroll: RAF loop at 5px/frame, starts on keydown, stops on keyup. D/→ three-state
+  model: no selection → `selectFirst()` (imperative handle via `forwardRef`); single → navigate into; multi →
+  no-op.
+
+- **021** — Type icons: geometric SVG shapes stored as `icon` key string on `tag_definitions`; `TypeIcon`
+  component + `TYPE_ICON_KEYS` added to `src/icons/index.jsx`; icons in four locations (TypeField badge, Types
+  list rows, schema header, object list rows); icon picker in `TypeSchemaEditor`. `taggedEdges` flat array added
+  to store for per-object type icon resolution. File type (Kind) column added to list view (56px; uppercase
+  extension or "URL"). Epub viewer built with `epubjs` then immediately removed — scope decision: file viewing
+  deferred to external apps, Index shows thumbnails only. Epub cover thumbnail via `fs:epubCover` IPC handler
+  using `qlmanage` (macOS QuickLook, no new packages).
+
 ---
 
 ## Key Decisions
@@ -228,18 +282,39 @@ comment policy. Sessions 003–004 extended the schema (system space ID migratio
 | Drop/paste share `addUrisToSpace()`; dedup client-side by URI string match against store | Session 016 |
 | OG metadata fetch deferred — URL stored raw on drop/paste; enrichment is a future feature | Session 016 |
 | Full URL used as default object name for dropped/pasted URLs | Session 016 |
+| Thumbnail root cause was CSP (`default-src 'self'` blocks `data:` URIs); one-line fix in `index.html` | Session 019 |
+| Keyboard nav: W/S up/down, A/D back/forward; no CMD for directional keys | Session 019 |
+| Objects are navigable locations — `activeSpace` lookup drops `&& o.space`; nav history works for objects | Session 019 |
+| CMD+E is context-sensitive: space → rules editor, object → tag editor, multi → batch tag editor | Session 019 |
+| `selectedIds` controlled in App.jsx (lifted from ObjectListView) — required for modal to read selection | Session 019 |
+| `TagAddInput` extracted to own file — shared between detail pane and CMD+E modal | Session 019 |
+| D/→ three-state: no selection → select first; single → navigate into; multi → no-op | Session 020 |
+| `selectFirst()` exposed as imperative handle via `forwardRef` — App calls it when D/→ pressed with no selection | Session 020 |
+| Type icon format: geometric SVG key string stored as `icon` on `tag_definitions` records | Session 021 |
+| `taggedEdges` flat array in store — loaded at init, maintained live — for per-object type icon resolution | Session 021 |
+| File viewing deferred to external apps; Index shows thumbnails only — epub viewer built and immediately removed | Session 021 |
+| Epub cover thumbnail via `qlmanage` (macOS QuickLook) — no new npm packages | Session 021 |
 
 ---
 
 ## Open Contradictions
 
+- **Scope is broadening ahead of a v0.6 migration.** The application has accumulated
+  significant surface area (PDF viewer, thumbnail pipeline, epub cover extraction, type icon
+  system, keyboard nav unification, CMD+E modal). The user has identified this as a concern:
+  direction is getting too broad. v0.6 is the planned inflection point to clarify scope and
+  sharpen focus before continuing feature development.
+
 - **Graph renders nodes only.** `contains`, `tagged`, and `sourced_from` edges are live
   and complete in the data model. `GraphView` renders labeled circles with no edges. The
-  visualization does not reflect the relational model.
+  visualization does not reflect the relational model. Navigating into an object as a location
+  now shows the graph view — but an empty one, since leaf objects have no `contains` edges and
+  edges aren't drawn. This gap is more visible now than before.
 
-- **No full-screen object view.** Single-click opens the detail sidebar. Double-click on
-  a leaf opens its source URI externally. There is no dedicated in-app view for a single
-  object at full focus.
+- **Object-as-location shows an empty view.** Entering a leaf object as the active location
+  (via CMD+L search or double-click) shows an empty graph. The intended experience (ego-graph:
+  object at center, edges to spaces and relations) requires graph edge rendering, which is not
+  yet built.
 
 - **`medium` auto-assignment is dormant.** The tag type is registered, seeded, and
   documented. No capture handler derives or assigns it. `type` tags are applied at capture;
@@ -250,7 +325,7 @@ comment policy. Sessions 003–004 extended the schema (system space ID migratio
 
 - **Capture is Safari-only in practice.** The `defaultHandler` fires for non-Safari apps
   but produces no output. Chrome, Arc, Firefox users get a focused Index window with nothing
-  captured. (Finder import is now handled via the import flow, not capture.)
+  captured.
 
 - **`CreateSpaceModal` is fully orphaned.** The inline create flow (session 006) and
   `SpaceRulesSection` (session 010) together replace everything it did. The component

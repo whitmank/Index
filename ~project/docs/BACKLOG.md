@@ -1,11 +1,11 @@
 ---
 author: Claude Sonnet 4.6
-date: 2026-03-26
+date: 2026-04-17
 ---
 
 # Index — Backlog
 
-Items not yet implemented, organized by theme. Status reflects codebase as of 2026-04-03.
+Items not yet implemented, organized by theme. Status reflects codebase as of 2026-04-17.
 
 ---
 
@@ -20,10 +20,11 @@ Items not yet implemented, organized by theme. Status reflects codebase as of 20
 
 ## Object Detail
 
-- **No full-screen object view** — `ObjectDetailPane` (sidebar) opens on single-click selection. Double-click on a leaf opens its source URI externally. No dedicated in-app full-focus view for a single object.
+- **No in-app relational object view** — Entering a leaf object as a location (via CMD+L search or double-click) shows an empty graph. The intended experience (ego-graph: object at center, edges to spaces/relations) requires graph edge rendering, which is not yet built.
 - **Notes editing** — `user_metadata` exists in object schema but no UI to edit notes.
 - **Source file metadata** — File size and last-modified not displayed for local sources.
 - **URL metadata** — No title, description, or favicon fetching for web sources beyond what is captured at index time.
+- **Epub cover thumbnails** — `fs:epubCover` via `qlmanage` requires Books.app QuickLook plugin; untested on machines without Books.app installed.
 
 ---
 
@@ -52,7 +53,7 @@ Items not yet implemented, organized by theme. Status reflects codebase as of 20
 ## Sources & Capture
 
 - **Chrome/Arc/Firefox capture** — Cmd+I capture is Safari-only. `capture/index.js` has a `safariHandler` and a generic `defaultHandler`; no browser-specific handlers for others.
-- **Source type indicators** — No visual distinction between file and URL objects in the list.
+- **Source type indicators** — The Kind column (session 021) shows file extensions and "URL" but does not visually distinguish further (e.g. no icon color differentiation by type in the list).
 - **Additional URI schemes** — No support for `notion://`, `obsidian://`, `smb://`. Only `http/https` and `file://` handled.
 - **Deduplication warning** — Cmd+I silently focuses existing object when a URI already exists. No user-facing warning or merge offer.
 
@@ -132,3 +133,13 @@ Features complete and working as of 2026-04-03:
 - Nav state (space, view, selected object) persisted to localStorage; restored after loadAll on refresh
 - Finder import flow — Finder Sync Extension adds "Add to Index" to context menu; `ImportModal` for batch tag application; `fs:readFolder` IPC handler; `IndexSync.app` host for dev registration
 - Type system — `kind` renamed to `type`; type definitions carry `schema` (ordered tag type IDs); `TypeSchemaSection` renders guided field rows; `TagAssignmentSection` unified to store state; TagsView Types tab; `seedTypeSchemas` seeds standard schemas on boot
+- Drag-drop + CMD+V paste to add objects to active space; `addUrisToSpace()` shared path; URI dedup
+- Thumbnails — `fs:thumbnail` IPC via `nativeImage` + Quick Look (images + PDFs); `fs:epubCover` via `qlmanage`; CSP fix; inline in list rows + detail badge; module-level cache in ObjectListView
+- Navigation keyboard model — W/S up/down, A/D back/forward, no CMD for directional keys; Shift multi-select (Finder anchor/cursor); CMD+A selects all; D/→ three-state; `selectFirst()` imperative handle
+- CMD+L general search — spaces (○) then objects (●); selecting an object navigates to it as location
+- Objects as navigable locations — any object can be active location; address bar label resolves for objects
+- CMD+E context-sensitive modal — single space → rules; single object → tags; multiple → batch tag UI; `TagAddInput` shared
+- Type icons — geometric SVG key string on `tag_definitions.icon`; `TypeIcon` in icon module; icon picker; `taggedEdges` in store
+- Kind column in list view — 56px; uppercase file extension or "URL"
+- PDF viewer (`PdfViewer.jsx`) with RAF-based continuous scroll (5px/frame)
+- File viewing deferred to external apps — epub viewer built and immediately removed; Index shows thumbnails only
