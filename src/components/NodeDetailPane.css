@@ -1,0 +1,308 @@
+/* Author: Claude Sonnet 4.6 */
+/* NodeDetailPane */
+
+.ndp {
+  width: 260px;
+  min-width: 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.ndp--full {
+  width: 100%;
+  max-width: none;
+  border-left: none;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.ndp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  flex-shrink: 0;
+}
+
+.ndp-name {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111;
+  margin: 0;
+  cursor: default;
+  word-break: break-word;
+}
+
+.ndp-name-input {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111;
+  border: 1px solid rgba(0, 97, 217, 0.5);
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: white;
+  outline: none;
+}
+
+.ndp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ndp-schema-badge {
+  font-size: 0.65rem;
+  color: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.07);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.ndp-enter-btn,
+.ndp-close-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.ndp-enter-btn:hover,
+.ndp-close-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #111;
+}
+
+/* ── Sections ─────────────────────────────────────────────────── */
+
+.ndp-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ndp-section--edges {
+  flex: 1;
+}
+
+.ndp-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.4);
+  margin-bottom: 6px;
+}
+
+.ndp-section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ndp-empty-hint {
+  font-size: 0.78rem;
+  color: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Sources ──────────────────────────────────────────────────── */
+
+.ndp-source-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.ndp-source-item:hover .ndp-source-label {
+  color: #0061d9;
+}
+
+.ndp-source-scheme {
+  font-size: 0.65rem;
+  color: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.ndp-source-label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Edges ────────────────────────────────────────────────────── */
+
+.ndp-edge-group {
+  margin-bottom: 8px;
+}
+
+.ndp-edge-group-label {
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.5);
+  font-style: italic;
+  margin-bottom: 3px;
+}
+
+.ndp-edge-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.ndp-edge-peer-icon {
+  color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ndp-edge-peer-name {
+  font-size: 0.78rem;
+  color: #222;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ndp-edge-remove {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.ndp-edge-item:hover .ndp-edge-remove {
+  opacity: 1;
+}
+
+.ndp-edge-remove:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #c00;
+}
+
+/* ── Add edge form ─────────────────────────────────────────────── */
+
+.ndp-add-edge-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ndp-add-edge-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111;
+}
+
+.ndp-add-edge-form {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ndp-add-edge-direction {
+  display: flex;
+  gap: 4px;
+}
+
+.ndp-dir-btn {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.ndp-dir-btn.active {
+  background: rgba(0, 0, 0, 0.12);
+  color: #111;
+}
+
+.ndp-add-edge-input {
+  font-size: 0.78rem;
+  padding: 4px 7px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.7);
+  outline: none;
+  color: #222;
+}
+
+.ndp-add-edge-input:focus {
+  border-color: rgba(0, 97, 217, 0.4);
+}
+
+.ndp-add-edge-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.ndp-add-edge-confirm,
+.ndp-add-edge-cancel {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ndp-add-edge-confirm {
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #111;
+}
+
+.ndp-add-edge-confirm:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.ndp-add-edge-cancel {
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.ndp-add-edge-cancel:hover {
+  background: rgba(0, 0, 0, 0.05);
+}

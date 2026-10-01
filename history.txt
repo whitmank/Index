@@ -1,0 +1,8 @@
+#V2
+SELECT count() FROM nodes GROUP ALL;
+SELECT count() FROM edges GROUP ALL;
+SELECT count() FROM edge_types GROUP ALL;
+SELECT schema, count() FROM nodes GROUP BY schema;
+SELECT id, name, schema, system FROM nodes;
+SELECT id, name FROM edge_types;
+SELECT id, in, out, type FROM edges;

@@ -1,0 +1,172 @@
+/* Author: Claude Sonnet 4.6 */
+/* NodeListView — list of nodes */
+
+.node-list-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  outline: none;
+}
+
+.node-list-table {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.node-list-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 120px;
+  align-items: center;
+  padding: 3px 10px 3px 36px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.node-list-sort-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: left;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+
+.node-list-sort-btn:hover { color: rgba(0, 0, 0, 0.7); }
+.node-list-sort-btn.active { color: rgba(0, 0, 0, 0.75); }
+
+.node-list-sort-btn--right { text-align: right; }
+
+.node-list-col-label {
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+
+.node-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.node-list-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.3);
+  font-size: 0.82rem;
+  padding: 40px;
+}
+
+/* ── Node row ───────────────────────────────────────────────────── */
+
+.node-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 60px 120px;
+  align-items: center;
+  padding: 4px 10px 4px 12px;
+  gap: 8px;
+  cursor: default;
+  border-radius: 5px;
+  margin: 0 4px;
+  user-select: none;
+  -webkit-user-select: none;
+  min-height: 28px;
+}
+
+.node-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.node-row.selected {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.node-row.is-group {
+  font-style: normal;
+}
+
+.node-row.has-thumb {
+  min-height: 36px;
+}
+
+.node-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.node-row-thumb {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+.node-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-row-name {
+  font-size: 0.82rem;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-row-schema-badge {
+  font-size: 0.65rem;
+  color: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.07);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.node-row-kind {
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.node-row-date {
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ── Drop overlay ───────────────────────────────────────────────── */
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border: 2px dashed rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.drop-overlay-label {
+  font-size: 0.9rem;
+  color: rgba(0, 0, 0, 0.5);
+}
