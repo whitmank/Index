@@ -29,7 +29,7 @@ npm run dev:backend # Start with SurrealDB
 
 ## API
 
-Full reference in `!docs/API.md`. Key endpoints:
+Full reference in `~project/docs/API.md`. Key endpoints:
 
 - `GET /health` - Health check
 - `GET/POST /api/nodes` - File nodes
