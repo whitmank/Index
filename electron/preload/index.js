@@ -1,0 +1,150 @@
+// Author: Claude Code
+// Preload — exposes window.electronAPI via contextBridge.
+// Covers: device identity, database CRUD + edge operations, LIVE SELECT channels,
+//         file system, window profile, appearance settings, and active space reporting.
+
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Device identification
+  device: {
+    ensureNamed: () => ipcRenderer.invoke('device:ensureNamed'),
+    getOrigin: () => ipcRenderer.invoke('device:getOrigin'),
+    getId: () => ipcRenderer.invoke('device:getId'),
+    isNamed: () => ipcRenderer.invoke('device:isNamed'),
+    submitName: (name) => ipcRenderer.send('device:submit-name', name),
+  },
+
+  // Database operations
+  db: {
+    getAll: (table) => ipcRenderer.invoke('db:getAll', table),
+    getTagTypes: () => ipcRenderer.invoke('db:getTagTypes'),
+    createObject: (data) => ipcRenderer.invoke('db:createObject', data),
+    updateObject: (id, data) => ipcRenderer.invoke('db:updateObject', id, data),
+    deleteObject: (id) => ipcRenderer.invoke('db:deleteObject', id),
+    createTag: (data) => ipcRenderer.invoke('db:createTag', data),
+    assignTag: (objectId, tagId) => ipcRenderer.invoke('db:assignTag', objectId, tagId),
+    unassignTag: (objectId, tagId) => ipcRenderer.invoke('db:unassignTag', objectId, tagId),
+    getTagsForObject: (objectId) => ipcRenderer.invoke('db:getTagsForObject', objectId),
+    getObjectsForTag: (tagId) => ipcRenderer.invoke('db:getObjectsForTag', tagId),
+    updateTag: (id, data) => ipcRenderer.invoke('db:updateTag', id, data),
+    deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
+    findOrCreateSystemTag: (type, name) => ipcRenderer.invoke('db:findOrCreateSystemTag', type, name),
+    // Space operations
+    createSpace: (data) => ipcRenderer.invoke('db:createSpace', data),
+    updateSpace: (id, data) => ipcRenderer.invoke('db:updateSpace', id, data),
+    evaluateSpace: (id) => ipcRenderer.invoke('db:evaluateSpace', id),
+    // Edge operations
+    addIncludes: (parentId, childId, order) => ipcRenderer.invoke('db:addIncludes', parentId, childId, order),
+    removeIncludes: (parentId, childId) => ipcRenderer.invoke('db:removeIncludes', parentId, childId),
+    isIncludedBy: (parentId, childId) => ipcRenderer.invoke('db:isIncludedBy', parentId, childId),
+    addExcludes: (parentId, childId) => ipcRenderer.invoke('db:addExcludes', parentId, childId),
+    removeExcludes: (parentId, childId) => ipcRenderer.invoke('db:removeExcludes', parentId, childId),
+    // Tag type management
+    createTagType: (data) => ipcRenderer.invoke('db:createTagType', data),
+    updateTagType: (typeId, data) => ipcRenderer.invoke('db:updateTagType', typeId, data),
+    deleteTagType: (typeId) => ipcRenderer.invoke('db:deleteTagType', typeId),
+    // Devices
+    getDevices: () => ipcRenderer.invoke('db:getDevices'),
+    // New-shape pill data (graph-native edges). Walks type-Object schema.
+    getPillsForObject: (id) => ipcRenderer.invoke('db:getPillsForObject', id),
+    // New-shape reads (Stage 3B) — coexist with legacy until Stage 3D drops legacy tables.
+    getAllTags: () => ipcRenderer.invoke('db:getAllTags'),
+    getAllTagTypes: () => ipcRenderer.invoke('db:getAllTagTypes'),
+    getAllDevices: () => ipcRenderer.invoke('db:getAllDevices'),
+  },
+
+  // File system operations
+  fs: {
+    pickFile: () => ipcRenderer.invoke('fs:pickFile'),
+    getPathForFile: (file) => webUtils.getPathForFile(file),
+    readFolder: (folderPath) => ipcRenderer.invoke('fs:readFolder', folderPath),
+    thumbnail: (filePath, size) => ipcRenderer.invoke('fs:thumbnail', filePath, size),
+    epubCover: (filePath, size) => ipcRenderer.invoke('fs:epubCover', filePath, size),
+    readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
+  },
+
+  // Import folder — fired by main process when user selects "Add to Index" in Finder.
+  onImportFolder: (callback) => {
+    ipcRenderer.removeAllListeners('main:importFolder');
+    ipcRenderer.on('main:importFolder', (_e, tree) => callback(tree));
+  },
+
+  // LIVE SELECT channels — call once on mount; removeAllListeners prevents accumulation
+  onObjectsLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:objects');
+    ipcRenderer.on('live:objects', (_e, data) => callback(data));
+  },
+  onTaggedLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:tagged');
+    ipcRenderer.on('live:tagged', (_e, data) => callback(data));
+  },
+  onIncludesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:includes');
+    ipcRenderer.on('live:includes', (_e, data) => callback(data));
+  },
+  onExcludesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:excludes');
+    ipcRenderer.on('live:excludes', (_e, data) => callback(data));
+  },
+  onTagDefinitionsLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:tag_definitions');
+    ipcRenderer.on('live:tag_definitions', (_e, data) => callback(data));
+  },
+  onTypedLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:typed');
+    ipcRenderer.on('live:typed', (_e, data) => callback(data));
+  },
+  onDevicesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:devices');
+    ipcRenderer.on('live:devices', (_e, data) => callback(data));
+  },
+  onSourcedFromLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:sourced_from');
+    ipcRenderer.on('live:sourced_from', (_e, data) => callback(data));
+  },
+
+  // Phase 1 pilot edges — new-shape channels
+  onTypeEdgeLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:type');
+    ipcRenderer.on('live:type', (_e, data) => callback(data));
+  },
+  onAuthorLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:author');
+    ipcRenderer.on('live:author', (_e, data) => callback(data));
+  },
+  onGenreLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:genre');
+    ipcRenderer.on('live:genre', (_e, data) => callback(data));
+  },
+  onPublishedLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:published');
+    ipcRenderer.on('live:published', (_e, data) => callback(data));
+  },
+
+  // Active space reporting — called by the store whenever the active space changes
+  app: {
+    setActiveSpace: (spaceId) => ipcRenderer.send('app:setActiveSpace', spaceId),
+  },
+
+  // Open file or URL
+  openSource: (source) => ipcRenderer.invoke('app:openSource', source),
+
+  // Window behavior profile
+  window: {
+    getProfile: () => ipcRenderer.invoke('window:getProfile'),
+    setProfile: (profile) => ipcRenderer.invoke('window:setProfile', profile),
+  },
+
+  // Appearance settings — persisted to ~/.index/appearance.json via main process
+  appearance: {
+    get: () => ipcRenderer.invoke('appearance:get'),
+    set: (values) => ipcRenderer.send('appearance:set', values),
+  },
+
+  // Phase 1 debug bridge — deprecated; use electronAPI.db.getPillsForObject instead.
+  // Kept for one release to avoid breaking anything still poking from DevTools.
+  debug: {
+    getPillsForObject: (id) => ipcRenderer.invoke('db:getPillsForObject', id),
+  },
+});

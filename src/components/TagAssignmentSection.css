@@ -1,0 +1,175 @@
+/**
+ * TagAssignmentSection Styles
+ *
+ * Author: Claude Sonnet 4.6
+ */
+
+.tags-assignment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tags-empty {
+  font-size: 0.78rem;
+  color: #cccccc;
+  margin: 0;
+  padding: 2px 0;
+}
+
+/* ── Type group ──────────────────────────────────────────────────────────── */
+
+.tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tag-group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #888888;
+}
+
+.tag-group-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+/* ── Tag badge ───────────────────────────────────────────────────────────── */
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: #faf8f5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.tag-badge:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.tag-badge-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  letter-spacing: 0.2px;
+  color: #faf8f5;
+}
+
+.tag-badge-name.editable {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin: 0 -4px;
+  transition: background 150ms ease;
+}
+
+.tag-badge-name.editable:hover  { background: rgba(255, 255, 255, 0.2); }
+.tag-badge-name.editable:focus  { outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: 1px; }
+
+.tag-badge-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.tag-badge-remove {
+  background: none;
+  border: none;
+  color: #faf8f5;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 1px 2px;
+  margin: 0 -2px;
+  line-height: 1;
+  opacity: 0.6;
+  border-radius: 2px;
+  transition: opacity 150ms ease, background 150ms ease;
+  flex-shrink: 0;
+}
+
+.tag-badge-remove:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── System tag inline edit ──────────────────────────────────────────────── */
+
+.system-tag-edit-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #ffffff;
+  border: 1px solid #d8d4cf;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.system-tag-edit-input {
+  flex: 1;
+  min-width: 80px;
+  max-width: 150px;
+  padding: 4px 8px;
+  border: none;
+  outline: none;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: #333333;
+  background: transparent;
+}
+
+.system-tag-edit-input::placeholder { color: #cccccc; }
+
+.system-tag-edit-save,
+.system-tag-edit-cancel {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #555555;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: background 100ms ease;
+}
+
+.system-tag-edit-save:hover  { background: #c8e6c9; color: #2e7d32; }
+.system-tag-edit-cancel:hover { background: #ffcdd2; color: #c62828; }
+
+/* ── Add tag button ──────────────────────────────────────────────────────── */
+
+.tag-add-btn {
+  background: none;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: #aaaaaa;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  text-align: left;
+}
+
+.tag-add-btn:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #666666;
+}
+
+/* Tag input styles live in TagAddInput.css */
