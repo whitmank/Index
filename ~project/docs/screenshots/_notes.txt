@@ -1,0 +1,11 @@
+ObjectCardModal: type-schema section present=false, tag-assignment section present=false
+Entered a non-space object via "d" but ObjectSourceView markup not detected — may have different class name.
+Home space only has 2 objects — skipped multi-select capture (need >=3).
+ImportModal: no direct UI trigger found (drag-and-drop only); synthetic IPC trigger attempted=true
+Settings tab "window" — could not find clickable element by dataset/text match.
+ObjectCardModal (PDF object): schema-field-row present=false, tags-assignment present=true
+PDF source view state: {"pdfScroll":true,"pdfLoading":false,"pdfError":false,"canvasCount":1}
+URL object source view: webview container present=true
+Multi-select via shift-click at root: 4 rows selected
+Batch TagEditModal open after CMD+E on multi-selection: true
+ImportModal triggered via main-process IPC send('main:importFolder', ...): rendered=true

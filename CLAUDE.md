@@ -22,17 +22,17 @@ Forward movement confirms synthesis.
 Contradiction is signal. Reasoning is artifact.
 
 Artifact discipline:
-  DIALECTIC/sessions/NNN/transcript.md   — complete session record captured automatically
-  DIALECTIC/sessions/NNN/notes.md        — running dialectic notes written during the session;
+  ~project/dev-log/dialectic/sessions/NNN/transcript.md   — complete session record captured automatically
+  ~project/dev-log/dialectic/sessions/NNN/notes.md        — running dialectic notes written during the session;
                                            decisions, contradictions, syntheses as they land;
                                            written silently by the model and via /note
-  DIALECTIC/sessions/NNN/session-log.md  — authored offline from transcript + notes;
+  ~project/dev-log/dialectic/sessions/NNN/session-log.md  — authored offline from transcript + notes;
                                            never written from live session context
-  DIALECTIC/ORIENT.md                    — current synthesis, open contradictions;
+  ~project/dev-log/dialectic/ORIENT.md                    — current synthesis, open contradictions;
                                            updated via /session-log
 
 Notes discipline:
-  Write to DIALECTIC/sessions/NNN/notes.md silently when something meaningful settles:
+  Write to ~project/dev-log/dialectic/sessions/NNN/notes.md silently when something meaningful settles:
     - A decision is made (direction chosen, scope locked)
     - A contradiction is named
     - A synthesis is reached
@@ -42,7 +42,7 @@ Notes discipline:
   Use the entry format defined in the /note command.
 
 Commands:
-  /orient      — Read DIALECTIC/ORIENT.md. Return a concise summary of current synthesis
+  /orient      — Read ~project/dev-log/dialectic/ORIENT.md. Return a concise summary of current synthesis
                  and open contradictions for user confirmation.
   /note <what> — Capture a dialectic moment to notes.md. Argument is required.
   /session-log — Author a session log from a transcript file. Update ORIENT.md.
