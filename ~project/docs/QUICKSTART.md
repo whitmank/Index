@@ -1,6 +1,6 @@
 ---
 Author: Claude Code
-Updated: 2026-03-12
+Updated: 2026-03-17
 ---
 
 # Index — Quick Start
@@ -53,9 +53,16 @@ Produces a distributable in `dist-electron/`.
 |---|---|
 | Cmd+` | Toggle window visibility |
 | Cmd+I | Capture frontmost browser tab |
-| Cmd+, | Toggle settings |
-| Cmd+. | Toggle object detail sidebar |
+| Cmd+K | Open command palette |
+| Cmd+L | Focus address bar / navigate to container |
+| Cmd+, | Open settings |
+| Cmd+. | Toggle detail panel |
+| Cmd+/ | Navigate to root |
+| Cmd+O | Create new object |
+| Cmd+A / Cmd+← | Navigate back |
+| Cmd+D / Cmd+→ | Navigate forward |
 | Cmd+Z | Undo last destructive action |
+| Escape | Close / cancel |
 
 **Cmd+I capture** requires Automation permission on macOS: System Settings → Privacy & Security → Automation.
 
@@ -67,15 +74,18 @@ All data lives in `~/.index/` on the user's machine.
 
 ```
 ~/.index/
-├── surreal/                 # SurrealDB — primary source of truth
-├── export/                  # Auto-exported JSON (human-readable backup)
+├── surreal/                   # SurrealDB — primary source of truth
+├── export/                    # Auto-exported JSON (human-readable backup)
 │   ├── objects/
 │   ├── tag_definitions/
-│   ├── collections/
-│   └── tag_assignments.json
-├── .device-id               # Device UUID and name
-├── .version                 # Written on first v0.4 boot; gates v0.3 migration
-└── window-settings.json     # Window geometry and profile
+│   ├── tag_types/
+│   ├── tagged_edges.json
+│   ├── contains_edges.json
+│   ├── excludes_edges.json
+│   └── typed_edges.json
+├── .device-id                 # Device UUID and name
+├── .version                   # Written on first v0.4 boot; gates v0.3 migration
+└── window-settings.json       # Window geometry and profile
 ```
 
 Export runs automatically — debounced 5 seconds after any mutation, and on quit.
@@ -93,17 +103,18 @@ electron/
     capture/              # Cmd+I global capture (Safari + default handlers)
     config/               # Device ID, window settings
     db/
-      connection.js       # SurrealDB process management
-      live-queries.js     # LIVE SELECT → renderer push
+      connection.js       # SurrealDB process management, table/edge init, system containers
+      live-queries.js     # LIVE SELECT → renderer push (objects + 4 edge tables)
       export.js           # Async JSON export
       migration.js        # v0.3 → v0.4 one-time import
       repair.js           # System tag repair
       services/
-        object-service.js # Object creation + system tag assignment
-        system-tags.js    # Find-or-create system tags
+        object-service.js    # Object creation + system tag edge assignment
+        container-service.js # Container membership evaluation
+        system-tags.js       # Find-or-create system tags
     dialogs/              # Device naming dialog (first run)
-    domain/               # System tag type registry
-    ipc/                  # IPC handlers: db, device, window
+    domain/               # System tag type registry (SYSTEM_TAG_TYPES, seedTagTypes)
+    ipc/                  # IPC handlers: objects, tags, tag types, containers, edges
     utils/                # Metadata extraction, ID normalization, file recovery
     window-manager/       # macOS window profiles (overlay, window)
   preload/
@@ -111,18 +122,26 @@ electron/
 
 src/
   App.jsx                 # Root component
-  components/             # GraphView, ObjectDetailSidebar, CollectionsSidebar,
-                          # SettingsModal, TagAssignmentSection, UndoToast
+  components/
+    SpacesView.jsx        # Card grid of user containers
+    ObjectListView.jsx    # List view — containers and leaf objects
+    AddressBar.jsx        # Navigation strip + integrated CMD+L navigator
+    CommandPalette.jsx    # CMD+K command interface
+    TagsView.jsx          # Tag management, grouped by type
+    QuickSpaceView.jsx    # Floating overlay window
+    GraphView.jsx         # D3 force-directed visualization
+    CreateSpaceModal.jsx  # Container creation form
+    UndoToast.jsx         # Undo notification UI
   hooks/                  # useKeyboardShortcuts, useAppearance
-  lib/                    # forceSimulation (D3 config)
   store/
-    index.js              # useIndexStore — unified state
+    index.js              # useIndexStore — unified state + LIVE SELECT wiring
     history.js            # useHistoryStore — undo stack
 
 docs/
   ABOUT.md                # Technical reference: architecture, flows, key files, roadmap
-  GLOSSARY.md             # Canonical terminology and IPC API
+  GLOSSARY.md             # Canonical terminology, data model, and IPC API
   BACKLOG.md              # Known gaps and planned features
+  QUICKSTART.md           # This file
   PROJECT_DESIGN.md       # Design philosophy and principles
 ```
 

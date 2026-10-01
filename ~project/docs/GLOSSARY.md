@@ -1,7 +1,7 @@
 ---
 Author: Claude Code
-Last Updated: 2026-03-11
-Version: 0.4
+Last Updated: 2026-03-17
+Version: 0.4.2
 ---
 
 # Index — Glossary
@@ -15,40 +15,73 @@ Version: 0.4
 
 ### Object
 
-The fundamental entity in Index. An object represents an indexed resource — a file, URL, or any addressable thing.
+The fundamental entity in Index. An object represents an indexed resource — a file, URL, or any addressable thing. Objects are also the only container primitive: a container is just an object with `container: true`.
 
-**Current Schema (v2):**
+**Schema:**
 ```javascript
 {
-  id: string,                        // Fully-qualified SurrealDB record ID ("objects:abc123")
-  name: string,                      // Display name (derived from source on creation)
-  label?: string,                    // Short display label for graph nodes (user-set, optional)
-  description?: string,              // User-provided description
-  sources: Source[],                 // Array of sources (can be empty)
-  user_metadata: { notes?: string }, // User-provided metadata
-  created_at: string,                // ISO timestamp
-  updated_at: string,                // ISO timestamp
+  id: string,           // Fully-qualified SurrealDB record ID ("objects:abc123")
+  name: string,         // Display name
+  label?: string,       // Short display label for graph nodes (user-set, optional)
+  description?: string, // User-provided description
+  sources: Source[],    // Array of source locations (can be empty)
+  container?: boolean,  // true = navigable container; absent/false = leaf object
+  query?: {             // Tag filter rules for container membership; null = no query
+    all: string[],      // Object must have ALL of these tag IDs
+    any: string[],      // Object must have at least ONE of these tag IDs
+    none: string[],     // Object must have NONE of these tag IDs
+  } | null,
+  default_view?: string, // 'list' | 'calendar' | 'graph' — view mode when entered
+  system?: boolean,     // true for system-seeded objects (objects:root, objects:all)
+  order?: number,       // Display order among siblings
+  created_at: string,   // ISO timestamp
+  updated_at: string,   // ISO timestamp
 }
 ```
 
 **Key Properties:**
 - Identity is independent of source location — moving a file doesn't break the object
 - An object can have multiple sources (e.g., the same book as a PDF on this device and an EPUB on another)
-- Sources are append-only; removing a source is tracked, not erased
+- Containers and leaf objects are the same DB primitive. `container: true` is the only affordance marker.
+
+---
+
+### Container
+
+An object with `container: true`. Containers are navigable views that hold member objects. There is no separate container table — containers are rows in `objects`.
+
+**Membership formula:** `(query_results ∪ contains_edges) − excludes_edges`
+
+- **query_results** — objects matching the container's tag rules (`all`/`any`/`none`), evaluated server-side
+- **contains_edges** — objects explicitly added via `RELATE parent->contains->child`
+- **excludes_edges** — objects explicitly removed via `RELATE parent->excludes->child`
+
+A container with no `query` and no `contains` edges is empty by definition. A container with no `query` but explicit `contains` edges is a manual list. A container with both is a hybrid.
+
+**System containers** have deterministic IDs:
+
+| ID | Purpose |
+|---|---|
+| `objects:root` | Root view. Never shown in UI; its `contains` edges define what appears at `/`. |
+| `objects:all` | Navigable "All" view. Seeded with a `root→contains→all` edge on first boot. |
+
+Membership is evaluated server-side via `db:evaluateContainer`. Results are cached in `spaceObjects` (active container) and `rootObjects` (root) in the store.
+
+The active container is the **capture target**: Cmd+I imports the new object into whichever container is currently active.
 
 ---
 
 ### Source
 
-A single location that an object points to. Each object holds a `sources` array of these.
+A single location that an object points to. Each object holds a `sources` array.
 
 **Schema:**
 ```javascript
 {
-  uri: string,        // Full URI (file://, https://, etc.)
-  origin: string,     // Device or context that added this source ("My Laptop", "Web")
-  added_at: string,   // ISO timestamp when this source was added
-  fileType?: string,  // Derived file extension ("pdf", "jpg", "url", "unknown")
+  uri: string,       // Full URI ("file://", "https://", etc.)
+  origin: string,    // Device or context that added this source ("My Laptop", "Web")
+  fileType?: string, // Derived file extension ("pdf", "jpg", "url", "unknown")
+  added_at: string,  // ISO timestamp when this source was added
 }
 ```
 
@@ -56,71 +89,59 @@ A single location that an object points to. Each object holds a `sources` array 
 - `file://` — local filesystem paths
 - `https://` — web URLs (via paste, capture, or Cmd+I)
 
-**Origin values:**
-- Device name (e.g., "My Laptop", "iPad") — set on first launch via device naming dialog
-- `"Web"` — automatically assigned to http/https sources
-
-**Note:** `sources` replaces the v1 `source_local`/`source_remote` fields. An object with no sources is valid (metadata-only object, note, placeholder).
-
----
-
-### System Tags
-
-Tags automatically derived from an object's sources. Three types exist, defined in `electron/main/domain/tag-types.js`:
-
-| Type | Scope | Displayed in UI | Description | Example values |
-|---|---|---|---|---|
-| `media_type` | Object-level (one) | Yes | What the object fundamentally is | `document`, `image`, `video`, `audio` |
-| `file_type` | Per-source (many) | No | File format of each source | `pdf`, `epub`, `jpg`, `url` |
-| `origin` | Per-source (many) | No | Which device/context each source came from | `My Laptop`, `Web` |
-
-System tags cannot be deleted, but their value can be changed by the user (e.g. correcting a wrongly-inferred `media_type`). `file_type` and `origin` are queryable via collections but not shown in the tag UI on individual objects.
-
 ---
 
 ### Tag
 
 A label applied to objects. Tags are globally defined and can be assigned to any number of objects.
 
-**Schema:**
+**Schema (`tag_definitions`):**
 ```javascript
 {
-  id: string,           // Fully-qualified SurrealDB record ID ("tag_definitions:abc123")
+  id: string,           // "tag_definitions:abc123"
   name: string,
-  type: string | null,  // 'media_type', 'file_type', 'origin', or null (user tag)
-  system: boolean,      // true for auto-assigned system tags
   color?: string,       // Optional hex color
   description?: string,
+  system: boolean,      // true for auto-assigned system tags
   created_at: string,
 }
 ```
 
-Tags are many-to-many with objects via `tag_assignments`. Tag assignment records store fully-qualified IDs for both `object_id` and `tag_id`.
+Tag assignment is expressed as a `tagged` edge, not a field: `RELATE objects:x->tagged->tag_definitions:y`. There is no `type` field on `tag_definitions` — tag type membership is expressed as a `typed` edge to a `tag_types` record.
 
 ---
 
-### Collection
+### Tag Type
 
-A saved tag query that groups matching objects. Collections are defined by AND/OR/NOT rules over tag IDs.
+A first-class record in the `tag_types` table that categorizes tags. Type membership is expressed as a `typed` edge (`tag_definitions→typed→tag_types`), not a string field.
 
-**Schema:**
+**Schema (`tag_types`):**
 ```javascript
 {
-  id: string,           // Fully-qualified SurrealDB record ID ("collections:abc123")
-  name: string,
-  query: {
-    all: string[],      // Object must have ALL of these tag IDs
-    any: string[],      // Object must have at least ONE of these tag IDs
-    none: string[],     // Object must have NONE of these tag IDs
-  },
-  order?: number,       // Display order in sidebar
-  pinned: boolean,
-  created_at: string,
-  updated_at: string,
+  id: string,         // "tag_types:medium", "tag_types:kind", etc.
+  name: string,       // Internal key ('medium', 'kind', 'file', 'origin', or user-defined)
+  label: string,      // Display label ('Medium', 'Kind', etc.)
+  description?: string,
+  system: boolean,    // true for system-defined types
+  display: boolean,   // Show this type and its tags in the tag UI
+  editable: boolean,  // User can edit tag values of this type
+  deletable: boolean, // User can delete tags of this type
+  order: number,      // Display order
 }
 ```
 
-Collection evaluation is implemented server-side via `db:evaluateCollection`. **Note:** As of v0.4, collection filtering in the UI is not yet wired — selecting a collection sets `activeCollectionId` in `useIndexStore` but does not currently filter displayed objects. See BACKLOG.md.
+**System tag types**, defined in `electron/main/domain/tag-types.js`:
+
+| ID | Label | Scope | Displayed | Description |
+|---|---|---|---|---|
+| `tag_types:medium` | Medium | Object | Yes | Signal format of the content (audio, video, image, text). Derived at capture. |
+| `tag_types:kind` | Kind | Object | Yes | Semantic form (book, essay, song, photo). Assigned at capture; open set. |
+| `tag_types:file` | File | Source | No | File extension per source. Derived at capture. |
+| `tag_types:origin` | Origin | Source | No | Device or host that provided the source. Derived at capture. |
+
+A tag with no `typed` edge is untyped — valid and grouped under `∅` in TagsView. User-defined types are created freely (`system: false`, all flags true).
+
+System types are seeded via `UPSERT` on every boot from `SYSTEM_TAG_TYPES` in `domain/tag-types.js`.
 
 ---
 
@@ -132,13 +153,48 @@ Each installation of Index identifies itself with a device name chosen by the us
 ```javascript
 {
   id: string,        // UUID
-  name: string,      // User-chosen name ("My Laptop", "iPad")
+  name: string,      // User-chosen name ("My Laptop")
   created_at: string,
   last_seen: string,
 }
 ```
 
 The device name becomes the `origin` value for all locally-added file sources.
+
+---
+
+## Edges
+
+SurrealDB `RELATE` edges are the primary mechanism for expressing relationships between records. They are not join tables — they are a distinct record kind, declared `TYPE RELATION`, with their own `id`, `in` (source), and `out` (target) fields, and can carry additional data.
+
+**Why edges, not join tables:**
+- Direction is semantic: `object→tagged→tag_definition` is not the same as `tag_definition→tagged→object`
+- Edges are records: they can carry metadata (e.g. the `order` field on `contains`)
+- LIVE SELECT works on edge tables directly: the renderer subscribes to edge CREATE/DELETE events
+- Comparison requires plain strings: `normalizeRecord` stringifies both `id` and the `in`/`out` fields so renderer-side matching works correctly
+
+**Edge tables:**
+
+| Table | Direction | Data | Meaning |
+|---|---|---|---|
+| `tagged` | `objects → tag_definitions` | — | Object has this tag |
+| `contains` | `objects → objects` | `order: number` | Container explicitly includes this object |
+| `excludes` | `objects → objects` | — | Container explicitly excludes this object |
+| `typed` | `tag_definitions → tag_types` | — | Tag belongs to this type |
+
+**Edge queries follow the `in`/`out` field pattern:**
+```sql
+-- Tags for an object:
+SELECT out FROM tagged WHERE in = objects:abc
+
+-- Members explicitly pinned to a container:
+SELECT out, `order` FROM contains WHERE in = objects:root
+
+-- Type of a tag:
+SELECT out FROM typed WHERE in = tag_definitions:xyz
+```
+
+All four edge tables have LIVE SELECT subscriptions. The store handles `onTaggedLive`, `onContainsLive`, `onExcludesLive`, and `onTypedLive` events individually — no full-table rescans on mutation.
 
 ---
 
@@ -151,7 +207,7 @@ The process of adding an object to Index. When you index a file or URL, Index:
 1. Constructs a `sources` array entry with URI, device origin, and timestamp
 2. Normalizes the URI (`cleanUri`)
 3. Creates an object record in SurrealDB
-4. Auto-assigns system tags (`media_type`, `file_type`, `origin`) from sources
+4. Auto-assigns system tags (`kind`, `file`, `origin`) via `RELATE` edges
 5. Schedules an async export to `~/.index/export/` (debounced, 5 seconds)
 
 ---
@@ -161,7 +217,6 @@ The process of adding an object to Index. When you index a file or URL, Index:
 A SHA-256 fingerprint of file contents, used for file recovery and future deduplication.
 
 **Format:** `sha256:{64-character hex}`
-**Use:** When a file is missing from its original path, Index searches nearby directories and matches by hash.
 
 ---
 
@@ -180,20 +235,23 @@ When a source file is no longer found at its original path, Index attempts recov
 
 ```
 ~/.index/
-├── surreal/                  ← SurrealDB data files (primary source of truth)
-├── export/                   ← Auto-exported JSON (debounced, human-readable)
-│   ├── objects/              ← One JSON file per object ({name}_{id}.json)
-│   ├── tag_definitions/      ← One JSON file per tag definition
-│   ├── collections/          ← One JSON file per collection
-│   └── tag_assignments.json  ← All object↔tag mappings (single file)
-├── .device-id                ← Device identification
-├── .version                  ← Written on first v0.4 boot; gates v0.3 migration
-└── window-settings.json      ← Window geometry and profile
+├── surreal/                   ← SurrealDB data files (primary source of truth)
+├── export/                    ← Auto-exported JSON (debounced, human-readable backup)
+│   ├── objects/               ← One JSON file per object
+│   ├── tag_definitions/       ← One JSON file per tag definition
+│   ├── tag_types/             ← One JSON file per tag type
+│   ├── tagged_edges.json      ← All object→tag edges
+│   ├── contains_edges.json    ← All containment edges
+│   ├── excludes_edges.json    ← All exclusion edges
+│   └── typed_edges.json       ← All tag→type edges
+├── .device-id                 ← Device identification
+├── .version                   ← Written on first v0.4 boot; gates v0.3 migration
+└── window-settings.json       ← Window geometry and profile
 ```
 
 **Primary storage:** SurrealDB at `~/.index/surreal/`. All reads and writes go through SurrealDB.
 
-**Export:** JSON files in `~/.index/export/` are written asynchronously via `scheduleExport()` after every mutation and on app quit. They are human-readable backups, not the source of truth.
+**Export:** JSON files in `~/.index/export/` are written asynchronously via `scheduleExport()` after every mutation and on app quit. Human-readable backup, not source of truth.
 
 **v0.3 Migration:** On first v0.4 boot, if `~/.index/.version` does not exist, Index imports all objects from the old `~/.index/objects/` JSON files into SurrealDB and writes `.version` to mark migration complete.
 
@@ -201,27 +259,43 @@ When a source file is no longer found at its original path, Index attempts recov
 
 ## IPC API
 
-All renderer↔main communication goes through `window.electronAPI` (exposed via context bridge in `electron/preload/index.js`). All returned records have fully-qualified string IDs.
+All renderer↔main communication goes through `window.electronAPI` (context bridge in `electron/preload/index.js`). All returned records have fully-qualified string IDs. Edge `in`/`out` fields are also stringified.
 
-**Database:**
-- `db.getAll(table)` — Fetch all records from a table
-- `db.getTagTypes()` — Get the system tag type registry from `domain/tag-types.js`
+**Objects:**
+- `db.getAll(table)` — Fetch all records from a table (`'objects'`, `'tag_definitions'`, `'tag_types'`, `'tagged'`, `'contains'`, `'excludes'`, `'typed'`)
 - `db.createObject(data)` — Create object with auto system tag assignment
 - `db.updateObject(id, data)` — Update object fields
-- `db.deleteObject(id)` — Delete an object
-- `db.createTag(data)` — Create a user tag definition
-- `db.updateTag(id, data)` — Update a tag definition
-- `db.deleteTag(id)` — Delete a tag (system tags with `deletable: false` are guarded)
-- `db.assignTag(objectId, tagId)` — Assign tag to object
-- `db.unassignTag(objectId, tagId)` — Remove tag from object
-- `db.getTagsForObject(objectId)` — Get all tags for an object
-- `db.getObjectsForTag(tagId)` — Get all objects for a tag
-- `db.findOrCreateSystemTag(type, name)` — Find or create a system tag
-- `db.repairMissingSystemTags(objectId)` — Repair auto-assigned tags for an object
-- `db.createCollection(data)` — Create a saved query collection
-- `db.updateCollection(id, data)` — Update collection query or name
-- `db.deleteCollection(id)` — Delete a collection
-- `db.evaluateCollection(id)` — Run collection query, return matching objects
+- `db.deleteObject(id)` — Delete an object (also used to delete containers)
+
+**Tags:**
+- `db.getTagTypes()` — Get all tag type records, sorted by order
+- `db.createTag(data)` — Create a tag definition; optional `data.typeId` wires a `typed` edge
+- `db.updateTag(id, data)` — Update tag; optional `data.typeId` reassigns the typed edge
+- `db.deleteTag(id)` — Delete tag (guards system tags with `deletable: false`)
+- `db.assignTag(objectId, tagId)` — Create a `tagged` edge
+- `db.unassignTag(objectId, tagId)` — Delete the `tagged` edge
+- `db.getTagsForObject(objectId)` — Traverse `tagged` edges to fetch tag records
+- `db.getObjectsForTag(tagId)` — Traverse `tagged` edges to fetch object records
+- `db.findOrCreateSystemTag(type, name)` — Find or create a system tag by type and value
+
+**Tag Types:**
+- `db.createTagType(data)` — Create a user-defined tag type
+- `db.updateTagType(typeId, data)` — Update a tag type record
+- `db.deleteTagType(typeId)` — Delete a tag type and all its `typed` edges
+
+**Containers:**
+- `db.createContainer(data)` — Create a container object
+- `db.updateContainer(id, data)` — Update container fields (name, query, default_view, order)
+- `db.evaluateContainer(id)` — Run membership formula, return member object records
+
+**Edges:**
+- `db.addContains(parentId, childId, order?)` — Create a `contains` edge
+- `db.removeContains(parentId, childId)` — Delete a `contains` edge
+- `db.addExcludes(parentId, childId)` — Create an `excludes` edge
+- `db.removeExcludes(parentId, childId)` — Delete an `excludes` edge
+
+**Repair:**
+- `db.repairMissingSystemTags(objectId)` — Re-assign system tags derived from sources
 
 **Device:**
 - `device.getOrigin()` — Get current device name
@@ -231,7 +305,7 @@ All renderer↔main communication goes through `window.electronAPI` (exposed via
 
 **File system:**
 - `fs.pickFile()` — Open native file picker
-- `fs.getPathForFile(file)` — Get filesystem path from a File object (webUtils)
+- `fs.getPathForFile(file)` — Get filesystem path from a File object
 - `app.openSource(uri)` — Open file or URL in native app
 
 **Window:**
@@ -240,43 +314,65 @@ All renderer↔main communication goes through `window.electronAPI` (exposed via
 
 **Events (push from main via LIVE SELECT):**
 - `onObjectsLive(cb)` — Object created, updated, or deleted; `{ action, result }`
-- `onTagAssignmentsLive(cb)` — Tag assignment created or deleted; `{ action, result }`
-- `onCollectionsLive(cb)` — Collection created, updated, or deleted; `{ action, result }`
+- `onTaggedLive(cb)` — `tagged` edge created or deleted; `{ action, result }`
+- `onContainsLive(cb)` — `contains` edge created or deleted; `{ action, result }`
+- `onExcludesLive(cb)` — `excludes` edge created or deleted; `{ action, result }`
+- `onTagDefinitionsLive(cb)` — Tag definition created, updated, or deleted; `{ action, result }`
+- `onTypedLive(cb)` — `typed` edge created or deleted; `{ action, result }`
 
 ---
 
 ## UI
 
-### Graph View
+### Root View (`/`)
 
-The main view. Objects appear as force-directed nodes (D3.js). Click a node to open the detail sidebar. Cmd+Click to open the source file/URL. Nodes currently have no edge rendering — relationship edges are not yet implemented.
+Shows objects explicitly pinned to `objects:root` via `contains` edges. Containers appear first. Nothing appears here without an explicit pin — creating a container auto-pins it.
 
-### Object Detail Sidebar
+### SpacesView
 
-Right panel. Shows the selected object's name, graph label, sources, tags, and delete action. Supports inline editing of name and label. Tags are grouped by type (system tags first, then user tags).
+Card grid of user-created containers. Each card shows the container name and associated tags. Cards support enter, edit, and delete.
 
-### Collections Sidebar
+### ObjectListView
 
-Left panel. Lists all collections including the system "ALL" collection. Supports drag-to-reorder and inline create/edit/delete. Collapse toggle and resizable width.
+List of objects inside the active container (or root). Handles both containers (double-click to enter) and leaf objects (double-click to open). Containers are marked with `▸`.
 
-### Settings Modal
+### AddressBar
 
-Opened with Cmd+,. Contains: device name display, window profile toggle (overlay/window), appearance controls (light/dark theme, HSLA background color sliders).
+Persistent navigation strip. Shows the current location (`/`, container name, or date). CMD+L focuses an in-place navigation input with Tab/Arrow/Enter keyboard navigation — no separate modal.
 
-### Undo Toast
+### Command Palette (CMD+K)
 
-Appears after destructive actions (delete object, delete collection, remove tag). Offers a timed undo. Implemented via `useHistoryStore`.
+Global command interface. Accepts free-text commands and shortcuts to navigate, create, and manage objects and containers.
+
+### TagsView
+
+Tag management view. Tags are grouped by type in a left nav (∅ for untyped, then typed sections). Supports tag creation, editing, and deletion. New types can be created from the bottom of the nav.
+
+### QuickSpaceView
+
+Floating overlay window (CMD+`). Always-on-top, visible across all spaces. Displays the active container's contents. Created containers appear in the main app.
+
+### Settings
+
+Opened with CMD+,. Device name, window profile (overlay/window), appearance (light/dark, HSLA background).
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
 | Cmd+` | Toggle window visibility |
-| Cmd+I | Capture frontmost browser tab (Safari supported) |
-| Cmd+, | Toggle settings modal |
-| Cmd+; | Toggle object detail sidebar |
+| Cmd+I | Capture frontmost browser tab |
+| Cmd+K | Open command palette |
+| Cmd+L | Focus address bar / space navigator |
+| Cmd+, | Open settings |
+| Cmd+. | Toggle detail panel |
+| Cmd+/ | Navigate to root |
+| Cmd+O | Create new object |
+| Cmd+A / Cmd+← | Navigate back |
+| Cmd+D / Cmd+→ | Navigate forward |
 | Cmd+Z | Undo last destructive action |
+| Escape | Close / cancel |
 
 ---
 
-*Glossary v0.4 — Updated March 2026*
+*Glossary v0.4.2 — Updated March 2026*
