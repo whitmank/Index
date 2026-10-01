@@ -22,18 +22,18 @@ Forward movement confirms synthesis.
 Contradiction is signal. Reasoning is artifact.
 
 Artifact discipline:
-  DIALECTIC/sessions/NNN/transcript.md   — complete, unaltered session record captured
+  ~project/dev-log/dialectic/sessions/NNN/transcript.md   — complete, unaltered session record captured
                                            automatically at session end; companion
                                            session-log.md lives in the same directory
-  DIALECTIC/sessions/NNN/session-log.md  — authored at session close from live context;
+  ~project/dev-log/dialectic/sessions/NNN/session-log.md  — authored at session close from live context;
                                            records dialectical exchange: contradictions
                                            surfaced, resolved, and carried forward;
                                            never substituted for transcripts
-  DIALECTIC/ORIENT.md                    — current synthesis, open contradictions;
+  ~project/dev-log/dialectic/ORIENT.md                    — current synthesis, open contradictions;
                                            updated at session close via /session-log
 
 Commands:
-  /orient      — Read DIALECTIC/ORIENT.md. Return a concise summary of current synthesis
+  /orient      — Read ~project/dev-log/dialectic/ORIENT.md. Return a concise summary of current synthesis
                  and open contradictions for user confirmation.
   /session-log — Author a session log from live session context. Update ORIENT.md.
   /transcript  — Confirm latest transcript was captured. Report number,
