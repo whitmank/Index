@@ -1,6 +1,6 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The combined migration for the item/schema data model redesign
-// (docs/ITEM-MODEL-REDESIGN-PLAN.md). Replaces the never-run
+// (~project/docs/ITEM-MODEL-REDESIGN-PLAN.md). Replaces the never-run
 // scripts/migrate-date-fields.ts — per Karter's "migrate once, at the
 // end" direction, everything pending gets folded into this one pass:
 //
