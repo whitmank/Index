@@ -55,4 +55,4 @@ npm run build     # Production build to dist/
 
 ## Styling
 
-See `~project/docs/STYLING.md` for CSS grid layout and design system.
+See `docs/STYLING.md` for CSS grid layout and design system.
