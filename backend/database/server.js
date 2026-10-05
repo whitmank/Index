@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = {
   DB_PORT: 8000,
   DB_USER: 'root',
   DB_PASS: 'root',
-  DB_PATH: path.join(__dirname, '..', '..', '..', 'data', 'database.db'),
+  DB_PATH: path.join(__dirname, '..', '..', 'data', 'database.db'),
   DB_NAMESPACE: 'dev',
   DB_DATABASE: 'test',
   SURREAL_BINARY: 'surreal' // Use system PATH by default
@@ -85,7 +85,7 @@ function createServer(config = {}) {
         '--bind', `${DB_HOST}:${DB_PORT}`,
         '--user', DB_USER,
         '--pass', DB_PASS,
-        `file://${DB_PATH}`
+        `rocksdb://${DB_PATH}`
       ]);
 
     // Handle DB process output
