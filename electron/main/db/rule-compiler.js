@@ -2,7 +2,7 @@
 // rule-compiler.js — translate a graph-native Space rule into a SurrealQL
 // WHERE fragment. Pure function, no DB access.
 //
-// Rule shape (from ~project/docs/data-model-proposal.md § Rule grammar):
+// Rule shape (from docs/data-model-proposal.md § Rule grammar):
 //   {
 //     all:  [ { edge: <edgeName>, to: <objectId> | "*" }, … ],
 //     any:  [ ... ],                 // OR — empty means "no any constraint"
