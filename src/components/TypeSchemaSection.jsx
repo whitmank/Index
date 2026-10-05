@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useIndexStore } from '../store/index';
+import { TypeIcon } from '../icons/index';
 import './TypeSchemaSection.css';
 
 function SchemaField({ objectId, schemaTypeId, label }) {
@@ -105,7 +106,10 @@ export default function TypeSchemaSection({ objectId, typeTag }) {
 
   return (
     <div className="sidebar-section">
-      <div className="sidebar-section-title">Details</div>
+      <div className="sidebar-section-title">
+        {typeTag.icon && <span className="section-title-icon"><TypeIcon name={typeTag.icon} size={11} /></span>}
+        Details
+      </div>
       {schema.map(schemaTypeId => {
         const tagType = tagTypes.find(t => t.id === schemaTypeId);
         if (!tagType) return null;

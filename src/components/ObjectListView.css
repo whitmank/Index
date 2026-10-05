@@ -43,7 +43,7 @@
 .object-list-header,
 .object-row {
   display: grid;
-  grid-template-columns: 28px 1fr 90px;
+  grid-template-columns: 28px 1fr 56px 90px;
   align-items: center;
   column-gap: 0;
 }
@@ -65,6 +65,12 @@
 
 .object-list-header > *:nth-child(3),
 .object-row > *:nth-child(3) {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.object-list-header > *:nth-child(4),
+.object-row > *:nth-child(4) {
   padding-left: 8px;
 }
 
@@ -122,6 +128,12 @@
 .object-list-sort-btn--right {
   text-align: right;
   justify-self: end;
+}
+
+.object-list-col-label {
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.2px;
 }
 
 /* ── Type filter button (top-left corner) ───────────────────────────────── */
@@ -205,6 +217,17 @@
   text-overflow: ellipsis;
 }
 
+/* File type / Kind */
+.object-row-filetype {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.03em;
+}
+
 /* Date */
 .object-row-date {
   font-size: 0.73rem;
@@ -236,6 +259,7 @@
 }
 
 .object-row.is-space.selected .object-row-type,
+.object-row.is-space.selected .object-row-filetype,
 .object-row.is-space.selected .object-row-date {
   color: rgba(255, 255, 255, 0.65);
 }
@@ -288,6 +312,7 @@
 }
 
 .object-row.selected .object-row-uri,
+.object-row.selected .object-row-filetype,
 .object-row.selected .object-row-date {
   color: rgba(255, 255, 255, 0.65);
 }

@@ -2,8 +2,8 @@ import { dialog, BrowserWindow, ipcMain } from 'electron';
 import { isDeviceNamed, setDeviceName } from '../config/device.js';
 import { readdir, readFile } from 'fs/promises';
 import { join, dirname } from 'path';
-import { homedir } from 'os';
 import { fileURLToPath } from 'url';
+import { INDEX_DIR } from '../config/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -19,7 +19,7 @@ let deviceNameResult = null;
  */
 async function isDeviceNameInUse(name) {
   try {
-    const objectsDir = join(homedir(), '.index', 'objects');
+    const objectsDir = join(INDEX_DIR, 'objects');
     const files = await readdir(objectsDir);
 
     for (const file of files) {

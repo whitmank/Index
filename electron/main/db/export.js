@@ -6,9 +6,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { INDEX_DIR } from '../config/paths.js';
 
-const INDEX_DIR = path.join(os.homedir(), '.index');
 const EXPORT_DIR = path.join(INDEX_DIR, 'export');
 const EXPORT_DEBOUNCE_MS = 5000;
 

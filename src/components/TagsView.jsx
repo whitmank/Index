@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useIndexStore } from '../store/index';
+import { TypeIcon, TYPE_ICON_KEYS } from '../icons/index';
 import './TagsView.css';
 
 export default function TagsView() {
@@ -279,6 +280,7 @@ function TypesPanel({ typeRecord, tags, tagTypes, onCreateTag, onDeleteTag }) {
                 className={`tag-row type-row${selectedId === tag.id ? ' selected' : ''}`}
                 onClick={() => setSelectedId(selectedId === tag.id ? null : tag.id)}
             >
+              <span className="type-row-icon"><TypeIcon name={tag.icon} size={11} /></span>
               <span className="tag-name">{tag.name}</span>
               <button className="tag-delete-btn"
                 onClick={e => { e.stopPropagation(); onDeleteTag(tag.id); if (selectedId === tag.id) setSelectedId(null); }}
@@ -318,9 +320,11 @@ function TypesPanel({ typeRecord, tags, tagTypes, onCreateTag, onDeleteTag }) {
 
 function TypeSchemaEditor({ tag, tagTypes, onUpdate }) {
   const createTagType = useIndexStore(s => s.createTagType);
-  const [adding,  setAdding]  = useState(false);
-  const [draft,   setDraft]   = useState('');
-  const [hlIndex, setHlIndex] = useState(-1);
+  const updateTag     = useIndexStore(s => s.updateTag);
+  const [adding,      setAdding]      = useState(false);
+  const [draft,       setDraft]       = useState('');
+  const [hlIndex,     setHlIndex]     = useState(-1);
+  const [pickerOpen,  setPickerOpen]  = useState(false);
   const inputRef = useRef(null);
 
   const schema = tag.schema || [];
@@ -370,6 +374,30 @@ function TypeSchemaEditor({ tag, tagTypes, onUpdate }) {
 
   return (
     <div className="type-schema-editor" onClick={e => e.stopPropagation()}>
+      <div className="type-icon-row">
+        <span className="type-icon-label">Icon</span>
+        <button
+          className={`type-icon-btn${pickerOpen ? ' open' : ''}`}
+          onClick={() => setPickerOpen(o => !o)}
+          title="Change icon"
+        >
+          <TypeIcon name={tag.icon} size={13} />
+        </button>
+        {pickerOpen && (
+          <div className="type-icon-picker">
+            {TYPE_ICON_KEYS.map(key => (
+              <button
+                key={key}
+                className={`type-icon-option${tag.icon === key ? ' active' : ''}`}
+                title={key}
+                onClick={() => { updateTag(tag.id, { icon: key }); setPickerOpen(false); }}
+              >
+                <TypeIcon name={key} size={13} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="type-schema-label">Schema</div>
       {schema.length === 0 && !adding && <div className="type-schema-empty">No fields defined</div>}
       <ul className="type-schema-fields">

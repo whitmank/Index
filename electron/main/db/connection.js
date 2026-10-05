@@ -2,23 +2,26 @@
 // SurrealDB lifecycle manager — persistent storage at ~/.index/surreal/
 // DB is the source of truth. JSON export to ~/.index/export/ is a backup side-effect.
 
-import { spawn, execSync } from 'child_process';
+import { spawn } from 'child_process';
+import net from 'net';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
-import Surreal from 'surrealdb';
+import { Surreal } from 'surrealdb';
 import { migrateFromV3IfNeeded } from './migration.js';
 import { seedTagTypes } from '../domain/tag-types.js';
 import { seedSystemDevices, backfillSourcedFromEdges } from './services/device-service.js';
+import { INDEX_DIR } from '../config/paths.js';
 
 const DB_HOST = '127.0.0.1';
-const DB_PORT = 8000;
 const DB_USER = 'root';
 const DB_PASS = 'root';
 const DB_NAMESPACE = 'index';
 const DB_DATABASE = 'main';
 
-const INDEX_DIR = path.join(os.homedir(), '.index');
+// Assigned at startup — a free port chosen dynamically so multiple isolated
+// instances never contend for a fixed port.
+let DB_PORT = null;
+
 const SURREAL_DIR = path.join(INDEX_DIR, 'surreal');
 
 let db = null;
@@ -30,18 +33,25 @@ function ensureDirectories() {
   });
 }
 
-function startDatabaseProcess() {
+// Ask the OS for an unused TCP port on the loopback interface.
+function getFreePort() {
   return new Promise((resolve, reject) => {
-    ensureDirectories();
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, DB_HOST, () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
 
-    // Kill any existing process on the target port
-    try {
-      execSync(`lsof -ti :${DB_PORT} | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
-    } catch (e) {
-      // No existing process — fine
-    }
+async function startDatabaseProcess() {
+  ensureDirectories();
+  DB_PORT = await getFreePort();
 
-    console.log('[DB] Starting SurrealDB (persistent)...');
+  return new Promise((resolve, reject) => {
+    console.log(`[DB] Starting SurrealDB (persistent) on ${DB_HOST}:${DB_PORT}...`);
     const devNull = fs.openSync('/dev/null', 'w');
 
     dbProcess = spawn('surreal', [
@@ -49,7 +59,7 @@ function startDatabaseProcess() {
       '--bind', `${DB_HOST}:${DB_PORT}`,
       '--user', DB_USER,
       '--pass', DB_PASS,
-      `file://${SURREAL_DIR}`,
+      `rocksdb://${SURREAL_DIR}`,
     ], {
       stdio: ['ignore', devNull, devNull],
     });
@@ -216,6 +226,15 @@ const TYPE_SCHEMAS = {
   audio:    ['artist', 'album', 'released'],
 };
 
+// Default geometric icon keys for seeded type values. Only written if the record has no icon.
+const TYPE_ICONS = {
+  book:     'square',
+  document: 'bar',
+  image:    'diamond',
+  video:    'triangle',
+  audio:    'wave',
+};
+
 async function seedTypeSchemas() {
   // Ensure field tag types exist, reusing any already created by the user (match by name).
   const fieldTypeIds = {};
@@ -238,20 +257,24 @@ async function seedTypeSchemas() {
     }
   }
 
-  // Write schema onto each type tag_definition record.
+  // Write schema and icon onto each type tag_definition record.
   for (const [typeName, fieldNames] of Object.entries(TYPE_SCHEMAS)) {
     const schema = fieldNames.map(n => fieldTypeIds[n]).filter(Boolean);
     if (!schema.length) continue;
 
     // Find the tag_definition for this type value (linked to tag_types:type).
     const result = await db.query(
-      `SELECT id FROM tag_definitions
+      `SELECT id, icon FROM tag_definitions
        WHERE string::lowercase(name ?? '') = '${typeName.toLowerCase()}'
        AND id INSIDE (SELECT VALUE in FROM typed WHERE out = tag_types:type)`
     );
     if (result[0]?.length > 0) {
-      const tagId = result[0][0].id?.toString?.() ?? result[0][0].id;
-      await db.query(`UPDATE ${tagId} SET schema = ${JSON.stringify(schema)}`);
+      const rec   = result[0][0];
+      const tagId = rec.id?.toString?.() ?? rec.id;
+      const merge = { schema };
+      // Only seed the icon if the record has none set yet.
+      if (!rec.icon && TYPE_ICONS[typeName]) merge.icon = TYPE_ICONS[typeName];
+      await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(merge)}`);
     }
   }
 }

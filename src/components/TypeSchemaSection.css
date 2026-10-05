@@ -1,5 +1,11 @@
-/* Author: Claude Sonnet 4.6 */
+/* authored by Claude Sonnet 4.6 */
 /* TypeSchemaSection — schema-driven metadata field rows */
+
+.section-title-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary, #888);
+}
 
 .schema-field-row {
   display: flex;

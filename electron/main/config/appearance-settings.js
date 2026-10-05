@@ -1,11 +1,10 @@
 // Author: Claude Sonnet 4.6
 // Persists appearance settings to ~/.index/appearance.json
 
-import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { INDEX_DIR } from './paths.js';
 
-const INDEX_DIR = path.join(app.getPath('home'), '.index');
 const SETTINGS_PATH = path.join(INDEX_DIR, 'appearance.json');
 
 export function loadAppearanceSettings() {

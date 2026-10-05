@@ -4,11 +4,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { verifyAndRepairSources } from '../utils/file-recovery.js';
 import { repairMissingSystemTagsForAllObjects } from './repair.js';
+import { INDEX_DIR } from '../config/paths.js';
 
-const INDEX_DIR = path.join(os.homedir(), '.index');
 const VERSION_FILE = path.join(INDEX_DIR, '.version');
 
 /**

@@ -1,12 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { v4 as uuid } from 'uuid';
+import { INDEX_DIR } from './paths.js';
 
 // Author: Claude Code
 // Device identification system - manages device ID and naming across app instances
 
-const DEVICE_ID_FILE = path.join(os.homedir(), '.index', '.device-id');
+const DEVICE_ID_FILE = path.join(INDEX_DIR, '.device-id');
 
 let _deviceCache = null;
 

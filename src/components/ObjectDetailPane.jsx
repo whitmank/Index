@@ -9,6 +9,7 @@ import { useIndexStore, HOME_SPACE_ID } from '../store/index';
 import TagAssignmentSection from './TagAssignmentSection';
 import SpaceRulesSection from './SpaceRulesSection';
 import TypeSchemaSection from './TypeSchemaSection';
+import { TypeIcon } from '../icons/index';
 import './ObjectDetailPane.css';
 
 const IMAGE_TYPES = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'ico', 'pdf']);
@@ -490,6 +491,9 @@ function TypeField({ objectId }) {
   if (typeTag) {
     return (
       <div className="tag-badge" style={{ backgroundColor: typeTag.color || '#666' }}>
+        {typeTag.icon && (
+          <span className="tag-badge-icon"><TypeIcon name={typeTag.icon} size={10} /></span>
+        )}
         <span
           className="tag-badge-name editable"
           onClick={() => { setDraft(typeTag.name || ''); setEditing(true); }}

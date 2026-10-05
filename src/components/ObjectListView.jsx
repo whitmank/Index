@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { useIndexStore } from '../store/index';
-import { ObjectIcon, SpaceIcon, MonadIcon } from '../icons/index';
+import { ObjectIcon, SpaceIcon, MonadIcon, TypeIcon } from '../icons/index';
 import './ObjectListView.css';
 
 function formatDate(iso) {
@@ -16,6 +16,7 @@ function formatDate(iso) {
 }
 
 const IMAGE_TYPES = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'ico', 'pdf']);
+const EPUB_TYPE   = 'epub';
 const thumbnailCache = new Map();
 
 function filePathFromUri(uri) {
@@ -29,20 +30,34 @@ function FilterIcon({ side, combined, size = 12 }) {
   return                            <ObjectIcon  size={size} />;
 }
 
-function ObjectRow({ object, isSelected, onClick, onDoubleClick }) {
+function fileTypeLabel(object) {
+  if (object.space) return '';
+  const ft = object.sources?.[0]?.fileType;
+  if (ft) return ft.toUpperCase();
+  const uri = object.sources?.[0]?.uri ?? '';
+  if (uri.startsWith('http://') || uri.startsWith('https://')) return 'URL';
+  return '';
+}
+
+function ObjectRow({ object, typeIcon, isSelected, onClick, onDoubleClick }) {
   const isSpace       = object.space === true;
   const primarySource = object.sources?.[0];
   const uri           = primarySource?.uri ?? null;
   const fileType      = primarySource?.fileType ?? null;
 
   const isImage = !isSpace && IMAGE_TYPES.has(fileType);
-  const filePath = isImage ? filePathFromUri(uri) : null;
+  const isEpub  = !isSpace && fileType === EPUB_TYPE;
+  const filePath = (isImage || isEpub) ? filePathFromUri(uri) : null;
 
   const [thumb, setThumb] = useState(() => filePath && thumbnailCache.has(filePath) ? thumbnailCache.get(filePath) : null);
 
   useEffect(() => {
     if (!filePath || thumb) return;
-    window.electronAPI?.fs?.thumbnail(filePath, 40).then(dataUrl => {
+    const api = window.electronAPI?.fs;
+    const fetch = isEpub
+      ? api?.epubCover?.(filePath, 40)
+      : api?.thumbnail?.(filePath, 40);
+    fetch?.then(dataUrl => {
       if (dataUrl) {
         thumbnailCache.set(filePath, dataUrl);
         setThumb(dataUrl);
@@ -59,12 +74,20 @@ function ObjectRow({ object, isSelected, onClick, onDoubleClick }) {
       <span className="object-row-type">
         {thumb
           ? <img className="object-row-thumb" src={thumb} alt="" />
-          : isSpace ? <SpaceIcon size={12} /> : <ObjectIcon size={12} />
+          : isSpace
+            ? <SpaceIcon size={12} />
+            : typeIcon
+              ? <TypeIcon name={typeIcon} size={12} />
+              : <ObjectIcon size={12} />
         }
       </span>
       <div className="object-row-main">
         <span className="object-row-name">{object.name || 'Untitled'}</span>
       </div>
+      {!object.system
+        ? <span className="object-row-filetype">{fileTypeLabel(object)}</span>
+        : <span />
+      }
       {!object.system && <span className="object-row-date">{formatDate(object.created_at)}</span>}
     </div>
   );
@@ -83,7 +106,30 @@ const ObjectListView = forwardRef(function ObjectListView({
   initialSortDir        = 'desc',
   onPrefsChange,
 }, ref) {
-  const deleteObject = useIndexStore(s => s.deleteObject);
+  const deleteObject  = useIndexStore(s => s.deleteObject);
+  const tags          = useIndexStore(s => s.tags);
+  const tagTypes      = useIndexStore(s => s.tagTypes);
+  const typedEdges    = useIndexStore(s => s.typedEdges);
+  const taggedEdges   = useIndexStore(s => s.taggedEdges);
+
+  // Resolve a type icon key for an object, or null if untyped.
+  const typeTypeId = tagTypes.find(t => (t.name ?? '').toLowerCase() === 'type')?.id ?? null;
+  const getTypeIcon = (objectId) => {
+    if (!typeTypeId) return null;
+    const assigned = taggedEdges.filter(e => (e.in?.toString?.() ?? e.in) === objectId);
+    for (const edge of assigned) {
+      const tagId = edge.out?.toString?.() ?? edge.out;
+      const isType = typedEdges.some(te =>
+        (te.in?.toString?.() ?? te.in) === tagId &&
+        (te.out?.toString?.() ?? te.out) === typeTypeId
+      );
+      if (isType) {
+        const tagDef = tags.find(t => t.id === tagId);
+        return tagDef?.icon ?? null;
+      }
+    }
+    return null;
+  };
 
   const [anchorId, setAnchorId] = useState(null);
   const cursorId = useRef(null); // moving end of keyboard range selection; anchor is the fixed end
@@ -369,6 +415,7 @@ const filteredObjects = filterCombined        ? objects
       >
         Name {sortField === 'name' ? sortArrow : ''}
       </button>
+      <span className="object-list-col-label">Kind</span>
       <button
         className={`object-list-sort-btn object-list-sort-btn--right${sortField === 'created' ? ' active' : ''}`}
         onClick={e => { e.stopPropagation(); handleSortClick('created'); }}
@@ -421,6 +468,7 @@ const filteredObjects = filterCombined        ? objects
           <ObjectRow
             key={obj.id}
             object={obj}
+            typeIcon={getTypeIcon(obj.id)}
             isSelected={selectedIds.has(obj.id)}
             onClick={e => handleRowClick(e, obj.id)}
             onDoubleClick={e => handleRowDoubleClick(e, obj.id)}

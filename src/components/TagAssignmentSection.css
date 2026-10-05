@@ -79,6 +79,13 @@
 .tag-badge-name.editable:hover  { background: rgba(255, 255, 255, 0.2); }
 .tag-badge-name.editable:focus  { outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: 1px; }
 
+.tag-badge-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
 .tag-badge-remove {
   background: none;
   border: none;

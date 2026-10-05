@@ -2,10 +2,13 @@
 // IPC handler for file system operations.
 // Exposes fs:readFolder — reads a directory tree recursively for the import modal.
 // Exposes fs:thumbnail — returns a base64 data URL thumbnail for local image files.
+// Exposes fs:epubCover — extracts epub cover via macOS qlmanage QuickLook.
 
 import { ipcMain, nativeImage } from 'electron';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { execFile } from 'child_process';
+import crypto from 'crypto';
 
 /**
  * Recursively reads a directory and returns a tree structure.
@@ -66,6 +69,47 @@ export function registerFsHandlers() {
   ipcMain.handle('fs:readFile', async (_event, filePath) => {
     const buffer = await fs.readFile(filePath);
     return buffer;
+  });
+
+  // ── EPUB cover ──────────────────────────────────────────────────────────────
+  // Uses macOS qlmanage to generate a cover thumbnail via the system QuickLook
+  // epub plugin (provided by Books.app). Result cached in a per-file tmp dir.
+
+  ipcMain.handle('fs:epubCover', async (_event, filePath, size = 200) => {
+    try {
+      // Stable tmp dir keyed by file path so we cache across calls
+      const hash    = crypto.createHash('md5').update(filePath).digest('hex').slice(0, 12);
+      const tmpDir  = path.join('/tmp', `index-epub-${hash}`);
+      await fs.mkdir(tmpDir, { recursive: true });
+
+      // Check for a cached result first
+      const entries = await fs.readdir(tmpDir);
+      const cached  = entries.find(e => e.endsWith('.png'));
+      if (cached) {
+        const buf = await fs.readFile(path.join(tmpDir, cached));
+        return `data:image/png;base64,${buf.toString('base64')}`;
+      }
+
+      // Generate via qlmanage
+      await new Promise((resolve, reject) => {
+        execFile(
+          'qlmanage',
+          ['-t', '-s', String(size), '-o', tmpDir, filePath],
+          { timeout: 8000, stdio: 'pipe' },
+          (err) => (err ? reject(err) : resolve()),
+        );
+      });
+
+      // qlmanage writes {basename}.png (e.g. book.epub.png)
+      const generated = (await fs.readdir(tmpDir)).find(e => e.endsWith('.png'));
+      if (!generated) return null;
+
+      const buf = await fs.readFile(path.join(tmpDir, generated));
+      return `data:image/png;base64,${buf.toString('base64')}`;
+    } catch (err) {
+      console.error('[fs:epubCover]', filePath, err.message);
+      return null;
+    }
   });
 
   ipcMain.handle('fs:readFolder', async (_event, folderPath) => {

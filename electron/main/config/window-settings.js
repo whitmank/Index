@@ -1,11 +1,10 @@
 // Author: Claude Code (Anthropic)
 // Persists window behavior profile to ~/.index/window-settings.json
 
-import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { INDEX_DIR } from './paths.js';
 
-const INDEX_DIR = path.join(app.getPath('home'), '.index');
 const SETTINGS_PATH = path.join(INDEX_DIR, 'window-settings.json');
 
 const DEFAULTS = {

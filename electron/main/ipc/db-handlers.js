@@ -273,6 +273,7 @@ export function registerDbHandlers() {
       if (tagData.color       !== undefined) updateObj.color       = tagData.color;
       if (tagData.description !== undefined) updateObj.description = tagData.description;
       if (tagData.schema      !== undefined) updateObj.schema      = tagData.schema;
+      if (tagData.icon        !== undefined) updateObj.icon        = tagData.icon;
 
       if (Object.keys(updateObj).length > 0) {
         await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(updateObj)}`);

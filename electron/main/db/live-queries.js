@@ -5,7 +5,20 @@
 //                and the three relationship edge tables (tagged, contains, excludes).
 
 import { BrowserWindow } from 'electron';
+import { Table } from 'surrealdb';
 import { normalizeRecord } from '../utils/normalize.js';
+
+// Tables mirrored to the renderer, paired with their IPC channel.
+const LIVE_TABLES = [
+  ['objects',         'live:objects'],
+  ['tagged',          'live:tagged'],
+  ['contains',        'live:contains'],
+  ['excludes',        'live:excludes'],
+  ['tag_definitions', 'live:tag_definitions'],
+  ['typed',           'live:typed'],
+  ['devices',         'live:devices'],
+  ['sourced_from',    'live:sourced_from'],
+];
 
 /**
  * Subscribe to live changes on objects and edge tables.
@@ -21,37 +34,14 @@ export async function startLiveQueries(db) {
     });
   };
 
-  await db.live('objects', (action, result) => {
-    send('live:objects', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('tagged', (action, result) => {
-    send('live:tagged', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('contains', (action, result) => {
-    send('live:contains', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('excludes', (action, result) => {
-    send('live:excludes', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('tag_definitions', (action, result) => {
-    send('live:tag_definitions', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('typed', (action, result) => {
-    send('live:typed', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('devices', (action, result) => {
-    send('live:devices', { action, result: normalizeRecord(result) });
-  });
-
-  await db.live('sourced_from', (action, result) => {
-    send('live:sourced_from', { action, result: normalizeRecord(result) });
-  });
+  // surrealdb 2.x: db.live(Table) resolves to a subscription whose handler
+  // receives a LiveMessage { action, recordId, value }.
+  for (const [table, channel] of LIVE_TABLES) {
+    const subscription = await db.live(new Table(table));
+    subscription.subscribe((message) => {
+      send(channel, { action: message.action, result: normalizeRecord(message.value) });
+    });
+  }
 
   console.log('[LiveQueries] LIVE SELECT subscriptions active');
 }
