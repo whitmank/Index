@@ -40,23 +40,6 @@ export function createForceSimulation(nodes, dimensions, onTick) {
 }
 
 /**
- * Extract positions from simulation nodes
- *
- * @param {Array} nodes - D3 nodes from simulation
- * @returns {Object} Map of node id to { x, y } position
- */
-export function extractPositions(nodes) {
-  const positions = {};
-  nodes.forEach(node => {
-    positions[node.id] = {
-      x: node.x,
-      y: node.y,
-    };
-  });
-  return positions;
-}
-
-/**
  * Stop a running simulation
  *
  * @param {Object} simulation - D3 force simulation instance

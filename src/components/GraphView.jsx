@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createForceSimulation, extractPositions, stopSimulation } from '../lib/forceSimulation';
+import { createForceSimulation, stopSimulation } from '../lib/forceSimulation';
 import { select } from 'd3-selection';
 import { zoom } from 'd3-zoom';
 import { drag } from 'd3-drag';
@@ -10,7 +10,7 @@ import '../styles/GraphView.css';
  *
  * Author: Claude Code (Anthropic)
  */
-export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
+export default function GraphView({ objects }) {
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -98,16 +98,10 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
       select(this).classed('hovered', false);
     });
 
-    // Add click handler to select node (or open source with Cmd/Ctrl+Click)
+    // Cmd/Ctrl+Click: open source
     nodeGroup.on('click', (event, d) => {
       event.stopPropagation();
-      if (event.metaKey || event.ctrlKey) {
-        // Cmd/Ctrl+Click: open source directly
-        window.electronAPI?.openSource?.(d.source);
-      } else {
-        // Regular click: select node
-        onNodeClick?.(d.id);
-      }
+      if (event.metaKey || event.ctrlKey) window.electronAPI?.openSource?.(d.source);
     });
 
     // Update positions on each simulation tick
@@ -122,13 +116,6 @@ export default function GraphView({ objects, onNodeClick, selectedNodeId }) {
       stopSimulation(simulation);
     };
   }, [objects, dimensions.width, dimensions.height]);
-
-  // Update selected node styling without restarting simulation
-  useEffect(() => {
-    if (!svgRef.current) return;
-    const nodeGroups = select(svgRef.current).selectAll('.node-group');
-    nodeGroups.classed('selected', (d) => d.id === selectedNodeId);
-  }, [selectedNodeId]);
 
   // Observe SVG element size — more reliable than window resize in Electron
   useEffect(() => {

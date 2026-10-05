@@ -2,6 +2,9 @@
 // Async JSON export — non-blocking replacement for v0.3 persistToIndex().
 // Writes human-readable JSON to ~/.index/export/ on a debounced timer,
 // on app quit, and on demand.
+// v0.4.1: exports edge tables (tagged, contains, excludes) instead of
+//         tag_assignments, spaces, space_objects.
+// v0.4.2: exports tag_types table and typed edge table.
 
 import fs from 'fs';
 import path from 'path';
@@ -39,9 +42,11 @@ export async function exportToJson(db) {
     await Promise.all([
       exportTable(db, 'objects', path.join(EXPORT_DIR, 'objects')),
       exportTable(db, 'tag_definitions', path.join(EXPORT_DIR, 'tag_definitions')),
-      exportTable(db, 'spaces', path.join(EXPORT_DIR, 'spaces')),
-      exportTableToSingleFile(db, 'tag_assignments', path.join(EXPORT_DIR, 'tag_assignments.json')),
-      exportTableToSingleFile(db, 'space_objects', path.join(EXPORT_DIR, 'space_objects.json')),
+      exportTable(db, 'tag_types', path.join(EXPORT_DIR, 'tag_types')),
+      exportEdgeTable(db, 'tagged', path.join(EXPORT_DIR, 'tagged_edges.json')),
+      exportEdgeTable(db, 'contains', path.join(EXPORT_DIR, 'contains_edges.json')),
+      exportEdgeTable(db, 'excludes', path.join(EXPORT_DIR, 'excludes_edges.json')),
+      exportEdgeTable(db, 'typed', path.join(EXPORT_DIR, 'typed_edges.json')),
     ]);
 
     console.log('[Export] Export complete');
@@ -55,7 +60,7 @@ function ensureExportStructure() {
     EXPORT_DIR,
     path.join(EXPORT_DIR, 'objects'),
     path.join(EXPORT_DIR, 'tag_definitions'),
-    path.join(EXPORT_DIR, 'spaces'),
+    path.join(EXPORT_DIR, 'tag_types'),
   ].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
@@ -88,7 +93,7 @@ async function exportTable(db, tableName, targetDir) {
   });
 }
 
-async function exportTableToSingleFile(db, tableName, filePath) {
+async function exportEdgeTable(db, tableName, filePath) {
   const result = await db.query(`SELECT * FROM ${tableName}`);
   const data = (Array.isArray(result) && result.length > 0) ? result[0] : [];
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');

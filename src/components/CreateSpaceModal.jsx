@@ -1,6 +1,6 @@
 // Author: Claude Code
 // CreateSpaceModal — three-column drag-and-drop space builder / editor.
-// Pass a `space` prop to open in edit mode (pre-populates name + query, calls updateSpace).
+// Pass a `space` prop to open in edit mode (pre-populates name + query, calls updateContainer).
 
 import { useEffect, useRef, useState } from 'react';
 import { useIndexStore } from '../store/index';
@@ -15,10 +15,10 @@ const COLUMNS = [
 export default function CreateSpaceModal({ isOpen, onClose, space }) {
   const isEdit = !!space;
 
-  const tags        = useIndexStore(s => s.tags);
-  const createTag   = useIndexStore(s => s.createTag);
-  const createSpace = useIndexStore(s => s.createSpace);
-  const updateSpace = useIndexStore(s => s.updateSpace);
+  const tags            = useIndexStore(s => s.tags);
+  const createTag       = useIndexStore(s => s.createTag);
+  const createContainer = useIndexStore(s => s.createContainer);
+  const updateContainer = useIndexStore(s => s.updateContainer);
 
   const [name, setName]     = useState('');
   const [query, setQuery]   = useState({ all: [], any: [], none: [] });
@@ -174,9 +174,9 @@ export default function CreateSpaceModal({ isOpen, onClose, space }) {
     setError(null);
     try {
       if (isEdit) {
-        await updateSpace(space.id, { name: name.trim(), query });
+        await updateContainer(space.id, { name: name.trim(), query });
       } else {
-        await createSpace({ name: name.trim(), query });
+        await createContainer({ name: name.trim(), query, container: true });
       }
       onClose();
     } catch (e) {

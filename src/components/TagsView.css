@@ -1,14 +1,75 @@
 /* Author: Claude Code */
-/* TagsView — tag management layout */
+/* TagsView — two-panel: nav column + content panel */
 
 .tags-view {
   flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  overflow: hidden;
+}
+
+/* ── Left nav column ────────────────────────────────────────────────────── */
+
+.tags-nav {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  padding: 16px 8px;
+  gap: 1px;
+  border-right: 1px solid rgba(0, 0, 0, 0.07);
+  overflow-y: auto;
+}
+
+.tags-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.tags-nav-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tags-nav-item.active {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.tags-nav-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #444;
+}
+
+.tags-nav-item.active .tags-nav-label {
+  color: #111;
+}
+
+.tags-nav-count {
+  font-size: 0.72rem;
+  color: #bbb;
+}
+
+/* ── Right content panel ────────────────────────────────────────────────── */
+
+.tags-panel {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+/* ── Type description ───────────────────────────────────────────────────── */
+
+.tags-type-description {
+  margin: 0 0 16px;
+  font-size: 0.78rem;
+  color: #999;
+  line-height: 1.55;
 }
 
 /* ── Section ────────────────────────────────────────────────────────────── */
@@ -17,40 +78,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.tags-section + .tags-section {
-  padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.07);
-}
-
-.tags-section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.tags-section-header h2 {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #999;
-  margin: 0;
-}
-
-.tags-count {
-  font-size: 0.7rem;
-  color: #bbb;
-}
-
-.tags-readonly-badge {
-  font-size: 0.65rem;
-  color: #bbb;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-  padding: 1px 5px;
 }
 
 /* ── Tag list ───────────────────────────────────────────────────────────── */
@@ -151,50 +178,100 @@
   color: #555;
 }
 
-/* ── System tag groups ──────────────────────────────────────────────────── */
+/* ── Nav divider + section label ────────────────────────────────────────── */
 
-.system-tags-group {
-  margin-bottom: 10px;
-}
-
-.system-tags-group-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #bbb;
-  padding: 0 8px;
-  margin-bottom: 2px;
+.tags-nav-divider {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin: 4px 4px 4px;
 }
 
-.tags-new-btn.inline {
-  all: unset;
-  cursor: pointer;
-  font-size: 0.85rem;
+.tags-nav-divider + .tags-nav-item {
+  margin-top: 0;
+}
+
+.tags-nav-divider::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tags-nav-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tags-nav-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+.tags-nav-label--untyped {
   color: #ccc;
-  line-height: 1;
-  padding: 0 2px;
-  transition: color 0.1s;
+  letter-spacing: 0.05em;
 }
 
-.tags-new-btn.inline:hover {
-  color: #555;
+/* ── Add type affordance ────────────────────────────────────────────────── */
+
+.tags-nav-add-type {
+  margin-top: 4px;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.1s, background 0.1s;
 }
 
-/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+.tags-nav-add-type:hover {
+  color: #777;
+  background: rgba(0, 0, 0, 0.04);
+}
 
-.tags-view::-webkit-scrollbar {
+.tags-nav-new-type {
+  margin-top: 4px;
+  padding: 4px 10px;
+}
+
+.tags-nav-type-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  color: #333;
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  padding: 2px 0;
+  box-sizing: border-box;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+
+.tags-nav::-webkit-scrollbar,
+.tags-panel::-webkit-scrollbar {
   width: 6px;
 }
 
-.tags-view::-webkit-scrollbar-track {
+.tags-nav::-webkit-scrollbar-track,
+.tags-panel::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.tags-view::-webkit-scrollbar-thumb {
+.tags-nav::-webkit-scrollbar-thumb,
+.tags-panel::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }

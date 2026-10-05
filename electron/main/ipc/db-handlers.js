@@ -1,11 +1,12 @@
 // Author: Claude Code
-// IPC handlers for database operations — v0.4.
-// Changes from v0.3:
-//   - persistToIndex() replaced by scheduleExport() everywhere
-//   - normalizeRecord() applied at IPC boundary (no more id?.id in frontend)
-//   - db:getTagTypes exposes system tag registry to renderer
-//   - db:deleteTag enforces system tag deletion guard here, not in UI
-//   - No broadcastObjectsChanged — LIVE SELECT handles reactivity
+// IPC handlers for database operations — v0.4.1.
+// Changes from v0.4:
+//   - tag_assignments replaced by RELATE edges (tagged table)
+//   - spaces/space_objects replaced by objects with container:true + contains/excludes edges
+//   - db:createSpace/updateSpace/deleteSpace/evaluateSpace/setSpaceOverride removed
+//   - db:createContainer/updateContainer/evaluateContainer added
+//   - db:addContains/removeContains/addExcludes/removeExcludes added
+//   - db:assignTag/unassignTag/getTagsForObject/getObjectsForTag use edge queries
 
 import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
 import { getDatabase } from '../db/connection.js';
@@ -14,8 +15,9 @@ import { findOrCreateSystemTag } from '../db/services/system-tags.js';
 import { extractMediaTypeFromSource, extractFileType, cleanUri, determineOrigin } from '../utils/metadata-extractor.js';
 import { getDeviceOrigin } from '../config/device.js';
 import { createObjectCore } from '../db/services/object-service.js';
+import { evaluateContainer } from '../db/services/container-service.js';
 import { normalizeRecord, normalizeRecords } from '../utils/normalize.js';
-import { SYSTEM_TAG_TYPES, isSystemTagDeletable } from '../domain/tag-types.js';
+import { isSystemTagDeletable } from '../domain/tag-types.js';
 
 let mainWindow = null;
 
@@ -32,7 +34,7 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const validTables = ['objects', 'tag_definitions', 'tag_assignments', 'spaces', 'space_objects'];
+      const validTables = ['objects', 'tag_definitions', 'tag_types', 'tagged', 'contains', 'excludes', 'typed'];
       if (!validTables.includes(table)) throw new Error(`Invalid table: ${table}`);
 
       const result = await db.query(`SELECT * FROM ${table}`);
@@ -45,12 +47,76 @@ export function registerDbHandlers() {
     }
   });
 
-  // ── TAG TYPES (domain registry) ────────────────────────────────────────────
+  // ── TAG TYPES ──────────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:getTagTypes', () => ({
-    success: true,
-    data: SYSTEM_TAG_TYPES,
-  }));
+  ipcMain.handle('db:getTagTypes', async () => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+      const result = await db.query(`SELECT * FROM tag_types ORDER BY \`order\``);
+      const data = (Array.isArray(result) && result.length > 0) ? result[0] : [];
+      return { success: true, data: normalizeRecords(data) };
+    } catch (error) {
+      console.error('[IPC] GetTagTypes error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:createTagType', async (event, data) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+      const record = {
+        name: data.name,
+        label: data.label || data.name,
+        system: false,
+        display: true,
+        editable: true,
+        deletable: true,
+        order: data.order ?? 99,
+      };
+      const result = await db.create('tag_types', record);
+      scheduleExport(db);
+      return { success: true, data: normalizeRecord(Array.isArray(result) ? result[0] : result) };
+    } catch (error) {
+      console.error('[IPC] Create tag type error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:updateTagType', async (event, typeId, data) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+      const updateObj = {};
+      if (data.label     !== undefined) updateObj.label     = data.label;
+      if (data.display   !== undefined) updateObj.display   = data.display;
+      if (data.editable  !== undefined) updateObj.editable  = data.editable;
+      if (data.deletable !== undefined) updateObj.deletable = data.deletable;
+      if (Object.keys(updateObj).length === 0) throw new Error('No fields to update');
+      const result = await db.query(`UPDATE ${typeId} MERGE ${JSON.stringify(updateObj)}`);
+      scheduleExport(db);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[IPC] Update tag type error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:deleteTagType', async (event, typeId) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+      // Remove all typed edges pointing to this type, then delete the type record
+      await db.query(`DELETE FROM typed WHERE out = ${typeId}`);
+      await db.query(`DELETE ${typeId}`);
+      scheduleExport(db);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Delete tag type error:', error);
+      return { success: false, error: error.message };
+    }
+  });
 
   // ── CREATE OBJECT ──────────────────────────────────────────────────────────
 
@@ -143,16 +209,22 @@ export function registerDbHandlers() {
 
       const tagRecord = {
         name: tagData.name,
-        type: tagData.type || null,
         color: tagData.color || null,
         description: tagData.description || null,
         system: tagData.system || false,
         created_at: new Date().toISOString(),
       };
       const result = await db.create('tag_definitions', tagRecord);
-      scheduleExport(db);
+      const created = Array.isArray(result) ? result[0] : result;
+      const tagId = created.id?.toString?.() ?? created.id;
 
-      return { success: true, data: normalizeRecord(Array.isArray(result) ? result[0] : result) };
+      // Wire typed edge if a typeId was provided
+      if (tagData.typeId) {
+        await db.query(`RELATE ${tagId}->typed->${tagData.typeId}`);
+      }
+
+      scheduleExport(db);
+      return { success: true, data: normalizeRecord(created) };
     } catch (error) {
       console.error('[IPC] Create tag error:', error);
       return { success: false, error: error.message };
@@ -167,17 +239,28 @@ export function registerDbHandlers() {
       if (!db) throw new Error('Database not connected');
 
       const updateObj = {};
-      if (tagData.name !== undefined) updateObj.name = tagData.name;
-      if (tagData.color !== undefined) updateObj.color = tagData.color;
-      if (tagData.type !== undefined) updateObj.type = tagData.type;
+      if (tagData.name        !== undefined) updateObj.name        = tagData.name;
+      if (tagData.color       !== undefined) updateObj.color       = tagData.color;
       if (tagData.description !== undefined) updateObj.description = tagData.description;
 
-      if (Object.keys(updateObj).length === 0) throw new Error('No fields to update');
+      if (Object.keys(updateObj).length > 0) {
+        await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(updateObj)}`);
+      }
 
-      const result = await db.query(`UPDATE ${tagId} MERGE ${JSON.stringify(updateObj)}`);
+      // Handle type reassignment via typed edge
+      if (tagData.typeId !== undefined) {
+        await db.query(`DELETE FROM typed WHERE in = ${tagId}`);
+        if (tagData.typeId) {
+          await db.query(`RELATE ${tagId}->typed->${tagData.typeId}`);
+        }
+      }
+
+      if (Object.keys(updateObj).length === 0 && tagData.typeId === undefined) {
+        throw new Error('No fields to update');
+      }
+
       scheduleExport(db);
-
-      return { success: true, data: result };
+      return { success: true };
     } catch (error) {
       console.error('[IPC] Update tag error:', error);
       return { success: false, error: error.message };
@@ -196,11 +279,19 @@ export function registerDbHandlers() {
       const tagResult = await db.query(`SELECT * FROM ${tagId}`);
       const tag = tagResult[0]?.[0] || tagResult[0];
 
-      if (tag && tag.system && !isSystemTagDeletable(tag.type)) {
-        return { success: false, error: 'System tags cannot be deleted' };
+      if (tag && tag.system) {
+        // Resolve type name via typed edge
+        const typedResult = await db.query(`SELECT out FROM typed WHERE in = ${tagId}`);
+        const typeRef = typedResult[0]?.[0]?.out?.toString?.() ?? typedResult[0]?.[0]?.out;
+        const typeName = typeRef ? typeRef.replace('tag_types:', '') : null;
+        if (!isSystemTagDeletable(typeName)) {
+          return { success: false, error: 'System tags cannot be deleted' };
+        }
       }
 
-      await db.query(`DELETE FROM tag_assignments WHERE tag_id = '${tagId}'`);
+      // Delete all edges pointing to/from this tag, then delete the tag
+      await db.query(`DELETE FROM tagged WHERE out = ${tagId}`);
+      await db.query(`DELETE FROM typed WHERE in = ${tagId}`);
       await db.query(`DELETE ${tagId}`);
       scheduleExport(db);
 
@@ -224,17 +315,19 @@ export function registerDbHandlers() {
       const tagResult = await db.query(`SELECT * FROM ${tagId}`);
       if (!tagResult?.[0]?.length) throw new Error(`Tag not found: ${tagId}`);
 
-      const existingResult = await db.query(
-        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+      // Check if edge already exists
+      const existing = await db.query(
+        `SELECT * FROM tagged WHERE in = ${objectId} AND out = ${tagId}`
       );
-      if (existingResult[0] && existingResult[0].length > 0) {
-        return { success: true, data: normalizeRecord(existingResult[0][0]), message: 'Tag already assigned' };
+      if (existing[0] && existing[0].length > 0) {
+        return { success: true, data: normalizeRecord(existing[0][0]), message: 'Tag already assigned' };
       }
 
-      const result = await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
+      const result = await db.query(`RELATE ${objectId}->tagged->${tagId}`);
       scheduleExport(db);
 
-      return { success: true, data: normalizeRecord(Array.isArray(result) ? result[0] : result) };
+      const created = result[0]?.[0] || result[0];
+      return { success: true, data: normalizeRecord(created) };
     } catch (error) {
       console.error('[IPC] Assign tag error:', error);
       return { success: false, error: error.message };
@@ -248,12 +341,10 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const result = await db.query(
-        `DELETE FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
-      );
+      await db.query(`DELETE FROM tagged WHERE in = ${objectId} AND out = ${tagId}`);
       scheduleExport(db);
 
-      return { success: true, data: result };
+      return { success: true };
     } catch (error) {
       console.error('[IPC] Unassign tag error:', error);
       return { success: false, error: error.message };
@@ -267,18 +358,16 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const result = await db.query(
-        `SELECT tag_id FROM tag_assignments WHERE object_id = '${objectId}'`
-      );
-      const assignmentIds = (result[0] || []).map(a => a.tag_id);
+      const edgesResult = await db.query(`SELECT out FROM tagged WHERE in = ${objectId}`);
+      const tagIds = (edgesResult[0] || []).map(r => r.out?.toString?.() ?? r.out);
 
-      if (assignmentIds.length === 0) return { success: true, data: [] };
+      if (tagIds.length === 0) return { success: true, data: [] };
 
       let tagsResult;
-      if (assignmentIds.length === 1) {
-        tagsResult = await db.query(`SELECT * FROM ${assignmentIds[0]}`);
+      if (tagIds.length === 1) {
+        tagsResult = await db.query(`SELECT * FROM ${tagIds[0]}`);
       } else {
-        const inClause = `[${assignmentIds.join(', ')}]`;
+        const inClause = `[${tagIds.join(', ')}]`;
         tagsResult = await db.query(`SELECT * FROM ${inClause}`);
       }
 
@@ -296,8 +385,8 @@ export function registerDbHandlers() {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const result = await db.query(`SELECT object_id FROM tag_assignments WHERE tag_id = '${tagId}'`);
-      const objectIds = (result[0] || []).map(a => a.object_id);
+      const edgesResult = await db.query(`SELECT in FROM tagged WHERE out = ${tagId}`);
+      const objectIds = (edgesResult[0] || []).map(r => r.in?.toString?.() ?? r.in);
 
       if (objectIds.length === 0) return { success: true, data: [] };
 
@@ -329,296 +418,137 @@ export function registerDbHandlers() {
     }
   });
 
-  // ── CREATE SPACE ───────────────────────────────────────────────────────────
+  // ── CREATE CONTAINER ───────────────────────────────────────────────────────
 
-  ipcMain.handle('db:createSpace', async (event, spaceData) => {
+  ipcMain.handle('db:createContainer', async (event, data) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const { name, query } = spaceData;
-
       const now = new Date().toISOString();
-      const allTagIds = [...(query.all || []), ...(query.any || []), ...(query.none || [])];
-
-      const tagsResult = await db.query('SELECT * FROM tag_definitions');
-      const existingTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
-      const existingTagIds = new Set(existingTags.map(t => t.id?.toString?.() ?? t.id));
-
-      const warnings = allTagIds.filter(tagId => !existingTagIds.has(tagId)).map(tagId => `Tag '${tagId}' not found`);
-
-      const spaceRecord = {
-        name,
-        query: {
-          all: query.all || [],
-          any: query.any || [],
-          none: query.none || [],
-        },
-        default_view: spaceData.default_view ?? 'list',
-        pinned: false,
+      const containerRecord = {
+        name: data.name,
+        container: true,
+        query: data.query || null,
+        default_view: data.default_view ?? 'list',
+        pinned: data.pinned ?? false,
+        system: false,
+        order: data.order ?? 0,
         created_at: now,
         updated_at: now,
       };
 
-      const result = await db.query(`CREATE spaces CONTENT ${JSON.stringify(spaceRecord)}`);
+      const result = await db.query(`CREATE objects CONTENT ${JSON.stringify(containerRecord)}`);
       scheduleExport(db);
 
       const created = result[0]?.[0] || result[0];
-      return {
-        success: true,
-        data: normalizeRecord(created),
-        warnings: warnings.length > 0 ? warnings : undefined,
-      };
+      return { success: true, data: normalizeRecord(created) };
     } catch (error) {
-      console.error('[IPC] Create space error:', error);
+      console.error('[IPC] Create container error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── UPDATE SPACE ───────────────────────────────────────────────────────────
+  // ── UPDATE CONTAINER ───────────────────────────────────────────────────────
 
-  ipcMain.handle('db:updateSpace', async (event, spaceId, updates) => {
+  ipcMain.handle('db:updateContainer', async (event, id, updates) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const { query, name, order } = updates;
-
-      if (query && (!query.all?.length && !query.any?.length && !query.none?.length)) {
-        throw new Error('Space must have at least one rule (all, any, or none)');
-      }
-
       const updateObj = { updated_at: new Date().toISOString() };
-      if (name !== undefined) updateObj.name = name;
-      if (query !== undefined) {
-        updateObj.query = {
-          all: query.all || [],
-          any: query.any || [],
-          none: query.none || [],
-        };
-      }
-      if (order !== undefined) updateObj.order = order;
+      if (updates.name !== undefined) updateObj.name = updates.name;
+      if (updates.query !== undefined) updateObj.query = updates.query;
+      if (updates.default_view !== undefined) updateObj.default_view = updates.default_view;
+      if (updates.order !== undefined) updateObj.order = updates.order;
 
-      const result = await db.query(`UPDATE ${spaceId} MERGE ${JSON.stringify(updateObj)}`);
+      const result = await db.query(`UPDATE ${id} MERGE ${JSON.stringify(updateObj)}`);
       scheduleExport(db);
 
       return { success: true, data: result };
     } catch (error) {
-      console.error('[IPC] Update space error:', error);
+      console.error('[IPC] Update container error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── DELETE SPACE ───────────────────────────────────────────────────────────
+  // ── EVALUATE CONTAINER ─────────────────────────────────────────────────────
+  // Final set = (query_results ∪ contains_edges) − excludes_edges
 
-  ipcMain.handle('db:deleteSpace', async (event, spaceId) => {
+  ipcMain.handle('db:evaluateContainer', async (event, containerId) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      await db.query(`DELETE ${spaceId}`);
+      const objects = await evaluateContainer(db, containerId);
+      return { success: true, data: normalizeRecords(objects) };
+    } catch (error) {
+      console.error('[IPC] Evaluate container error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── CONTAINS EDGE ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('db:addContains', async (event, parentId, childId, order) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+
+      const sortOrder = order ?? 0;
+      await db.query(`RELATE ${parentId}->contains->${childId} SET \`order\` = ${sortOrder}`);
       scheduleExport(db);
 
       return { success: true };
     } catch (error) {
-      console.error('[IPC] Delete space error:', error);
+      console.error('[IPC] Add contains error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── EVALUATE SPACE ─────────────────────────────────────────────────────────
-  // Final set = (rule-matched UNION explicit includes) MINUS explicit excludes.
-  // A manual space (empty query) is the degenerate case: rule-matched is empty.
-
-  ipcMain.handle('db:evaluateSpace', async (event, spaceId) => {
+  ipcMain.handle('db:removeContains', async (event, parentId, childId) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      let spaceResult = await db.query(`SELECT * FROM ${spaceId}`);
-      let space = spaceResult;
-      if (Array.isArray(space) && space.length > 0) space = space[0];
-      if (Array.isArray(space) && space.length > 0) space = space[0];
-
-      if (!space) throw new Error(`Space ${spaceId} not found`);
-
-      const query = {
-        all: space.query?.all || [],
-        any: space.query?.any || [],
-        none: space.query?.none || [],
-      };
-
-      const objectsResult = await db.query('SELECT * FROM objects');
-      const allObjects = (Array.isArray(objectsResult) && objectsResult.length > 0) ? objectsResult[0] : [];
-
-      const objectMap = new Map(allObjects.map(o => [o.id?.toString?.() ?? o.id, o]));
-
-      // Build object → tags map
-      const tagsResult = await db.query('SELECT * FROM tag_assignments');
-      const allTags = (Array.isArray(tagsResult) && tagsResult.length > 0) ? tagsResult[0] : [];
-
-      const objectTagMap = new Map();
-      allTags.forEach(assignment => {
-        const objId = assignment.object_id;
-        if (!objectTagMap.has(objId)) objectTagMap.set(objId, new Set());
-        objectTagMap.get(objId).add(assignment.tag_id);
-      });
-
-      // Evaluate query rules
-      const hasRules = query.all.length > 0 || query.any.length > 0 || query.none.length > 0;
-      const ruleMatched = new Set();
-
-      if (hasRules) {
-        allObjects.forEach(obj => {
-          const objId = obj.id?.toString?.() ?? obj.id;
-          const tags = objectTagMap.get(objId) || new Set();
-
-          if (query.all.length > 0 && !query.all.every(t => tags.has(t))) return;
-          if (query.any.length > 0 && !query.any.some(t => tags.has(t))) return;
-          if (query.none.length > 0 && query.none.some(t => tags.has(t))) return;
-
-          ruleMatched.add(objId);
-        });
-      }
-
-      // Fetch explicit overrides for this space
-      const overridesResult = await db.query(
-        `SELECT * FROM space_objects WHERE space_id = '${spaceId}'`
-      );
-      const overrides = (Array.isArray(overridesResult) && overridesResult.length > 0) ? overridesResult[0] : [];
-
-      const explicitIncludes = new Set();
-      const explicitExcludes = new Set();
-      overrides.forEach(row => {
-        const objId = row.object_id?.toString?.() ?? row.object_id;
-        if (row.type === 'include') explicitIncludes.add(objId);
-        if (row.type === 'exclude') explicitExcludes.add(objId);
-      });
-
-      // Final set: (rule-matched UNION includes) MINUS excludes
-      const finalIds = new Set([...ruleMatched, ...explicitIncludes]);
-      explicitExcludes.forEach(id => finalIds.delete(id));
-
-      const matchingObjects = [...finalIds]
-        .map(id => objectMap.get(id))
-        .filter(Boolean);
-
-      return { success: true, data: normalizeRecords(matchingObjects) };
-    } catch (error) {
-      console.error('[IPC] Evaluate space error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ── SET SPACE OVERRIDE ─────────────────────────────────────────────────────
-  // type: 'include' | 'exclude' — explicitly places or excludes an object.
-  // type: null — removes any existing override for this space+object pair.
-
-  ipcMain.handle('db:setSpaceOverride', async (event, spaceId, objectId, type) => {
-    try {
-      const db = getDatabase();
-      if (!db) throw new Error('Database not connected');
-
-      // Remove any existing override for this pair first
-      await db.query(
-        `DELETE FROM space_objects WHERE space_id = '${spaceId}' AND object_id = '${objectId}'`
-      );
-
-      if (type === 'include' || type === 'exclude') {
-        await db.create('space_objects', {
-          space_id: spaceId,
-          object_id: objectId,
-          type,
-          created_at: new Date().toISOString(),
-        });
-      }
-
+      await db.query(`DELETE FROM contains WHERE in = ${parentId} AND out = ${childId}`);
       scheduleExport(db);
+
       return { success: true };
     } catch (error) {
-      console.error('[IPC] Set space override error:', error);
+      console.error('[IPC] Remove contains error:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // ── REPAIR SYSTEM TAGS ─────────────────────────────────────────────────────
+  // ── EXCLUDES EDGE ──────────────────────────────────────────────────────────
 
-  ipcMain.handle('db:repairMissingSystemTags', async (event, objectId) => {
+  ipcMain.handle('db:addExcludes', async (event, parentId, childId) => {
     try {
       const db = getDatabase();
       if (!db) throw new Error('Database not connected');
 
-      const objectResult = await db.query(`SELECT * FROM ${objectId}`);
-      const object = (Array.isArray(objectResult) && objectResult.length > 0) ? objectResult[0] : null;
-
-      if (!object) throw new Error(`Object ${objectId} not found`);
-
-      const sources = (Array.isArray(object) ? object[0] : object)?.sources || [];
-      if (sources.length === 0) return { success: true, data: { repaired: [] } };
-
-      const tagsResult = await db.query(`SELECT tag_id FROM tag_assignments WHERE object_id = '${objectId}'`);
-      const assignedTagIds = (tagsResult[0] || []).map(a => a.tag_id);
-
-      let assignedTags = [];
-      if (assignedTagIds.length > 0) {
-        const inClause = `[${assignedTagIds.join(', ')}]`;
-        const fullTagsResult = await db.query(`SELECT * FROM ${inClause}`);
-        assignedTags = fullTagsResult[0] || [];
-      }
-
-      const currentSystemTagTypes = new Set(
-        assignedTags.filter(t => t.system === true && t.type).map(t => t.type)
-      );
-
-      const missingTypes = ['media_type', 'file_type', 'origin'].filter(t => !currentSystemTagTypes.has(t));
-      if (missingTypes.length === 0) return { success: true, data: { repaired: [] } };
-
-      const repaired = [];
-      const { extractMediaTypeFromSource, extractFileType } = await import('../utils/metadata-extractor.js');
-      const { findOrCreateSystemTag } = await import('../db/services/system-tags.js');
-
-      for (const type of missingTypes) {
-        if (type === 'media_type') {
-          const mediaType = extractMediaTypeFromSource(sources[0].uri);
-          const tagId = await findOrCreateSystemTag(db, type, mediaType);
-          if (tagId) {
-            const ex = await db.query(`SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`);
-            if (!ex[0] || ex[0].length === 0) {
-              await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
-              repaired.push({ type, value: mediaType || null });
-            }
-          }
-        } else if (type === 'file_type') {
-          const uniqueFileTypes = new Set(sources.map(s => extractFileType(s.uri)).filter(Boolean));
-          for (const fileType of uniqueFileTypes) {
-            const tagId = await findOrCreateSystemTag(db, type, fileType);
-            if (tagId) {
-              const ex = await db.query(`SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`);
-              if (!ex[0] || ex[0].length === 0) {
-                await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
-                repaired.push({ type, value: fileType });
-              }
-            }
-          }
-        } else if (type === 'origin') {
-          const uniqueOrigins = new Set(sources.map(s => s.origin).filter(Boolean));
-          for (const origin of uniqueOrigins) {
-            const tagId = await findOrCreateSystemTag(db, type, origin);
-            if (tagId) {
-              const ex = await db.query(`SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`);
-              if (!ex[0] || ex[0].length === 0) {
-                await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
-                repaired.push({ type, value: origin });
-              }
-            }
-          }
-        }
-      }
-
+      await db.query(`RELATE ${parentId}->excludes->${childId}`);
       scheduleExport(db);
-      return { success: true, data: { repaired } };
+
+      return { success: true };
     } catch (error) {
-      console.error('[IPC] Repair system tags error:', error);
+      console.error('[IPC] Add excludes error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:removeExcludes', async (event, parentId, childId) => {
+    try {
+      const db = getDatabase();
+      if (!db) throw new Error('Database not connected');
+
+      await db.query(`DELETE FROM excludes WHERE in = ${parentId} AND out = ${childId}`);
+      scheduleExport(db);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Remove excludes error:', error);
       return { success: false, error: error.message };
     }
   });

@@ -2,29 +2,10 @@ import { useEffect } from 'react';
 
 // Keyboard shortcuts configuration
 const SHORTCUTS = {
-  ESCAPE: {
-    key: 'Escape',
-    description: 'Close/cancel forms',
-  },
-  NEW_OBJECT: {
-    key: 'o',
-    modifiers: ['metaKey', 'ctrlKey'],
-    description: 'Create new object',
-  },
   SETTINGS: {
     key: ',',
     modifiers: ['metaKey'],
     description: 'Open settings',
-  },
-  DETAIL: {
-    key: '.',
-    modifiers: ['metaKey'],
-    description: 'Toggle detail panel',
-  },
-  UNDO: {
-    key: 'z',
-    modifiers: ['metaKey', 'ctrlKey'],
-    description: 'Undo last action',
   },
   COMMAND_PALETTE: {
     key: 'k',
@@ -36,21 +17,6 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Open space navigator',
   },
-  VIEW_SPACES: {
-    key: '1',
-    modifiers: ['metaKey'],
-    description: 'Go to Spaces',
-  },
-  VIEW_TAGS: {
-    key: '2',
-    modifiers: ['metaKey'],
-    description: 'Go to Tags',
-  },
-  VIEW_SETTINGS: {
-    key: '3',
-    modifiers: ['metaKey'],
-    description: 'Go to Settings',
-  },
   NAV_BACK: {
     key: 'a',
     modifiers: ['metaKey'],
@@ -61,36 +27,16 @@ const SHORTCUTS = {
     modifiers: ['metaKey'],
     description: 'Navigate forward',
   },
+  NAV_ROOT: {
+    key: '/',
+    modifiers: ['metaKey'],
+    description: 'Navigate to root',
+  },
 };
 
-/**
- * Custom hook for keyboard shortcuts
- * @param {Object} actions - Object containing action callbacks
- * @param {Function} actions.onEscape - Called when Escape is pressed
- * @param {Function} actions.onNewObject - Called when Cmd/Ctrl+O is pressed
- * @param {Function} actions.onSettings - Called when Cmd+, is pressed
- * @param {Function} actions.onUndo - Called when Cmd/Ctrl+Z is pressed
- * @param {Object} state - Current state for conditional actions
- * @param {boolean} state.editingId - Whether in edit mode
- * @param {boolean} state.showForm - Whether form is open
- */
-export function useKeyboardShortcuts(actions, state) {
+export function useKeyboardShortcuts(actions) {
   useEffect(() => {
     function handleKeyDown(e) {
-      // Escape - close/cancel forms
-      if (e.key === SHORTCUTS.ESCAPE.key) {
-        actions.onEscape?.();
-      }
-
-      // Cmd+O / Ctrl+O - create new object
-      if (
-        e.key === SHORTCUTS.NEW_OBJECT.key &&
-        SHORTCUTS.NEW_OBJECT.modifiers.some((mod) => e[mod])
-      ) {
-        e.preventDefault();
-        actions.onNewObject?.();
-      }
-
       // Cmd+, - open settings
       if (
         e.key === SHORTCUTS.SETTINGS.key &&
@@ -98,24 +44,6 @@ export function useKeyboardShortcuts(actions, state) {
       ) {
         e.preventDefault();
         actions.onSettings?.();
-      }
-
-      // Cmd+. - toggle detail panel
-      if (
-        e.key === SHORTCUTS.DETAIL.key &&
-        SHORTCUTS.DETAIL.modifiers.some((mod) => e[mod])
-      ) {
-        e.preventDefault();
-        actions.onDetail?.();
-      }
-
-      // Cmd+Z / Ctrl+Z - undo
-      if (
-        e.key === SHORTCUTS.UNDO.key &&
-        SHORTCUTS.UNDO.modifiers.some((mod) => e[mod])
-      ) {
-        e.preventDefault();
-        actions.onUndo?.();
       }
 
       // Cmd+K - command palette
@@ -136,11 +64,13 @@ export function useKeyboardShortcuts(actions, state) {
         actions.onSpaceNavigator?.();
       }
 
-      // Cmd+1/2/3 - direct view navigation
+      // Cmd+/ - navigate to root
+      if (e.key === SHORTCUTS.NAV_ROOT.key && e.metaKey) {
+        e.preventDefault();
+        actions.onNavRoot?.();
+      }
+
       if (e.metaKey) {
-        if (e.key === '1') { e.preventDefault(); actions.onViewSpaces?.(); }
-        if (e.key === '2') { e.preventDefault(); actions.onViewTags?.(); }
-        if (e.key === '3') { e.preventDefault(); actions.onViewSettings?.(); }
         if (e.key === 'a') { e.preventDefault(); actions.onNavBack?.(); }
         if (e.key === 'd') { e.preventDefault(); actions.onNavForward?.(); }
       }
@@ -154,7 +84,7 @@ export function useKeyboardShortcuts(actions, state) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actions, state]);
+  }, [actions]);
 }
 
 // Export shortcuts config for reference/documentation

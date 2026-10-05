@@ -1,40 +1,43 @@
-// Author: Claude Code (Anthropic)
-// Shared system tag utilities - prevents duplicate implementations
+// Author: Claude Code
+// Shared system tag utilities — v0.4.2.
+// Lookup and creation now use typed edges instead of the removed type string field.
 
 /**
- * Find or create a system tag with given type and name
- * Handles null values properly and returns the tag ID
- * @param {Surreal} db - Database connection
- * @param {string} type - System tag type (e.g., 'media_type', 'file_extension')
- * @param {string|null} name - Tag name/value (can be null)
- * @returns {Promise<string|null>} Tag ID or null if error
+ * Find or create a system tag linked to the given type via a typed edge.
+ * @param {Surreal} db
+ * @param {string} type  - Tag type name (e.g. 'medium', 'file', 'origin')
+ * @param {string|null} name
+ * @returns {Promise<string|null>} Tag ID string or null on error
  */
 export async function findOrCreateSystemTag(db, type, name) {
   try {
-    // Query for existing system tag with this type and name
-    // Handle null values properly in SQL query
+    const typeId = `tag_types:${type}`;
     const nameClause = name === null ? 'name IS NULL' : `name = '${name}'`;
+
+    // Find existing system tag of this type via typed edge
     const result = await db.query(
-      `SELECT * FROM tag_definitions WHERE type = '${type}' AND ${nameClause} AND system = true`
+      `SELECT * FROM tag_definitions WHERE ${nameClause} AND system = true
+       AND id INSIDE (SELECT VALUE in FROM typed WHERE out = ${typeId})`
     );
 
     if (result[0] && result[0].length > 0) {
-      // Tag exists
-      const existingTag = result[0][0];
-      const tagId = existingTag.id?.toString?.() ?? existingTag.id;
-      return tagId;
+      const existing = result[0][0];
+      return existing.id?.toString?.() ?? existing.id;
     }
 
-    // Create new system tag
+    // Create new system tag (no type field — type is expressed via edge)
     const newTag = await db.create('tag_definitions', {
       name,
-      type,
       system: true,
       created_at: new Date().toISOString(),
     });
 
-    const createdTag = Array.isArray(newTag) ? newTag[0] : newTag;
-    const tagId = createdTag.id?.toString?.() ?? createdTag.id;
+    const created = Array.isArray(newTag) ? newTag[0] : newTag;
+    const tagId = created.id?.toString?.() ?? created.id;
+
+    // Wire typed edge
+    await db.query(`RELATE ${tagId}->typed->${typeId}`);
+
     return tagId;
   } catch (error) {
     console.error('[SystemTags] Error finding/creating system tag:', error);

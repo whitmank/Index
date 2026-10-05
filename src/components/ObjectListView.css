@@ -79,6 +79,25 @@
   white-space: nowrap;
 }
 
+/* ── Container rows (spaces) ────────────────────────────────────────────── */
+
+.object-row.is-container .object-row-type {
+  color: rgba(100, 80, 180, 0.7);
+  font-size: 0.8rem;
+}
+
+.object-row.is-container .object-row-name {
+  font-weight: 600;
+}
+
+.object-row.is-container:hover {
+  background: rgba(100, 80, 180, 0.06);
+}
+
+.object-row.is-container.selected {
+  background: rgba(100, 80, 180, 0.1);
+}
+
 /* ── Empty state ────────────────────────────────────────────────────────── */
 
 .object-list-empty {

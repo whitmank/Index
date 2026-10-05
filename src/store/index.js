@@ -1,41 +1,35 @@
 // Author: Claude Code
-// useIndexStore — unified data store for v0.4.
-// Replaces useObjectsStore, useCollectionsStore, useTagsStore.
+// useIndexStore — unified data store for v0.4.2.
+// Spaces are not a separate primitive — containers are objects with container: true.
+// Tag assignments are RELATE edges (tagged table), not a join table.
+// Explicit containment is RELATE edges (contains, excludes tables).
 // LIVE SELECT subscriptions wire once on app mount via subscribeToLive().
-// Space model: objects satisfy tag conditions; entering a space filters by server-side evaluation.
-// activeView: 'list' | 'calendar' | 'graph' — set on enterSpace from space.default_view.
 
 import { create } from 'zustand';
 
-const SYSTEM_ALL_ID = '__system_all';
+// Fixed IDs for system containers — must match electron/main/db/connection.js
+export const ROOT_CONTAINER_ID = 'objects:root';
+export const ALL_CONTAINER_ID  = 'objects:all';
 
 export const useIndexStore = create((set, get) => ({
   // ── Data ──────────────────────────────────────────────────────────────────
-  objects: [],
-  spaces: [],
+  objects: [],          // All records: leaf objects AND containers
   tags: [],
-  tagTypes: {},        // System tag registry — fetched once on mount from db:getTagTypes
-  objectTags: {},      // objectId → tag[] cache
-  activeSpaceId: null,      // ID of current space; null = home grid
-  spaceObjects: null,       // Evaluated result of active space query; null = not in a space
-  activeCalendarDate: null, // 'YYYY-MM-DD'; set when drilling into a calendar day
-  activeView: 'list',       // 'list' | 'calendar' | 'graph'
-  _calendarBase: null,      // spaceObjects snapshot before entering a calendar day
+  tagTypes: [],         // tag_types records array, sorted by order
+  typedEdges: [],       // typed edge records: { id, in, out }
+  objectTags: {},       // objectId → tag[] cache
+  rootObjects: [],      // Evaluated contents of objects:root (user-pinned items)
+  activeSpaceId: null,  // ID of current container (an object); null = home grid
+  spaceObjects: null,   // Evaluated result of active container; null = not in a container
+  activeCalendarDate: null,
+  activeView: 'list',
+  _calendarBase: null,
   loading: false,
   error: null,
 
   // ── Navigation history ────────────────────────────────────────────────────
-  navHistory: [null],  // array of spaceId | null (null = home grid)
-  navCursor: 0,        // current position in navHistory
-
-  // ── System spaces ─────────────────────────────────────────────────────────
-  systemAll: {
-    id: SYSTEM_ALL_ID,
-    name: 'All',
-    system: true,
-    pinned: true,
-    default_view: 'list',
-  },
+  navHistory: [null],
+  navCursor: 0,
 
   // ── Initial load ──────────────────────────────────────────────────────────
 
@@ -46,25 +40,31 @@ export const useIndexStore = create((set, get) => ({
   loadAll: async () => {
     set({ loading: true, error: null });
     try {
-      const [objectsResult, spacesResult, tagsResult, tagTypesResult] = await Promise.all([
+      const [objectsResult, tagsResult, tagTypesResult, typedResult, rootResult] = await Promise.all([
         window.electronAPI.db.getAll('objects'),
-        window.electronAPI.db.getAll('spaces'),
         window.electronAPI.db.getAll('tag_definitions'),
         window.electronAPI.db.getTagTypes(),
+        window.electronAPI.db.getAll('typed'),
+        window.electronAPI.db.evaluateContainer(ROOT_CONTAINER_ID),
       ]);
 
-      const objects = objectsResult.success ? (objectsResult.data || []) : [];
-      let spaces = spacesResult.success ? (spacesResult.data || []) : [];
-      spaces = spaces.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-      const tags = tagsResult.success ? (tagsResult.data || []) : [];
-      const tagTypes = tagTypesResult.success ? (tagTypesResult.data || {}) : {};
+      const objects     = objectsResult.success   ? (objectsResult.data   || []) : [];
+      const tags        = tagsResult.success      ? (tagsResult.data      || []) : [];
+      const tagTypes    = tagTypesResult.success  ? (tagTypesResult.data  || []) : [];
+      const typedEdges  = typedResult.success     ? (typedResult.data     || []) : [];
+      const rootObjects = rootResult.success      ? (rootResult.data      || []) : [];
 
-      set({ objects, spaces, tags, tagTypes });
+      set({ objects, tags, tagTypes, typedEdges, rootObjects });
     } catch (error) {
       set({ error: error.message });
     } finally {
       set({ loading: false });
     }
+  },
+
+  _reloadTagTypes: async () => {
+    const result = await window.electronAPI.db.getTagTypes();
+    if (result.success) set({ tagTypes: result.data || [] });
   },
 
   // ── LIVE SELECT subscription ───────────────────────────────────────────────
@@ -81,50 +81,69 @@ export const useIndexStore = create((set, get) => ({
         set({ objects: [...objects, result] });
       } else if (action === 'UPDATE') {
         set({ objects: objects.map(o => o.id === id ? result : o) });
+        const { activeSpaceId } = get();
+        if (activeSpaceId === id) get()._reevaluateActiveContainer();
       } else if (action === 'DELETE') {
         set({ objects: objects.filter(o => o.id !== id) });
+        const { activeSpaceId } = get();
+        if (activeSpaceId === id) get().exitSpace();
+        // A deleted object may have been pinned to root
+        get()._reevaluateRoot();
       }
 
-      get()._reevaluateActiveSpace();
+      if (action !== 'UPDATE' || get().activeSpaceId !== id) {
+        get()._reevaluateActiveContainer();
+      }
     });
 
-    window.electronAPI.onTagAssignmentsLive(({ action, result }) => {
-      // Tag assignment changes — clear the affected object's tag cache.
+    window.electronAPI.onTaggedLive(({ action, result }) => {
+      // tagged edge changed — clear affected object's tag cache and re-evaluate
       const { objectTags } = get();
-      const objectId = result.object_id;
+      const objectId = result.in?.toString?.() ?? result.in;
       if (objectId && objectTags[objectId]) {
         const { [objectId]: _, ...rest } = objectTags;
         set({ objectTags: rest });
       }
-
-      get()._reevaluateActiveSpace();
+      get()._reevaluateActiveContainer();
     });
 
-    window.electronAPI.onSpacesLive(({ action, result }) => {
-      const { spaces } = get();
-      const id = result.id;
+    window.electronAPI.onContainsLive(({ action, result }) => {
+      const parentId = result.in?.toString?.() ?? result.in;
+      // Re-evaluate root if a pin was added/removed
+      if (parentId === ROOT_CONTAINER_ID) get()._reevaluateRoot();
+      // Re-evaluate active container if it's affected
+      const { activeSpaceId } = get();
+      if (activeSpaceId && activeSpaceId === parentId) get()._reevaluateActiveContainer();
+    });
 
-      if (action === 'CREATE') {
-        const sorted = [...spaces, result].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-        set({ spaces: sorted });
-      } else if (action === 'UPDATE') {
-        set({ spaces: spaces.map(s => s.id === id ? result : s) });
-        // Re-evaluate if the active space's definition changed
-        const { activeSpaceId } = get();
-        if (activeSpaceId === id) get()._reevaluateActiveSpace();
-      } else if (action === 'DELETE') {
-        set({ spaces: spaces.filter(s => s.id !== id) });
-        const { activeSpaceId } = get();
-        if (activeSpaceId === id) get().exitSpace();
+    window.electronAPI.onExcludesLive(({ action, result }) => {
+      // excludes edge changed — re-evaluate if the affected container is active
+      const { activeSpaceId } = get();
+      const parentId = result.in?.toString?.() ?? result.in;
+      if (activeSpaceId && activeSpaceId === parentId) {
+        get()._reevaluateActiveContainer();
       }
     });
 
-    window.electronAPI.onSpaceObjectsLive(({ action, result }) => {
-      // An override changed — re-evaluate if the affected space is active.
-      const { activeSpaceId } = get();
-      const spaceId = result.space_id?.toString?.() ?? result.space_id;
-      if (activeSpaceId && activeSpaceId === spaceId) {
-        get()._reevaluateActiveSpace();
+    window.electronAPI.onTagDefinitionsLive(({ action, result }) => {
+      const { tags } = get();
+      const id = result.id;
+      if (action === 'CREATE') {
+        set({ tags: [...tags, result] });
+      } else if (action === 'UPDATE') {
+        set({ tags: tags.map(t => t.id === id ? result : t) });
+      } else if (action === 'DELETE') {
+        set({ tags: tags.filter(t => t.id !== id) });
+      }
+    });
+
+    window.electronAPI.onTypedLive(({ action, result }) => {
+      const { typedEdges } = get();
+      const id = result.id;
+      if (action === 'CREATE') {
+        set({ typedEdges: [...typedEdges, result] });
+      } else if (action === 'DELETE') {
+        set({ typedEdges: typedEdges.filter(e => e.id !== id) });
       }
     });
   },
@@ -132,29 +151,23 @@ export const useIndexStore = create((set, get) => ({
   // ── Derived ───────────────────────────────────────────────────────────────
 
   /**
-   * Returns spaceObjects if in a space, else all objects.
+   * All container objects sorted by order then name.
    */
-  getDisplayObjects: () => {
-    const { spaceObjects, objects } = get();
-    return spaceObjects !== null ? spaceObjects : objects;
+  getAllContainers: () => {
+    return get().objects
+      .filter(o => o.container)
+      .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || (a.name || '').localeCompare(b.name || ''));
   },
 
   /**
-   * All spaces including system ALL — sorted by order.
-   */
-  getAllSpaces: () => {
-    const { systemAll, spaces } = get();
-    const sorted = [...spaces].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    return [systemAll, ...sorted];
-  },
-
-  /**
-   * Dates that have at least one object (space-aware).
-   * When drilling into a calendar day, uses the pre-day snapshot so the grid stays accurate.
+   * Dates that have at least one non-container object (for calendar dot markers).
+   * Containers are excluded — they are navigational, not temporal content.
    */
   getDatesWithObjects: () => {
     const { spaceObjects, objects, _calendarBase, activeCalendarDate } = get();
-    const source = activeCalendarDate ? (_calendarBase ?? objects) : (spaceObjects ?? objects);
+    const leafObjects = objects.filter(o => !o.container);
+    const spaceLeafs = spaceObjects?.filter(o => !o.container) ?? null;
+    const source = activeCalendarDate ? (_calendarBase ?? leafObjects) : (spaceLeafs ?? leafObjects);
     return new Set(source.map(o => o.created_at?.slice(0, 10)).filter(Boolean));
   },
 
@@ -162,40 +175,40 @@ export const useIndexStore = create((set, get) => ({
 
   setView: (viewType) => set({ activeView: viewType }),
 
-  // ── Space navigation ──────────────────────────────────────────────────────
+  // ── Container navigation ──────────────────────────────────────────────────
 
   /**
-   * Internal: activate a space without touching navigation history.
-   * Used by navBack/navForward.
+   * Internal: activate a container without touching navigation history.
    * @private
    */
-  _activateSpace: async (spaceId) => {
-    if (!spaceId) {
+  _activateSpace: async (containerId) => {
+    if (!containerId) {
       set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null });
       window.electronAPI?.app?.setActiveSpace(null);
       return;
     }
-    if (spaceId === SYSTEM_ALL_ID) {
-      set({ activeSpaceId: SYSTEM_ALL_ID, spaceObjects: null, activeView: 'list' });
-      window.electronAPI?.app?.setActiveSpace(null);
+
+    const { objects } = get();
+    const container = objects.find(o => o.id === containerId);
+
+    // "ALL" shows every leaf object — no containers.
+    if (containerId === ALL_CONTAINER_ID) {
+      const leafObjects = get().objects.filter(o => !o.container);
+      set({ activeSpaceId: containerId, spaceObjects: leafObjects, activeView: container?.default_view ?? 'list' });
+      window.electronAPI?.app?.setActiveSpace(containerId);
       return;
     }
-    const { spaces } = get();
-    const space = spaces.find(s => s.id === spaceId);
-    set({ activeSpaceId: spaceId, activeView: space?.default_view ?? 'list', spaceObjects: [] });
-    window.electronAPI?.app?.setActiveSpace(spaceId);
-    const result = await window.electronAPI.db.evaluateSpace(spaceId);
+
+    set({ activeSpaceId: containerId, activeView: container?.default_view ?? 'list', spaceObjects: [] });
+    window.electronAPI?.app?.setActiveSpace(containerId);
+    const result = await window.electronAPI.db.evaluateContainer(containerId);
     if (result.success) {
       set({ spaceObjects: result.data || [] });
     } else {
-      console.error('[Store] evaluateSpace failed:', result.error);
+      console.error('[Store] evaluateContainer failed:', result.error);
     }
   },
 
-  /**
-   * Internal: push a position to navigation history, truncating any forward history.
-   * @private
-   */
   _navPush: (spaceId) => {
     const { navHistory, navCursor } = get();
     const next = [...navHistory.slice(0, navCursor + 1), spaceId];
@@ -203,22 +216,21 @@ export const useIndexStore = create((set, get) => ({
   },
 
   /**
-   * Enter a space — evaluate its query and push to navigation history.
-   * SYSTEM_ALL_ID navigates into the "all objects" view (spaceObjects stays null).
-   * Passing null exits to the home grid.
+   * Enter a container — evaluate its query and push to navigation history.
    */
-  enterSpace: async (spaceId) => {
-    if (!spaceId) {
+  enterSpace: async (containerId) => {
+    if (!containerId) {
       get().exitSpace();
       return;
     }
-    await get()._activateSpace(spaceId);
-    get()._navPush(spaceId);
+    await get()._activateSpace(containerId);
+    get()._navPush(containerId);
   },
 
   enterCalendarDay: (dateStr) => {
     const { spaceObjects, objects } = get();
-    const base = spaceObjects ?? objects;
+    const nonContainerObjects = objects.filter(o => !o.container);
+    const base = spaceObjects ?? nonContainerObjects;
     const dayObjects = base.filter(o => o.created_at?.slice(0, 10) === dateStr);
     set({ activeCalendarDate: dateStr, _calendarBase: spaceObjects, spaceObjects: dayObjects });
   },
@@ -228,16 +240,12 @@ export const useIndexStore = create((set, get) => ({
     set({ activeCalendarDate: null, spaceObjects: _calendarBase, _calendarBase: null });
   },
 
-  /**
-   * Return to home grid, pushing null onto navigation history.
-   */
   exitSpace: () => {
     set({ activeSpaceId: null, spaceObjects: null, activeCalendarDate: null, activeView: 'list', _calendarBase: null });
     window.electronAPI?.app?.setActiveSpace(null);
     get()._navPush(null);
   },
 
-  /** Navigate back one step in history. */
   navBack: async () => {
     const { navCursor, navHistory } = get();
     if (navCursor <= 0) return;
@@ -246,7 +254,6 @@ export const useIndexStore = create((set, get) => ({
     await get()._activateSpace(navHistory[newCursor]);
   },
 
-  /** Navigate forward one step in history. */
   navForward: async () => {
     const { navCursor, navHistory } = get();
     if (navCursor >= navHistory.length - 1) return;
@@ -258,112 +265,132 @@ export const useIndexStore = create((set, get) => ({
   canNavBack:    () => get().navCursor > 0,
   canNavForward: () => get().navCursor < get().navHistory.length - 1,
 
-  /**
-   * Toggle: exit if already in this space, enter otherwise.
-   */
-  toggleSpace: async (spaceId) => {
+  toggleSpace: async (containerId) => {
     const { activeSpaceId } = get();
-    if (activeSpaceId === spaceId) {
+    if (activeSpaceId === containerId) {
       get().exitSpace();
     } else {
-      await get().enterSpace(spaceId);
+      await get().enterSpace(containerId);
     }
   },
 
   /**
-   * Re-run the active space query after objects or tag assignments change.
-   * No-op if no space is active.
+   * Re-run the active container query after objects or edges change.
+   * No-op if no container is active or if the active container is a system container.
    * @private
    */
-  _reevaluateActiveSpace: async () => {
-    const { activeSpaceId, activeCalendarDate } = get();
+  _reevaluateActiveContainer: async () => {
+    const { activeSpaceId, activeCalendarDate, objects } = get();
     if (!activeSpaceId) return;
-    if (activeSpaceId === SYSTEM_ALL_ID) return;
 
-    // Re-filter calendar day if one is open
+    if (activeSpaceId === ALL_CONTAINER_ID) {
+      set({ spaceObjects: objects.filter(o => !o.container) });
+      return;
+    }
+
     if (activeCalendarDate) {
-      const { _calendarBase, objects } = get();
-      const base = _calendarBase ?? objects;
+      const { _calendarBase } = get();
+      const nonContainerObjects = objects.filter(o => !o.container);
+      const base = _calendarBase ?? nonContainerObjects;
       const dayObjects = base.filter(o => o.created_at?.slice(0, 10) === activeCalendarDate);
       set({ spaceObjects: dayObjects });
       return;
     }
 
-    const result = await window.electronAPI.db.evaluateSpace(activeSpaceId);
+    const result = await window.electronAPI.db.evaluateContainer(activeSpaceId);
     if (result.success) {
       set({ spaceObjects: result.data || [] });
     }
   },
 
-  // ── Space management ──────────────────────────────────────────────────────
+  // ── Root management ───────────────────────────────────────────────────────
 
-  createSpace: async (spaceData) => {
-    const spaces = get().spaces;
-    const maxOrder = Math.max(...spaces.map(s => s.order ?? -1), -1);
-    const dataWithOrder = { ...spaceData, order: maxOrder + 1 };
-
-    const result = await window.electronAPI.db.createSpace(dataWithOrder);
-    if (!result.success) throw new Error(result.error);
-    return { success: true, data: result.data, warnings: result.warnings };
-    // LIVE SELECT adds it to spaces automatically
+  _reevaluateRoot: async () => {
+    const result = await window.electronAPI.db.evaluateContainer(ROOT_CONTAINER_ID);
+    if (result.success) set({ rootObjects: result.data || [] });
   },
 
-  updateSpace: async (spaceId, updates) => {
-    const result = await window.electronAPI.db.updateSpace(spaceId, updates);
+  pinToRoot: async (objectId) => {
+    const result = await window.electronAPI.db.addContains(ROOT_CONTAINER_ID, objectId);
+    if (!result.success) throw new Error(result.error);
+  },
+
+  unpinFromRoot: async (objectId) => {
+    const result = await window.electronAPI.db.removeContains(ROOT_CONTAINER_ID, objectId);
+    if (!result.success) throw new Error(result.error);
+  },
+
+  // ── Container management ──────────────────────────────────────────────────
+
+  createContainer: async (data) => {
+    const containers = get().objects.filter(o => o.container && !o.system);
+    const maxOrder = Math.max(...containers.map(c => c.order ?? -1), -1);
+    const dataWithOrder = { ...data, order: maxOrder + 1 };
+
+    const result = await window.electronAPI.db.createContainer(dataWithOrder);
     if (!result.success) throw new Error(result.error);
 
-    const { activeSpaceId } = get();
-    if (activeSpaceId === spaceId) await get()._reevaluateActiveSpace();
+    // Auto-pin to root so new containers appear at / by default
+    const newId = result.data?.id;
+    if (newId) await window.electronAPI.db.addContains(ROOT_CONTAINER_ID, newId);
 
     return { success: true, data: result.data };
   },
 
-  deleteSpace: async (spaceId) => {
-    const result = await window.electronAPI.db.deleteSpace(spaceId);
+  updateContainer: async (containerId, updates) => {
+    const result = await window.electronAPI.db.updateContainer(containerId, updates);
     if (!result.success) throw new Error(result.error);
 
     const { activeSpaceId } = get();
-    if (activeSpaceId === spaceId) get().exitSpace();
+    if (activeSpaceId === containerId) await get()._reevaluateActiveContainer();
+
+    return { success: true, data: result.data };
+  },
+
+  deleteContainer: async (containerId) => {
+    const result = await window.electronAPI.db.deleteObject(containerId);
+    if (!result.success) throw new Error(result.error);
+
+    const { activeSpaceId } = get();
+    if (activeSpaceId === containerId) get().exitSpace();
 
     return { success: true };
     // LIVE SELECT removes it automatically
   },
 
-  reorderSpaces: async (reorderedSpaces) => {
-    set({ spaces: reorderedSpaces });
+  reorderContainers: async (reorderedContainers) => {
+    set(state => ({
+      objects: state.objects.map(o => {
+        const reordered = reorderedContainers.find(c => c.id === o.id);
+        return reordered ? { ...o, order: reordered.order } : o;
+      }),
+    }));
     await Promise.all(
-      reorderedSpaces.map((space, index) =>
-        window.electronAPI.db.updateSpace(space.id, { order: index })
+      reorderedContainers.map((container, index) =>
+        window.electronAPI.db.updateContainer(container.id, { order: index })
       )
     );
   },
 
-  // ── Space override actions ────────────────────────────────────────────────
+  // ── Explicit edge actions ─────────────────────────────────────────────────
 
-  /**
-   * Explicitly include an object in a space regardless of query rules.
-   * Also clears any existing exclude override for this pair.
-   */
-  addObjectToSpace: async (objectId, spaceId) => {
-    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, 'include');
+  addContains: async (parentId, childId, order) => {
+    const result = await window.electronAPI.db.addContains(parentId, childId, order);
     if (!result.success) throw new Error(result.error);
   },
 
-  /**
-   * Explicitly exclude an object from a space regardless of query rules.
-   * Also clears any existing include override for this pair.
-   */
-  excludeObjectFromSpace: async (objectId, spaceId) => {
-    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, 'exclude');
+  removeContains: async (parentId, childId) => {
+    const result = await window.electronAPI.db.removeContains(parentId, childId);
     if (!result.success) throw new Error(result.error);
   },
 
-  /**
-   * Remove any explicit override for this object+space pair.
-   * The object falls back to query-rule membership.
-   */
-  removeSpaceOverride: async (objectId, spaceId) => {
-    const result = await window.electronAPI.db.setSpaceOverride(spaceId, objectId, null);
+  addExcludes: async (parentId, childId) => {
+    const result = await window.electronAPI.db.addExcludes(parentId, childId);
+    if (!result.success) throw new Error(result.error);
+  },
+
+  removeExcludes: async (parentId, childId) => {
+    const result = await window.electronAPI.db.removeExcludes(parentId, childId);
     if (!result.success) throw new Error(result.error);
   },
 
@@ -373,21 +400,40 @@ export const useIndexStore = create((set, get) => ({
     const result = await window.electronAPI.db.createObject(objectData);
     if (!result.success) throw new Error(result.error);
     return result.data;
-    // LIVE SELECT pushes the new object to the store automatically
   },
 
   updateObject: async (id, updates) => {
     const result = await window.electronAPI.db.updateObject(id, updates);
     if (!result.success) throw new Error(result.error);
     return result.data;
-    // LIVE SELECT pushes the updated object automatically
   },
 
   deleteObject: async (id) => {
     const result = await window.electronAPI.db.deleteObject(id);
     if (!result.success) throw new Error(result.error);
-    // LIVE SELECT removes the object automatically
     return true;
+  },
+
+  // ── Tag type actions ──────────────────────────────────────────────────────
+
+  createTagType: async (data) => {
+    const result = await window.electronAPI.db.createTagType(data);
+    if (!result.success) throw new Error(result.error);
+    await get()._reloadTagTypes();
+    return result.data;
+  },
+
+  updateTagType: async (typeId, updates) => {
+    const result = await window.electronAPI.db.updateTagType(typeId, updates);
+    if (!result.success) throw new Error(result.error);
+    await get()._reloadTagTypes();
+  },
+
+  deleteTagType: async (typeId) => {
+    const result = await window.electronAPI.db.deleteTagType(typeId);
+    if (!result.success) throw new Error(result.error);
+    await get()._reloadTagTypes();
+    // typed edges for this type will be cleaned up by LIVE SELECT
   },
 
   // ── Tag actions ───────────────────────────────────────────────────────────
@@ -395,12 +441,8 @@ export const useIndexStore = create((set, get) => ({
   createTag: async (tagData) => {
     const result = await window.electronAPI.db.createTag(tagData);
     if (!result.success) throw new Error(result.error);
-
-    const newTag = result.data;
-    if (newTag) {
-      set(state => ({ tags: [...state.tags, newTag] }));
-    }
-    return newTag;
+    // LIVE SELECT on tag_definitions handles state update
+    return result.data;
   },
 
   loadTagsForObject: async (objectId) => {
@@ -414,7 +456,7 @@ export const useIndexStore = create((set, get) => ({
   assignTag: async (objectId, tagId) => {
     const result = await window.electronAPI.db.assignTag(objectId, tagId);
     if (!result.success) throw new Error(result.error);
-    // Invalidate object's tag cache — LIVE SELECT will update tag_assignments
+    // Invalidate object's tag cache — LIVE SELECT will update tagged edges
     set(state => {
       const { [objectId]: _, ...rest } = state.objectTags;
       return { objectTags: rest };
@@ -425,13 +467,13 @@ export const useIndexStore = create((set, get) => ({
   deleteTag: async (tagId) => {
     const result = await window.electronAPI.db.deleteTag(tagId);
     if (!result.success) throw new Error(result.error);
-    set(state => ({ tags: state.tags.filter(t => t.id !== tagId) }));
+    // LIVE SELECT on tag_definitions handles state update
   },
 
   updateTag: async (tagId, updates) => {
     const result = await window.electronAPI.db.updateTag(tagId, updates);
     if (!result.success) throw new Error(result.error);
-    set(state => ({ tags: state.tags.map(t => t.id === tagId ? { ...t, ...updates } : t) }));
+    // LIVE SELECT on tag_definitions handles state update
   },
 
   unassignTag: async (objectId, tagId) => {

@@ -7,3 +7,7 @@ build/
 .env
 .env.local
 out/
+.bin/
+
+# SurrealDB shell history
+history.txt

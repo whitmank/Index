@@ -1,7 +1,11 @@
 // Author: Claude Code
-// Preload — v0.4.
-// Added: onObjectsLive, onTagAssignmentsLive, onSpacesLive for LIVE SELECT reactivity.
-// Added: db.getTagTypes to fetch system tag registry once on mount.
+// Preload — v0.4.2.
+// Added: onTaggedLive, onContainsLive, onExcludesLive replacing
+//        onTagAssignmentsLive, onSpacesLive, onSpaceObjectsLive.
+// Added: db.createContainer, db.updateContainer, db.evaluateContainer.
+// Added: db.addContains, db.removeContains, db.addExcludes, db.removeExcludes.
+// Added: db.createTagType, db.updateTagType, db.deleteTagType.
+// Added: onTagDefinitionsLive, onTypedLive.
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
@@ -29,12 +33,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getObjectsForTag: (tagId) => ipcRenderer.invoke('db:getObjectsForTag', tagId),
     updateTag: (id, data) => ipcRenderer.invoke('db:updateTag', id, data),
     deleteTag: (id) => ipcRenderer.invoke('db:deleteTag', id),
-    createSpace: (data) => ipcRenderer.invoke('db:createSpace', data),
-    updateSpace: (id, data) => ipcRenderer.invoke('db:updateSpace', id, data),
-    deleteSpace: (id) => ipcRenderer.invoke('db:deleteSpace', id),
-    evaluateSpace: (id) => ipcRenderer.invoke('db:evaluateSpace', id),
-    setSpaceOverride: (spaceId, objectId, type) => ipcRenderer.invoke('db:setSpaceOverride', spaceId, objectId, type),
     findOrCreateSystemTag: (type, name) => ipcRenderer.invoke('db:findOrCreateSystemTag', type, name),
+    // Container operations
+    createContainer: (data) => ipcRenderer.invoke('db:createContainer', data),
+    updateContainer: (id, data) => ipcRenderer.invoke('db:updateContainer', id, data),
+    evaluateContainer: (id) => ipcRenderer.invoke('db:evaluateContainer', id),
+    // Edge operations
+    addContains: (parentId, childId, order) => ipcRenderer.invoke('db:addContains', parentId, childId, order),
+    removeContains: (parentId, childId) => ipcRenderer.invoke('db:removeContains', parentId, childId),
+    addExcludes: (parentId, childId) => ipcRenderer.invoke('db:addExcludes', parentId, childId),
+    removeExcludes: (parentId, childId) => ipcRenderer.invoke('db:removeExcludes', parentId, childId),
+    // Tag type management
+    createTagType: (data) => ipcRenderer.invoke('db:createTagType', data),
+    updateTagType: (typeId, data) => ipcRenderer.invoke('db:updateTagType', typeId, data),
+    deleteTagType: (typeId) => ipcRenderer.invoke('db:deleteTagType', typeId),
   },
 
   // File system operations
@@ -48,23 +60,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('live:objects');
     ipcRenderer.on('live:objects', (_e, data) => callback(data));
   },
-  onTagAssignmentsLive: (callback) => {
-    ipcRenderer.removeAllListeners('live:tagAssignments');
-    ipcRenderer.on('live:tagAssignments', (_e, data) => callback(data));
+  onTaggedLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:tagged');
+    ipcRenderer.on('live:tagged', (_e, data) => callback(data));
   },
-  onSpacesLive: (callback) => {
-    ipcRenderer.removeAllListeners('live:spaces');
-    ipcRenderer.on('live:spaces', (_e, data) => callback(data));
+  onContainsLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:contains');
+    ipcRenderer.on('live:contains', (_e, data) => callback(data));
   },
-  onSpaceObjectsLive: (callback) => {
-    ipcRenderer.removeAllListeners('live:spaceObjects');
-    ipcRenderer.on('live:spaceObjects', (_e, data) => callback(data));
+  onExcludesLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:excludes');
+    ipcRenderer.on('live:excludes', (_e, data) => callback(data));
   },
-
-  // Capture: select a specific object in the UI
-  onSelectObject: (callback) => {
-    ipcRenderer.removeAllListeners('objects:selectObject');
-    ipcRenderer.on('objects:selectObject', (_event, id) => callback(id));
+  onTagDefinitionsLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:tag_definitions');
+    ipcRenderer.on('live:tag_definitions', (_e, data) => callback(data));
+  },
+  onTypedLive: (callback) => {
+    ipcRenderer.removeAllListeners('live:typed');
+    ipcRenderer.on('live:typed', (_e, data) => callback(data));
   },
 
   // Active space reporting — called by the store whenever the active space changes

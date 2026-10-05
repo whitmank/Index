@@ -1,20 +1,21 @@
 /* Author: Claude Code */
-/* AddressBar — persistent navigation strip */
+/* AddressBar — browser-style navigation strip */
 
 .address-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 5px 10px;
-  flex-shrink: 0;
-  -webkit-app-region: no-drag;
+  padding: 5px 8px;
   gap: 6px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  -webkit-app-region: no-drag;
 }
 
-/* ── Back slot ───────────────────────────────────────────────────────── */
+/* ── Back button ─────────────────────────────────────────────────────── */
 
 .address-bar-back-slot {
-  width: 28px;
+  width: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -22,10 +23,10 @@
 }
 
 .address-bar-back {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 5px;
   color: #555;
@@ -35,45 +36,103 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition: background 100ms, color 100ms;
 }
 
 .address-bar-back:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.18);
-  color: #222;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
 }
 
 .address-bar-back:disabled {
-  color: #ccc;
+  color: #bbb;
   border-color: rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.3);
+  background: transparent;
   cursor: default;
 }
 
-/* ── Pill ────────────────────────────────────────────────────────────── */
+/* ── Address field ───────────────────────────────────────────────────── */
 
-.address-bar-pill {
+.address-bar-field {
   flex: 1;
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  border-radius: 6px;
-  padding: 4px 12px;
-  min-height: 26px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 5px;
+  padding: 3px 10px;
+  min-height: 24px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: text;
+}
+
+.address-bar-field.editing {
+  border-color: #0061d9;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 2px rgba(0, 97, 217, 0.2);
 }
 
 .address-bar-label {
   font-size: 0.78rem;
-  font-weight: 600;
-  color: #444;
+  font-weight: 500;
+  color: #333;
   letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 100%;
+  user-select: none;
+}
+
+.address-bar-input {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #222;
+  letter-spacing: 0.01em;
+  padding: 0;
+  margin: 0;
+}
+
+.address-bar-input::placeholder {
+  color: #aaa;
+  font-weight: 400;
+}
+
+/* ── Dropdown ────────────────────────────────────────────────────────── */
+
+.address-bar-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  background: rgba(245, 245, 245, 0.97);
+  border: 1px solid rgba(0, 0, 0, 0.13);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 3px;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.address-bar-dropdown-item {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.address-bar-dropdown-item.active {
+  background: rgba(0, 0, 0, 0.07);
+  color: #111;
 }
 
 /* ── Right slot / view switcher ──────────────────────────────────────── */
@@ -92,10 +151,10 @@
 }
 
 .view-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 5px;
   color: #777;
@@ -105,17 +164,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition: background 100ms, color 100ms;
 }
 
 .view-btn:hover {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.9);
   color: #333;
 }
 
 .view-btn.active {
   background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.18);
+  border-color: rgba(0, 0, 0, 0.16);
   color: #222;
 }

@@ -1,20 +1,17 @@
 // Author: Claude Code
 // App root — v0.4 frontend rebuild.
 
-import { useEffect, useState } from 'react';
-import { useIndexStore } from './store/index';
+import { useEffect, useRef, useState } from 'react';
+import { useIndexStore, ROOT_CONTAINER_ID } from './store/index';
 import { useAppearance } from './hooks/useAppearance';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import SettingsView from './components/SettingsView';
-import SpacesView from './components/SpacesView';
-import TagsView from './components/TagsView';
+import SettingsView, { TABS as SETTINGS_TABS } from './components/SettingsView';
 import CalendarView from './components/CalendarView';
 import DayView from './components/DayView';
 import ObjectListView from './components/ObjectListView';
 import GraphView from './components/GraphView';
 import CreateSpaceModal from './components/CreateSpaceModal';
 import CommandPalette from './components/CommandPalette';
-import SpaceNavigator from './components/SpaceNavigator';
 import AddressBar from './components/AddressBar';
 import QuickSpaceView from './components/QuickSpaceView';
 import './App.css';
@@ -30,8 +27,6 @@ function MainApp() {
   const loadAll             = useIndexStore(s => s.loadAll);
   const subscribeToLive     = useIndexStore(s => s.subscribeToLive);
   const activeSpaceId       = useIndexStore(s => s.activeSpaceId);
-  const spaces              = useIndexStore(s => s.spaces);
-  const systemAll           = useIndexStore(s => s.systemAll);
   const exitSpace           = useIndexStore(s => s.exitSpace);
   const spaceObjects        = useIndexStore(s => s.spaceObjects);
   const objects             = useIndexStore(s => s.objects);
@@ -44,15 +39,33 @@ function MainApp() {
   const navBack     = useIndexStore(s => s.navBack);
   const navForward  = useIndexStore(s => s.navForward);
 
-  const activeSpace = spaces.find(s => s.id === activeSpaceId)
-    ?? (activeSpaceId === systemAll.id ? systemAll : null);
+  const rootObjects = useIndexStore(s => s.rootObjects);
 
-  const displayObjects = spaceObjects !== null ? spaceObjects : objects;
+  const activeSpace = objects.find(o => o.id === activeSpaceId && o.container) ?? null;
+
+  // Root shows only what is explicitly linked via contains edges from objects:root.
+  // Containers first, then leaf objects.
+  const displayObjects = spaceObjects !== null
+    ? spaceObjects
+    : [...rootObjects].sort((a, b) => (b.container ? 1 : 0) - (a.container ? 1 : 0));
+
+  const addressBarRef = useRef(null);
 
   const [showCreateSpace, setShowCreateSpace]       = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showSpaceNavigator, setShowSpaceNavigator] = useState(false);
   const [activeTopLevelView, setActiveTopLevelView] = useState('spaces');
+  const [settingsTab, setSettingsTab]               = useState('general');
+
+  const settingsCommands = SETTINGS_TABS.map(tab => ({
+    id:    `settings:${tab.id}`,
+    label: `Settings → ${tab.label}`,
+    action: () => {
+      setActiveTopLevelView('settings');
+      setSettingsTab(tab.id);
+      if (activeSpaceId) exitSpace();
+    },
+  }));
+  const inSpacesView = activeTopLevelView === 'spaces';
 
   function navigateTo(id) {
     if (id === 'spaces' || id === 'tags' || id === 'settings') {
@@ -64,9 +77,8 @@ function MainApp() {
 
   const label = activeCalendarDate                       ? formatDate(activeCalendarDate)
     : activeSpaceId                                      ? (activeSpace?.name ?? '…')
-    : activeTopLevelView === 'tags'                      ? 'Tags'
     : activeTopLevelView === 'settings'                  ? 'Settings'
-    : 'Spaces';
+    : '/';
 
   const onBack = activeCalendarDate                      ? exitCalendarDay
     : activeSpaceId                                      ? exitSpace
@@ -81,12 +93,10 @@ function MainApp() {
   useKeyboardShortcuts({
     onSettings:       () => navigateTo('settings'),
     onPalette:        () => setShowCommandPalette(v => !v),
-    onSpaceNavigator: () => setShowSpaceNavigator(v => !v),
-    onViewSpaces:     () => navigateTo('spaces'),
-    onViewTags:       () => navigateTo('tags'),
-    onViewSettings:   () => navigateTo('settings'),
+    onSpaceNavigator: () => addressBarRef.current?.startNavigation(),
     onNavBack:        () => navBack(),
     onNavForward:     () => navForward(),
+    onNavRoot:        () => { setActiveTopLevelView('spaces'); exitSpace(); },
   });
 
   return (
@@ -94,28 +104,24 @@ function MainApp() {
       <div className="title-bar" />
       <div className="app-content">
         <AddressBar
+          ref={addressBarRef}
           label={label}
           onBack={onBack}
-          activeView={activeSpaceId ? activeView : null}
+          activeView={inSpacesView ? activeView : null}
           setView={setView}
+          onNavigate={(id) => { setActiveTopLevelView('spaces'); if (id === null) exitSpace(); else enterSpace(id); }}
         />
-        {!activeSpaceId && activeTopLevelView === 'spaces'                    && <SpacesView onNewSpace={() => setShowCreateSpace(true)} />}
-        {!activeSpaceId && activeTopLevelView === 'tags'                       && <TagsView />}
-        {!activeSpaceId && activeTopLevelView === 'settings'                   && <SettingsView />}
-        {activeSpaceId && activeView === 'list'                                && <ObjectListView objects={displayObjects} />}
-        {activeSpaceId && activeView === 'calendar' && !activeCalendarDate     && <CalendarView />}
-        {activeSpaceId && activeView === 'calendar' && activeCalendarDate      && <DayView />}
-        {activeSpaceId && activeView === 'graph'                               && <GraphView objects={displayObjects} />}
+        {activeTopLevelView === 'settings' && <SettingsView activeTab={settingsTab} onTabChange={setSettingsTab} />}
+        {inSpacesView && activeView === 'list'                            && <ObjectListView objects={displayObjects} onEnterContainer={enterSpace} />}
+        {inSpacesView && activeView === 'calendar' && !activeCalendarDate && <CalendarView />}
+        {inSpacesView && activeView === 'calendar' && activeCalendarDate  && <DayView />}
+        {inSpacesView && activeView === 'graph'                           && <GraphView objects={displayObjects} />}
       </div>
       <CreateSpaceModal isOpen={showCreateSpace} onClose={() => setShowCreateSpace(false)} />
       <CommandPalette
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
-      />
-      <SpaceNavigator
-        isOpen={showSpaceNavigator}
-        onClose={() => setShowSpaceNavigator(false)}
-        onEnterSpace={(id) => { setActiveTopLevelView('spaces'); enterSpace(id); setShowSpaceNavigator(false); }}
+        commands={settingsCommands}
       />
     </div>
   );

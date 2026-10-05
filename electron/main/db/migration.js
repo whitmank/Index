@@ -10,9 +10,7 @@ import { repairMissingSystemTagsForAllObjects } from './repair.js';
 
 const INDEX_DIR = path.join(os.homedir(), '.index');
 const VERSION_FILE = path.join(INDEX_DIR, '.version');
-const SINGLE_FILE_TABLES = {
-  tag_assignments: 'tag_assignments.json',
-};
+// No single-file join tables in v0.4.1 — tag_assignments migrated to RELATE edges
 
 /**
  * Run v0.3 → v0.4 migration if needed.
@@ -44,7 +42,39 @@ async function importFromJsonFiles(db) {
   await hydrateTable(db, 'objects');
   await hydrateTable(db, 'tag_definitions');
   await hydrateTable(db, 'collections');
-  await hydrateSingleFileTable(db, 'tag_assignments', SINGLE_FILE_TABLES.tag_assignments);
+  // Migrate v0.3 tag_assignments join table records into RELATE edges
+  await migrateTagAssignmentsToEdges(db);
+}
+
+/**
+ * Convert v0.3 tag_assignments.json join records into tagged RELATE edges.
+ * Each {object_id, tag_id} row becomes: RELATE object_id->tagged->tag_id
+ */
+async function migrateTagAssignmentsToEdges(db) {
+  const filePath = path.join(INDEX_DIR, 'tag_assignments.json');
+  if (!fs.existsSync(filePath)) return;
+
+  try {
+    const records = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    if (!Array.isArray(records)) return;
+
+    let migrated = 0;
+    for (const record of records) {
+      try {
+        const objectId = record.object_id;
+        const tagId = record.tag_id;
+        if (!objectId || !tagId) continue;
+        await db.query(`RELATE ${objectId}->tagged->${tagId}`);
+        migrated++;
+      } catch (e) {
+        console.warn('[Migration] Error migrating tag assignment:', e.message);
+      }
+    }
+
+    if (migrated > 0) console.log(`[Migration] Migrated ${migrated} tag assignments to edges`);
+  } catch (e) {
+    console.error('[Migration] Error migrating tag_assignments:', e);
+  }
 }
 
 async function hydrateTable(db, tableName) {

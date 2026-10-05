@@ -6,32 +6,48 @@
  * Registry of system tag types.
  * Each entry describes display, editability, and ordering behavior.
  *
- * @type {Object.<string, {label: string, scope: string, display: boolean, editable: boolean, deletable: boolean, order: number}>}
+ * Types:
+ *   medium — signal/format (audio, video, image, text). Derived, closed set.
+ *   kind   — semantic form (book, essay, song, photo). Asserted, open set.
+ *   file   — file extension per source. Derived, hidden.
+ *   origin — device identifier per source. Derived, hidden.
  */
 export const SYSTEM_TAG_TYPES = {
-  media_type: {
-    label: 'Media Type',
-    scope: 'object',    // Assigned once per object (from first source)
-    display: true,      // Shown in tag UI
-    editable: true,     // Value can be changed by user
-    deletable: true,    // User can add/remove values
+  medium: {
+    label: 'Medium',
+    description: 'The signal format of the content — audio, video, image, text. Derived from the source URI at capture time.',
+    scope: 'object',
+    display: true,
+    editable: true,
+    deletable: true,
     order: 0,
   },
-  file_type: {
-    label: 'File Type',
-    scope: 'source',    // One per unique file extension across sources
-    display: false,     // Hidden in tag UI (queryable, not shown)
-    editable: false,
-    deletable: false,
+  kind: {
+    label: 'Kind',
+    description: 'The semantic form of the content — book, essay, song, photo. Asserted by the user; open set.',
+    scope: 'object',
+    display: true,
+    editable: true,
+    deletable: true,
     order: 1,
   },
-  origin: {
-    label: 'Origin',
-    scope: 'source',    // One per unique device origin across sources
+  file: {
+    label: 'File',
+    description: 'The file extension of the source. Derived from the source URI at capture time.',
+    scope: 'source',
     display: false,
     editable: false,
     deletable: false,
     order: 2,
+  },
+  origin: {
+    label: 'Origin',
+    description: 'The device or host that provided the source. Derived from the source URI or device identity at capture time.',
+    scope: 'source',
+    display: false,
+    editable: false,
+    deletable: false,
+    order: 3,
   },
 };
 
@@ -43,4 +59,25 @@ export const SYSTEM_TAG_TYPES = {
  */
 export function isSystemTagDeletable(type) {
   return SYSTEM_TAG_TYPES[type]?.deletable ?? true;
+}
+
+/**
+ * Upsert all SYSTEM_TAG_TYPES into the tag_types table.
+ * Idempotent — safe to call on every startup.
+ * @param {Surreal} db
+ */
+export async function seedTagTypes(db) {
+  for (const [name, attrs] of Object.entries(SYSTEM_TAG_TYPES)) {
+    const record = {
+      name,
+      label: attrs.label,
+      description: attrs.description ?? null,
+      system: true,
+      display: attrs.display,
+      editable: attrs.editable,
+      deletable: attrs.deletable,
+      order: attrs.order,
+    };
+    await db.query(`UPSERT tag_types:${name} CONTENT ${JSON.stringify(record)}`);
+  }
 }

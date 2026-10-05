@@ -1,5 +1,6 @@
 // Author: Claude Code
 // QuickSpaceView — persistent overlay window; user navigates via CommandPalette.
+// v0.4.1: containers sourced from objects.filter(o => o.container)
 
 import { useEffect, useState } from 'react';
 import { useIndexStore } from '../store/index';
@@ -14,14 +15,8 @@ export default function QuickSpaceView() {
 
   const loadAll         = useIndexStore(s => s.loadAll);
   const subscribeToLive = useIndexStore(s => s.subscribeToLive);
-  const enterSpace      = useIndexStore(s => s.enterSpace);
-  const objects         = useIndexStore(s => s.objects);
-  const spaceObjects    = useIndexStore(s => s.spaceObjects);
-  const spaces          = useIndexStore(s => s.spaces);
-  const systemAll       = useIndexStore(s => s.systemAll);
 
-  const [activeSpaceId, setActiveSpaceId] = useState(null);
-  const [showPalette, setShowPalette]     = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
 
   useEffect(() => {
     loadAll().then(() => setShowPalette(true));
@@ -29,20 +24,6 @@ export default function QuickSpaceView() {
   }, []);
 
   useKeyboardShortcuts({ onPalette: () => setShowPalette(v => !v) });
-
-  const handleEnterSpace = (id) => {
-    enterSpace(id);
-    setActiveSpaceId(id);
-    setShowPalette(false);
-  };
-
-  const activeSpace = activeSpaceId
-    ? ([systemAll, ...spaces].find(s => s.id === activeSpaceId) ?? null)
-    : null;
-
-  const displayObjects = activeSpaceId
-    ? (spaceObjects !== null ? spaceObjects : objects)
-    : [];
 
   return (
     <div className="app">
@@ -55,15 +36,13 @@ export default function QuickSpaceView() {
           pointerEvents: 'none',
           userSelect: 'none',
         }}>
-          {activeSpace ? activeSpace.name : 'No space selected'}
+          Index
         </span>
       </div>
-      <GraphView objects={displayObjects} />
+      <GraphView objects={[]} />
       <CommandPalette
         isOpen={showPalette}
         onClose={() => setShowPalette(false)}
-        onNavigate={() => {}}
-        onEnterSpace={handleEnterSpace}
         compact
       />
     </div>

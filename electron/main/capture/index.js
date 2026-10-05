@@ -78,21 +78,19 @@ export async function handleCaptureShortcut(db, mainWindow, targetSpaceId = null
       }
     }
 
-    // Add object to the active space if one is targeted
+    // Explicitly include the object in the target container via contains edge
     if (objectId && targetSpaceId) {
       try {
-        await db.query(
-          `DELETE FROM space_objects WHERE space_id = '${targetSpaceId}' AND object_id = '${objectId}'`
+        // Avoid duplicate edges
+        const existing = await db.query(
+          `SELECT * FROM contains WHERE in = ${targetSpaceId} AND out = ${objectId}`
         );
-        await db.create('space_objects', {
-          space_id: targetSpaceId,
-          object_id: objectId,
-          type: 'include',
-          created_at: new Date().toISOString(),
-        });
-        console.log(`[Capture] Added object ${objectId} to space ${targetSpaceId}`);
+        if (!existing[0] || existing[0].length === 0) {
+          await db.query(`RELATE ${targetSpaceId}->contains->${objectId}`);
+        }
+        console.log(`[Capture] Added object ${objectId} to container ${targetSpaceId}`);
       } catch (err) {
-        console.error('[Capture] Failed to add object to space:', err.message);
+        console.error('[Capture] Failed to add object to container:', err.message);
       }
     }
   }

@@ -1,35 +1,32 @@
-// Author: Claude Code (Anthropic)
-// System tag repair logic - ensures all objects have their system tags
+// Author: Claude Code
+// System tag repair logic — ensures all objects have their system tags.
+// v0.4.1: uses RELATE edges (tagged table) instead of tag_assignments join table.
 
 import { extractMediaTypeFromSource, extractFileType } from '../utils/metadata-extractor.js';
 import { findOrCreateSystemTag } from './services/system-tags.js';
 
 /**
- * Repair missing system tags for a single object
- * Handles both v1 (source_local/remote) and v2 (sources array) formats
+ * Repair missing system tags for a single object.
  * @private
  */
 async function repairObjectSystemTags(db, object) {
   try {
     const objectId = object.id?.toString?.() ?? object.id;
 
-    // v2: Check for sources array
-    const sources = object.sources || [];
+    // Skip containers — they don't get system tags
+    if (object.container) return { objectId, repaired: [] };
 
-    // v1 fallback: Check for source_local/remote
+    const sources = object.sources || [];
     const legacySource = !sources.length ? (object.source_local || object.source_remote) : null;
 
     if (!sources.length && !legacySource) {
       return { objectId, repaired: [] };
     }
 
-    // Get current tags for this object
-    const tagsResult = await db.query(
-      `SELECT tag_id FROM tag_assignments WHERE object_id = '${objectId}'`
-    );
-    const assignedTagIds = (tagsResult[0] || []).map(a => a.tag_id);
+    // Get current tags for this object via tagged edges
+    const edgesResult = await db.query(`SELECT out FROM tagged WHERE in = ${objectId}`);
+    const assignedTagIds = (edgesResult[0] || []).map(r => r.out?.toString?.() ?? r.out);
 
-    // Fetch the actual tags to check which types are assigned
     let assignedTags = [];
     if (assignedTagIds.length > 0) {
       const inClause = `[${assignedTagIds.join(', ')}]`;
@@ -38,61 +35,35 @@ async function repairObjectSystemTags(db, object) {
     }
 
     const currentSystemTagTypes = new Set(
-      assignedTags
-        .filter((t) => t.system === true && t.type)
-        .map((t) => t.type)
+      assignedTags.filter(t => t.system === true && t.type).map(t => t.type)
     );
 
-    // Determine expected types based on data format
-    let expectedTypes = [];
-    if (sources.length) {
-      expectedTypes = ['media_type', 'file_type', 'origin'];
-    } else {
-      expectedTypes = ['media_type', 'file_extension'];
-    }
+    const expectedTypes = sources.length
+      ? ['medium', 'file', 'origin']
+      : ['medium', 'file_extension'];
 
-    const missingTypes = expectedTypes.filter((type) => !currentSystemTagTypes.has(type));
-
-    if (missingTypes.length === 0) {
-      return { objectId, repaired: [] };
-    }
+    const missingTypes = expectedTypes.filter(type => !currentSystemTagTypes.has(type));
+    if (missingTypes.length === 0) return { objectId, repaired: [] };
 
     const repaired = [];
 
-    // Regenerate missing system tags
     for (const type of missingTypes) {
       let value = null;
 
       if (sources.length) {
-        // v2: Handle sources array
-        if (type === 'media_type') {
-          value = extractMediaTypeFromSource(sources[0].uri);
-        } else if (type === 'file_type') {
-          value = extractFileType(sources[0].uri);
-        } else if (type === 'origin') {
-          value = sources[0].origin;
-        }
+        if (type === 'medium') value = extractMediaTypeFromSource(sources[0].uri);
+        else if (type === 'file') value = extractFileType(sources[0].uri);
+        else if (type === 'origin') value = sources[0].origin;
       } else {
-        // v1: Handle legacy format
-        if (type === 'media_type') {
-          value = extractMediaTypeFromSource(legacySource);
-        } else if (type === 'file_extension') {
-          value = extractFileType(legacySource);
-        }
+        if (type === 'medium') value = extractMediaTypeFromSource(legacySource);
+        else if (type === 'file_extension') value = extractFileType(legacySource);
       }
 
-      // Find or create the system tag
       const tagId = await findOrCreateSystemTag(db, type, value);
       if (tagId) {
-        // Check if assignment already exists
-        const existingResult = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
-        );
-        if (!existingResult[0] || existingResult[0].length === 0) {
-          await db.create('tag_assignments', {
-            object_id: objectId,
-            tag_id: tagId,
-          });
+        const existing = await db.query(`SELECT * FROM tagged WHERE in = ${objectId} AND out = ${tagId}`);
+        if (!existing[0] || existing[0].length === 0) {
+          await db.query(`RELATE ${objectId}->tagged->${tagId}`);
           repaired.push({ type, value: value || null });
         }
       }
@@ -106,9 +77,9 @@ async function repairObjectSystemTags(db, object) {
 }
 
 /**
- * Repair missing system tags for all objects
- * Called during database hydration to ensure consistency
- * @param {Surreal} db - Database connection
+ * Repair missing system tags for all objects.
+ * Called during database hydration to ensure consistency.
+ * @param {Surreal} db
  */
 export async function repairMissingSystemTagsForAllObjects(db) {
   try {
@@ -120,11 +91,9 @@ export async function repairMissingSystemTagsForAllObjects(db) {
     if (allObjects.length === 0) return;
 
     let totalRepaired = 0;
-    const results = [];
 
     for (const object of allObjects) {
       const result = await repairObjectSystemTags(db, object);
-      results.push(result);
       totalRepaired += result.repaired.length;
     }
 
@@ -133,6 +102,6 @@ export async function repairMissingSystemTagsForAllObjects(db) {
     }
   } catch (error) {
     console.error('[Repair] Error during system tag repair:', error);
-    // Don't throw - repair is non-critical, continue with database startup
+    // Non-critical — continue with database startup
   }
 }

@@ -1,6 +1,7 @@
 // Author: Claude Code
 // Core object creation and lookup logic — shared between IPC handlers and the capture system.
 // v0.4: uses scheduleExport (async, non-blocking) instead of persistToIndex.
+// v0.4.1: tag assignments use RELATE edges (tagged table) instead of tag_assignments join table.
 
 import { scheduleExport } from '../export.js';
 import { findOrCreateSystemTag } from './system-tags.js';
@@ -16,6 +17,8 @@ import { getDeviceOrigin } from '../../config/device.js';
  * @param {string} [objectData.description]
  * @param {Array<{uri: string, origin?: string, added_at?: string}>} [objectData.sources]
  * @param {string|null} [objectData.mediaTypeHint] - og:type or other hint
+ * @param {boolean} [objectData.container] - UI affordance: is this a navigable container?
+ * @param {object|null} [objectData.query] - { all, any, none } tag ID arrays for containers
  * @returns {Promise<{object: object, objectId: string}>}
  */
 export async function createObjectCore(db, objectData) {
@@ -39,11 +42,18 @@ export async function createObjectCore(db, objectData) {
     updated_at: now,
   };
 
+  // Pass through container/query fields if present
+  if (objectData.container !== undefined) objectRecord.container = objectData.container;
+  if (objectData.query !== undefined) objectRecord.query = objectData.query;
+
   const result = await db.create('objects', objectRecord);
   const newObject = Array.isArray(result) ? result[0] : result;
   const objectId = newObject.id?.toString?.() ?? newObject.id;
 
-  await assignSystemTagsFromSources(db, objectId, sources, objectData.mediaTypeHint || null);
+  // Only assign system tags for non-container objects with sources
+  if (!objectData.container && sources.length > 0) {
+    await assignSystemTagsFromSources(db, objectId, sources, objectData.mediaTypeHint || null);
+  }
   scheduleExport(db);
 
   return { object: newObject, objectId };
@@ -71,8 +81,9 @@ export async function findObjectByUri(db, uri) {
 
 /**
  * Assign system tags derived from a sources array.
- * - media_type: object-level, from first source (or mediaTypeHint if provided)
- * - file_type: per-source, unique extensions
+ * Uses RELATE edges (tagged table) instead of tag_assignments join table.
+ * - medium: object-level, from first source (or mediaTypeHint if provided)
+ * - file: per-source, unique extensions
  * - origin: per-source, unique device origins
  *
  * @param {object} db
@@ -84,28 +95,28 @@ export async function assignSystemTagsFromSources(db, objectId, sources, mediaTy
   try {
     if (!sources || sources.length === 0) return;
 
-    // 1. media_type — object-level
+    // 1. kind — semantic form (medium/signal-type detection not yet implemented)
     const mediaType = mediaTypeHint || extractMediaTypeFromSource(sources[0].uri);
-    const mediaTypeTagId = await findOrCreateSystemTag(db, 'media_type', mediaType);
+    const mediaTypeTagId = await findOrCreateSystemTag(db, 'kind', mediaType);
     if (mediaTypeTagId) {
       const existing = await db.query(
-        `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${mediaTypeTagId}'`
+        `SELECT * FROM tagged WHERE in = ${objectId} AND out = ${mediaTypeTagId}`
       );
       if (!existing[0] || existing[0].length === 0) {
-        await db.create('tag_assignments', { object_id: objectId, tag_id: mediaTypeTagId });
+        await db.query(`RELATE ${objectId}->tagged->${mediaTypeTagId}`);
       }
     }
 
-    // 2. file_type — per unique extension
+    // 2. file — per unique extension
     const uniqueFileTypes = new Set(sources.map(s => extractFileType(s.uri)).filter(Boolean));
     for (const fileType of uniqueFileTypes) {
-      const tagId = await findOrCreateSystemTag(db, 'file_type', fileType);
+      const tagId = await findOrCreateSystemTag(db, 'file', fileType);
       if (tagId) {
         const existing = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+          `SELECT * FROM tagged WHERE in = ${objectId} AND out = ${tagId}`
         );
         if (!existing[0] || existing[0].length === 0) {
-          await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
+          await db.query(`RELATE ${objectId}->tagged->${tagId}`);
         }
       }
     }
@@ -116,10 +127,10 @@ export async function assignSystemTagsFromSources(db, objectId, sources, mediaTy
       const tagId = await findOrCreateSystemTag(db, 'origin', origin);
       if (tagId) {
         const existing = await db.query(
-          `SELECT * FROM tag_assignments WHERE object_id = '${objectId}' AND tag_id = '${tagId}'`
+          `SELECT * FROM tagged WHERE in = ${objectId} AND out = ${tagId}`
         );
         if (!existing[0] || existing[0].length === 0) {
-          await db.create('tag_assignments', { object_id: objectId, tag_id: tagId });
+          await db.query(`RELATE ${objectId}->tagged->${tagId}`);
         }
       }
     }

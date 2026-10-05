@@ -13,27 +13,28 @@ function formatDate(iso) {
 }
 
 function ObjectRow({ object, isSelected, onClick, onDoubleClick }) {
+  const isContainer   = object.container === true;
   const primarySource = object.sources?.[0];
   const uri           = primarySource?.uri ?? null;
   const fileType      = primarySource?.fileType ?? null;
 
   return (
     <div
-      className={`object-row${isSelected ? ' selected' : ''}`}
+      className={`object-row${isSelected ? ' selected' : ''}${isContainer ? ' is-container' : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
-      <span className="object-row-type">{fileType ?? '—'}</span>
+      <span className="object-row-type">{isContainer ? '▸' : (fileType ?? '—')}</span>
       <div className="object-row-main">
         <span className="object-row-name">{object.name || 'Untitled'}</span>
-        {uri && <span className="object-row-uri">{uri}</span>}
+        {!isContainer && uri && <span className="object-row-uri">{uri}</span>}
       </div>
       <span className="object-row-date">{formatDate(object.created_at)}</span>
     </div>
   );
 }
 
-export default function ObjectListView({ objects = [], onObjectOpen }) {
+export default function ObjectListView({ objects = [], onEnterContainer }) {
   const deleteObject = useIndexStore(s => s.deleteObject);
 
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -82,8 +83,9 @@ export default function ObjectListView({ objects = [], onObjectOpen }) {
     e.stopPropagation();
     setSelectedIds(new Set([id]));
     setAnchorId(id);
-    onObjectOpen?.(id);
-  }, [onObjectOpen]);
+    const obj = objects.find(o => o.id === id);
+    if (obj?.container) onEnterContainer?.(id);
+  }, [objects, onEnterContainer]);
 
   const handleCanvasClick = useCallback(() => {
     setSelectedIds(new Set());

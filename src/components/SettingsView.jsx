@@ -3,21 +3,38 @@
 
 import { useEffect, useState } from 'react';
 import AppearanceSettings from './AppearanceSettings';
+import TagsView from './TagsView';
 import './SettingsView.css';
 
-const TABS = [
+export const TABS = [
   { id: 'general',    label: 'General' },
+  { id: 'tags',       label: 'Tags' },
   { id: 'window',     label: 'Window Behavior' },
   { id: 'appearance', label: 'Appearance' },
 ];
 
-export default function SettingsView() {
-  const [activeTab, setActiveTab] = useState('general');
+export default function SettingsView({ activeTab, onTabChange }) {
+  const [localTab, setLocalTab] = useState('general');
+  const currentTab  = activeTab  ?? localTab;
+  const setTab      = onTabChange ?? setLocalTab;
   const [deviceOrigin, setDeviceOrigin] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [windowProfile, setWindowProfile] = useState(null);
   const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (!e.metaKey) return;
+      const index = parseInt(e.key, 10) - 1;
+      if (index >= 0 && index < TABS.length) {
+        e.preventDefault();
+        setTab(TABS[index].id);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -39,8 +56,8 @@ export default function SettingsView() {
         {TABS.map(tab => (
           <button
             key={tab.id}
-            className={`settings-view-tab${activeTab === tab.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            className={`settings-view-tab${currentTab === tab.id ? ' active' : ''}`}
+            onClick={() => setTab(tab.id)}
           >
             {tab.label}
           </button>
@@ -48,7 +65,7 @@ export default function SettingsView() {
       </nav>
 
       <div className="settings-view-content">
-        {activeTab === 'general' && (
+        {currentTab === 'general' && (
           <>
             <section className="settings-section">
               <h3 className="settings-section-title">Device</h3>
@@ -74,7 +91,7 @@ export default function SettingsView() {
           </>
         )}
 
-        {activeTab === 'window' && (
+        {currentTab === 'window' && (
           <section className="settings-section">
             <h3 className="settings-section-title">Window Behavior</h3>
             <div className="window-profile-options">
@@ -110,7 +127,8 @@ export default function SettingsView() {
           </section>
         )}
 
-        {activeTab === 'appearance' && <AppearanceSettings />}
+        {currentTab === 'tags'       && <TagsView />}
+        {currentTab === 'appearance' && <AppearanceSettings />}
       </div>
     </div>
   );

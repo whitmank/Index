@@ -9,10 +9,14 @@
  */
 export function normalizeRecord(record) {
   if (!record) return record;
-  return {
+  const out = {
     ...record,
     id: record.id?.toString?.() ?? record.id,
   };
+  // Flatten edge fields — present on RELATE/edge records (tagged, typed, contains, etc.)
+  if (record.in  !== undefined) out.in  = record.in?.toString?.()  ?? record.in;
+  if (record.out !== undefined) out.out = record.out?.toString?.() ?? record.out;
+  return out;
 }
 
 /**
