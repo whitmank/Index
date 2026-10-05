@@ -49,6 +49,7 @@
     "files": [
       "electron/main/**/*",
       "electron/preload/**/*",
+      "electron/bin/**/*",
       "dist/**/*",
       "lib/**/*",
       "build/Release/**/*"

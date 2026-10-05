@@ -2,6 +2,7 @@ import { spawn, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { fileURLToPath } from 'url';
 import Surreal from 'surrealdb';
 import { hydrateFromIndex } from './hydration.js';
 import { repairMissingSystemTagsForAllObjects } from './repair.js';
@@ -9,6 +10,14 @@ import { repairMissingSystemTagsForAllObjects } from './repair.js';
 // Author: Claude Code
 // SurrealDB lifecycle manager - spawns binary, initializes, and manages the database instance
 // Uses ephemeral storage: temporary directory that's cleaned up on shutdown
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// The `surrealdb` npm client enforces a server version range (currently >=1.4.2 <3.0.0).
+// A globally installed `surreal` CLI can drift outside that range, so prefer the
+// project-local binary (installed via install.surrealdb.com into electron/bin) when present.
+const BUNDLED_SURREAL_PATH = path.join(__dirname, '..', '..', 'bin', 'surreal');
+const SURREAL_BIN = fs.existsSync(BUNDLED_SURREAL_PATH) ? BUNDLED_SURREAL_PATH : 'surreal';
 
 const DB_HOST = '127.0.0.1';
 const DB_PORT = 8000;
@@ -60,7 +69,7 @@ function startDatabaseProcess() {
     // Suppress verbose startup logs
     const devNull = fs.openSync('/dev/null', 'w');
 
-    dbProcess = spawn('surreal', [
+    dbProcess = spawn(SURREAL_BIN, [
       'start',
       '--bind',
       `${DB_HOST}:${DB_PORT}`,
