@@ -9,7 +9,7 @@ date: 2026-08-16
 How the module is put together, and why it is put together that way.
 `SPEC.md` in this directory says what it must do; this says what shape it
 took, and — more usefully — which shapes it took first and had to
-abandon. Companion to `~project/docs/ARCHITECTURE.md`, which places the package
+abandon. Companion to `docs/ARCHITECTURE.md`, which places the package
 among the others.
 
 ---
@@ -72,7 +72,7 @@ src/
   classifier/           staged type guess: a deterministic trad/ ladder,
                         an ai/ (LFM2) fallback when trad has no opinion —
                         a sibling entry point, not part of modelItem's own
-                        pipeline below (see ~project/docs/ARCHITECTURE.md)
+                        pipeline below (see docs/ARCHITECTURE.md)
   collector/
     evidence/            uris → bounded, normalised source evidence; the basket
     formats/             epub, pdf, filename — find, never decide
@@ -312,7 +312,7 @@ sources of values:  opf 50 · model 49 · checksum 12        ~2.2 s per book
   join (`classify.ts`, `extract.ts`, `formats/book.ts`,
   `signals/filename.ts`, `sources.ts`) is deleted, and intake and the
   `parse` verb both run through this module via `backend-gateway.ts`'s
-  `SourceGateway` (see `~project/docs/ARCHITECTURE.md`).
+  `SourceGateway` (see `docs/ARCHITECTURE.md`).
 
 ## Pinned
 

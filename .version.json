@@ -1,7 +1,7 @@
 {
   "layout": {
     "root": ".",
-    "project": "~project",
+    "docs": "docs",
     "source": "app"
   }
 }

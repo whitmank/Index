@@ -1,6 +1,6 @@
 // Authored by Karter Whitman using Claude Sonnet 5
 // The combined migration for the item data model redesign
-// (~project/docs/ITEM-DATA-MODEL-PLAN.md): app state vs. resource data. Reshapes
+// (docs/ITEM-DATA-MODEL-PLAN.md): app state vs. resource data. Reshapes
 // every item row from the flat `name`/`display_name`/`description`/
 // `date_created`/`opens`/`query`/`system`/`is_set`/`type`/`metadata`
 // shape into `layout`/`set`/`data`:
