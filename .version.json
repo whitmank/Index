@@ -1,6 +1,6 @@
 {
   "layout": {
     "root": ".",
-    "project": "~project"
+    "docs": "docs"
   }
 }
